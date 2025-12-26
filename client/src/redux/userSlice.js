@@ -1,0 +1,189 @@
+// File: client/src/redux/userSlice.js
+import { createAsyncThunk, createSlice } from '@reduxjs/toolkit'
+import { authService } from '../services/authService'
+
+const initialState = {
+  currentUser: null,
+  loading: false,
+  error: null,
+  isAuthenticated: false,
+  notifications: [],
+  unreadCount: 0,
+}
+
+// Async thunks
+export const signupUser = createAsyncThunk(
+  'user/signup',
+  async (userData, { rejectWithValue }) => {
+    try {
+      const response = await authService.signup(userData)
+      return response.data.user
+    } catch (error) {
+      return rejectWithValue(error || 'Signup failed')
+    }
+  }
+)
+
+export const loginUser = createAsyncThunk(
+  'user/login',
+  async ({ email, password }, { rejectWithValue }) => {
+    try {
+      const response = await authService.login(email, password)
+      return response.data.user
+    } catch (error) {
+      return rejectWithValue(error || 'Login failed')
+    }
+  }
+)
+
+export const updateUserProfile = createAsyncThunk(
+  'user/updateProfile',
+  async (profileData, { rejectWithValue }) => {
+    try {
+      const response = await authService.updateProfile(profileData)
+      return response.data.user
+    } catch (error) {
+      return rejectWithValue(error || 'Failed to update profile')
+    }
+  }
+)
+
+export const logoutUser = createAsyncThunk(
+  'user/logout',
+  async (_, { rejectWithValue }) => {
+    try {
+      await authService.logout()
+      return null
+    } catch (error) {
+      console.error('Logout error:', error)
+      return null
+    }
+  }
+)
+
+export const userSlice = createSlice({
+  name: 'user',
+  initialState,
+  reducers: {
+    setUser: (state, action) => {
+      state.currentUser = action.payload
+      state.isAuthenticated = true
+      state.error = null
+    },
+    clearUser: (state) => {
+      state.currentUser = null
+      state.isAuthenticated = false
+    },
+    clearError: (state) => {
+      state.error = null
+    },
+    updateProfileImage: (state, action) => {
+      if (state.currentUser) {
+        state.currentUser.profileImage = action.payload
+      }
+    },
+    setNotifications: (state, action) => {
+      state.notifications = action.payload
+      state.unreadCount = action.payload.filter((n) => !n.isRead).length
+    },
+    markNotificationRead: (state, action) => {
+      const notificationId = action.payload
+      state.notifications = state.notifications.map((n) =>
+        n._id === notificationId ? { ...n, isRead: true } : n
+      )
+      state.unreadCount = state.notifications.filter((n) => !n.isRead).length
+    },
+    clearNotifications: (state) => {
+      state.notifications = []
+      state.unreadCount = 0
+    },
+  },
+  extraReducers: (builder) => {
+    // Signup
+    builder
+      .addCase(signupUser.pending, (state) => {
+        state.loading = true
+        state.error = null
+      })
+      .addCase(signupUser.fulfilled, (state, action) => {
+        state.loading = false
+        state.currentUser = action.payload
+        state.isAuthenticated = true
+      })
+      .addCase(signupUser.rejected, (state, action) => {
+        state.loading = false
+        state.error = action.payload
+      })
+
+    // Login
+    builder
+      .addCase(loginUser.pending, (state) => {
+        state.loading = true
+        state.error = null
+      })
+      .addCase(loginUser.fulfilled, (state, action) => {
+        state.loading = false
+        state.currentUser = action.payload
+        state.isAuthenticated = true
+      })
+      .addCase(loginUser.rejected, (state, action) => {
+        state.loading = false
+        state.error = action.payload
+        state.isAuthenticated = false
+      })
+
+    // Update Profile
+    builder
+      .addCase(updateUserProfile.pending, (state) => {
+        state.loading = true
+        state.error = null
+      })
+      .addCase(updateUserProfile.fulfilled, (state, action) => {
+        state.loading = false
+        state.currentUser = action.payload
+      })
+      .addCase(updateUserProfile.rejected, (state, action) => {
+        state.loading = false
+        state.error = action.payload
+      })
+
+    // Logout
+    builder.addCase(logoutUser.fulfilled, (state) => {
+      state.currentUser = null
+      state.isAuthenticated = false
+      state.error = null
+    })
+  },
+})
+
+// Export actions
+export const {
+  setUser,
+  clearUser,
+  clearError,
+  updateProfileImage,
+  setNotifications,
+  markNotificationRead,
+  clearNotifications,
+} = userSlice.actions
+
+// Selectors
+export const selectCurrentUser = (state) => state.user.currentUser
+export const selectIsAuthenticated = (state) => state.user.isAuthenticated
+export const selectUserLoading = (state) => state.user.loading
+export const selectUserError = (state) => state.user.error
+export const selectUserRole = (state) => state.user.currentUser?.role
+export const selectUserType = (state) => state.user.currentUser?.userType
+export const selectNotifications = (state) => state.user.notifications
+export const selectUnreadCount = (state) => state.user.unreadCount
+
+// Helper selectors
+export const selectIsAdmin = (state) => state.user.currentUser?.role === 'admin'
+export const selectIsAthlete = (state) =>
+  state.user.currentUser?.userType === 'athlete'
+export const selectIsAdvisor = (state) =>
+  state.user.currentUser?.userType === 'advisor'
+export const selectIsAgent = (state) =>
+  state.user.currentUser?.userType === 'agent'
+
+export default userSlice.reducer
