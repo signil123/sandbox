@@ -2,19 +2,20 @@
 // File: server/routes/advisor.js
 import express from 'express'
 import {
-  addAdvisorInterest,
-  getAdvisorInterests,
-  getAdvisorNILPreferences,
-  getAdvisorProfile,
-  getVerificationStatus,
-  removeAdvisorInterest,
-  updateAdvisorInfo,
-  updateAdvisorNILPreferences,
-  updateAdvisorProfessional,
+    addAdvisorInterest,
+    getAdvisorInterests,
+    getAdvisorNILPreferences,
+    getAdvisorProfile,
+    getAdvisorRoster,
+    getVerificationStatus,
+    removeAdvisorInterest,
+    updateAdvisorInfo,
+    updateAdvisorNILPreferences,
+    updateAdvisorProfessional,
 } from '../controllers/advisor.js'
 import {
-  checkOwnershipOrAdmin,
-  verifyToken,
+    checkOwnershipOrAdmin,
+    verifyToken,
 } from '../middleware/authMiddleware.js'
 
 const router = express.Router()
@@ -84,5 +85,12 @@ router.put(
 
 // Get verification status
 router.get('/verification/:advisorId', getVerificationStatus)
+
+// Get advisor roster (connected athletes)
+router.get(
+  '/roster/:advisorId',
+  checkOwnershipOrAdmin('advisorId'),
+  getAdvisorRoster
+)
 
 export default router

@@ -1,6 +1,7 @@
 // File: client/src/redux/userSlice.js
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit'
 import { authService } from '../services/authService'
+import { connectionService } from '../services/connectionService'
 
 const initialState = {
   currentUser: null,
@@ -9,6 +10,12 @@ const initialState = {
   isAuthenticated: false,
   notifications: [],
   unreadCount: 0,
+  network: {
+    advisors: [],
+    roster: [],
+    loading: false,
+    error: null
+  }
 }
 
 // Async thunks
@@ -57,6 +64,24 @@ export const logoutUser = createAsyncThunk(
     } catch (error) {
       console.error('Logout error:', error)
       return null
+    }
+  }
+)
+
+export const fetchUserNetwork = createAsyncThunk(
+  'user/fetchNetwork',
+  async ({ userId, userType }, { rejectWithValue }) => {
+    try {
+      const response = userType === 'athlete' 
+        ? await connectionService.getAthletesAdvisors(userId)
+        : await connectionService.getAdvisorsRoster(userId)
+      
+      return { 
+        data: userType === 'athlete' ? response.data.data.advisors : response.data.data.roster,
+        userType
+      }
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch network')
     }
   }
 )
@@ -152,7 +177,32 @@ export const userSlice = createSlice({
       state.currentUser = null
       state.isAuthenticated = false
       state.error = null
+      state.network = {
+        advisors: [],
+        roster: [],
+        loading: false,
+        error: null
+      }
     })
+
+    // Fetch Network
+    builder
+      .addCase(fetchUserNetwork.pending, (state) => {
+        state.network.loading = true
+        state.network.error = null
+      })
+      .addCase(fetchUserNetwork.fulfilled, (state, action) => {
+        state.network.loading = false
+        if (action.payload.userType === 'athlete') {
+          state.network.advisors = action.payload.data
+        } else {
+          state.network.roster = action.payload.data
+        }
+      })
+      .addCase(fetchUserNetwork.rejected, (state, action) => {
+        state.network.loading = false
+        state.network.error = action.payload
+      })
   },
 })
 

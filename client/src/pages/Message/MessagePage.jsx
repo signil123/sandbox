@@ -7,16 +7,35 @@
 //
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  Check,
-  Menu,
-  MessageSquare,
-  Paperclip,
-  Search,
-  Send,
-  X,
+    Check,
+    Menu,
+    MessageSquare,
+    Paperclip,
+    Search,
+    Send,
+    X,
 } from 'lucide-react'
 import React, { useEffect, useRef, useState } from 'react'
+import { useDispatch, useSelector } from 'react-redux'
+import { useLocation } from 'react-router-dom'
+import { toast } from 'sonner'
+import { selectCurrentUser } from '../../redux/userSlice'
+import { connectionService } from '../../services/connectionService'
+import { messageService } from '../../services/messageService'
+import { socketService } from '../../services/socketService'
 import DashboardLayout from '../Layout/DashboardLayout'
+
+// Presence Indicator Component
+const PresenceIndicator = ({ status }) => {
+  const colors = {
+    online: 'bg-green-500',
+    away: 'bg-orange-500',
+    offline: 'bg-gray-400',
+  }
+  return (
+    <div className={`w-2.5 h-2.5 rounded-full border-2 border-white ${colors[status] || colors.offline}`} />
+  )
+}
 
 // Avatar initials helper
 const getInitials = (name) => {
@@ -37,6 +56,14 @@ const getAvatarColor = (id) => {
     'from-amber-400 to-amber-600',
   ]
   return colors[id % colors.length]
+}
+
+// Get image URL helper
+const getImageUrl = (path) => {
+  if (!path) return null
+  if (path.startsWith('http')) return path
+  const baseUrl = import.meta.env.VITE_API_URL.replace('/api', '')
+  return `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`
 }
 
 // Expanded Profile View Component - Matches ProfilePopup styling
@@ -104,13 +131,17 @@ function ExpandedProfileView({
             <div className='flex flex-col items-center -mt-14 relative z-10'>
               <motion.div
                 className={`w-28 h-28 md:w-32 md:h-32 rounded-full bg-gradient-to-br ${getAvatarColor(
-                  user?.id
-                )} flex items-center justify-center text-white font-bold text-3xl border-4 border-white shadow-lg`}
+                  user?.id || user?._id
+                )} flex items-center justify-center text-white font-bold text-3xl border-4 border-white shadow-lg overflow-hidden`}
                 initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ delay: 0.1, type: 'spring' }}
               >
-                {getInitials(user?.name)}
+                {user?.profileImage ? (
+                  <img src={getImageUrl(user.profileImage)} alt={user.name} className="w-full h-full object-cover" />
+                ) : (
+                  getInitials(user?.name || '')
+                )}
               </motion.div>
               <h2 className='mt-3 md:mt-4 text-base md:text-lg font-bold text-gray-900 text-center truncate max-w-xs'>
                 {user?.name}
@@ -297,307 +328,173 @@ function ExpandedProfileView({
   )
 }
 
-// Sample data with expanded user profiles
-const MOCK_USERS = [
-  {
-    id: 1,
-    name: 'Alex Rivera',
-    online: true,
-    lastSeen: null,
-    title: 'Brand Manager & NIL Strategist',
-    bio: 'Helping athletes navigate the NIL ecosystem and build meaningful brand partnerships.',
-    about:
-      'Experienced brand manager with 7+ years of expertise in NIL deals and athlete partnerships. Specializing in connecting athletes with brands that align with their values and maximizing their earning potential.',
-    email: 'alex.rivera@example.com',
-    location: 'Los Angeles, CA',
-    followers: 2543,
-    banner: '#E3F2FD',
-    certifications: ['NIL Certification', 'Brand Strategy Expert'],
-    expertise: [
-      'NIL Deals',
-      'Brand Partnerships',
-      'Contract Negotiation',
-      'Marketing Strategy',
-    ],
-    rating: 4.9,
-    reviewCount: 32,
-    specialty: 'Branding',
-    experience: 7,
-    connections: 245,
-    verified: true,
-  },
-  {
-    id: 2,
-    name: 'Jordan Smith',
-    online: false,
-    lastSeen: '2 hours ago',
-    title: 'Sports Marketing Executive',
-    bio: 'Passionate about connecting athletes with brands that align with their values.',
-    about:
-      'Sports marketing professional with 6+ years of experience in athlete endorsements and brand collaborations. Expert in identifying and nurturing long-term partnerships.',
-    email: 'jordan.smith@example.com',
-    location: 'New York, NY',
-    followers: 1842,
-    banner: '#F3E5F5',
-    certifications: [
-      'Sports Marketing Certificate',
-      'Athlete Representation License',
-    ],
-    expertise: [
-      'Endorsements',
-      'Brand Positioning',
-      'Event Marketing',
-      'Social Media Strategy',
-    ],
-    rating: 4.7,
-    reviewCount: 28,
-    specialty: 'Marketing',
-    experience: 6,
-    connections: 189,
-    verified: true,
-  },
-  {
-    id: 3,
-    name: 'Casey Johnson',
-    online: true,
-    lastSeen: null,
-    title: 'NIL Deal Facilitator',
-    bio: 'Expert in matching athletes with sponsorship opportunities.',
-    about:
-      'Specialized facilitator with 9+ years in NIL negotiations and deal structures. Known for securing premium deals and building lasting athlete-brand relationships.',
-    email: 'casey.johnson@example.com',
-    location: 'Chicago, IL',
-    followers: 3120,
-    banner: '#FCE4EC',
-    certifications: ['NIL Deal Specialist', 'Contract Negotiation Expert'],
-    expertise: [
-      'Deal Structuring',
-      'Negotiations',
-      'NIL Strategy',
-      'Legal Review',
-    ],
-    rating: 4.8,
-    reviewCount: 41,
-    specialty: 'Deals',
-    experience: 9,
-    connections: 312,
-    verified: true,
-  },
-  {
-    id: 4,
-    name: 'Morgan Davis',
-    online: true,
-    lastSeen: null,
-    title: 'Sports PR Specialist',
-    bio: 'Specializing in athlete brand positioning and media relations.',
-    about:
-      'Public relations expert with 8+ years in athlete representation and media management. Focused on building authentic brand narratives and managing athlete visibility.',
-    email: 'morgan.davis@example.com',
-    location: 'Miami, FL',
-    followers: 1956,
-    banner: '#E8F5E9',
-    certifications: [
-      'PR Certification',
-      'Media Relations Expert',
-      'Crisis Management',
-    ],
-    expertise: [
-      'Media Relations',
-      'Brand Positioning',
-      'Crisis Management',
-      'Content Strategy',
-    ],
-    rating: 4.8,
-    reviewCount: 24,
-    specialty: 'Relations',
-    experience: 8,
-    connections: 156,
-    verified: true,
-  },
-  {
-    id: 5,
-    name: 'Taylor White',
-    online: false,
-    lastSeen: '1 hour ago',
-    title: 'Content Creator & Brand Consultant',
-    bio: 'Creating authentic connections between athletes and sponsors.',
-    about:
-      'Creative strategist with 5+ years in content creation and brand consulting. Specializing in authentic storytelling and building engaged audiences.',
-    email: 'taylor.white@example.com',
-    location: 'Austin, TX',
-    followers: 2784,
-    banner: '#FFF3E0',
-    certifications: [
-      'Content Strategy Certification',
-      'Digital Marketing Expert',
-    ],
-    expertise: [
-      'Content Creation',
-      'Social Media',
-      'Brand Strategy',
-      'Audience Engagement',
-    ],
-    rating: 4.6,
-    reviewCount: 19,
-    specialty: 'Content',
-    experience: 5,
-    connections: 198,
-    verified: false,
-  },
-]
-
-const MOCK_CONVERSATIONS = [
-  {
-    id: 1,
-    userId: 1,
-    messages: [
-      {
-        id: 1,
-        sender: 'other',
-        text: 'Hey, interested in discussing that NIL deal',
-        timestamp: '10:30 AM',
-      },
-      {
-        id: 2,
-        sender: 'self',
-        text: 'Absolutely! When can we chat?',
-        timestamp: '10:32 AM',
-      },
-      {
-        id: 3,
-        sender: 'other',
-        text: 'How about tomorrow at 2 PM?',
-        timestamp: '10:35 AM',
-      },
-      {
-        id: 4,
-        sender: 'self',
-        text: 'Perfect, see you then!',
-        timestamp: '10:36 AM',
-      },
-    ],
-    unread: 0,
-  },
-  {
-    id: 2,
-    userId: 2,
-    messages: [
-      {
-        id: 1,
-        sender: 'other',
-        text: 'Check out this opportunity',
-        timestamp: '9:15 AM',
-      },
-    ],
-    unread: 1,
-  },
-  {
-    id: 3,
-    userId: 3,
-    messages: [
-      {
-        id: 1,
-        sender: 'self',
-        text: 'Thanks for the intro!',
-        timestamp: '8:00 AM',
-      },
-      { id: 2, sender: 'other', text: "You're welcome!", timestamp: '8:05 AM' },
-    ],
-    unread: 0,
-  },
-]
-
-const MOCK_REQUESTS = [
-  {
-    id: 1,
-    userId: 4,
-    name: 'Morgan Davis',
-    title: 'Sports PR Specialist',
-    bio: 'Specializing in athlete brand positioning and media relations.',
-    about:
-      'Public relations expert with 8+ years in athlete representation and media management. Focused on building authentic brand narratives and managing athlete visibility.',
-    email: 'morgan.davis@example.com',
-    location: 'Miami, FL',
-    followers: 1956,
-    banner: '#E8F5E9',
-    certifications: [
-      'PR Certification',
-      'Media Relations Expert',
-      'Crisis Management',
-    ],
-    expertise: [
-      'Media Relations',
-      'Brand Positioning',
-      'Crisis Management',
-      'Content Strategy',
-    ],
-    rating: 4.8,
-    reviewCount: 24,
-    specialty: 'Relations',
-    experience: 8,
-    connections: 156,
-    verified: true,
-    online: true,
-    lastSeen: null,
-    message: "Hey! I'd love to discuss brand partnerships with you.",
-    timestamp: '30 min ago',
-  },
-  {
-    id: 2,
-    userId: 5,
-    name: 'Taylor White',
-    title: 'Content Creator & Brand Consultant',
-    bio: 'Creating authentic connections between athletes and sponsors.',
-    about:
-      'Creative strategist with 5+ years in content creation and brand consulting. Specializing in authentic storytelling and building engaged audiences.',
-    email: 'taylor.white@example.com',
-    location: 'Austin, TX',
-    followers: 2784,
-    banner: '#FFF3E0',
-    certifications: [
-      'Content Strategy Certification',
-      'Digital Marketing Expert',
-    ],
-    expertise: [
-      'Content Creation',
-      'Social Media',
-      'Brand Strategy',
-      'Audience Engagement',
-    ],
-    rating: 4.6,
-    reviewCount: 19,
-    specialty: 'Content',
-    experience: 5,
-    connections: 198,
-    verified: false,
-    online: false,
-    lastSeen: '1 hour ago',
-    message: 'Interested in collaborating',
-    timestamp: '2 hours ago',
-  },
-]
-
-// Expanded Profile View Component
+// Main Component
 
 function MessagePage() {
-  const [activeTab, setActiveTab] = useState('network')
-  const [selectedConversationId, setSelectedConversationId] = useState(1)
+  const location = useLocation()
+  const currentLoggedInUser = useSelector(selectCurrentUser)
+  const [activeTab, setActiveTab] = useState(location.state?.tab || 'network')
+  const [selectedConversationId, setSelectedConversationId] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [expandedProfile, setExpandedProfile] = useState(null)
   const [expandedProfileType, setExpandedProfileType] = useState(null) // 'user' or 'request'
   const [newMessage, setNewMessage] = useState('')
-  const [conversations, setConversations] = useState(MOCK_CONVERSATIONS)
-  const [requests, setRequests] = useState(MOCK_REQUESTS)
+  const [conversations, setConversations] = useState([])
+  const [messages, setMessages] = useState([])
+  const [requests, setRequests] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSending, setIsSending] = useState(false)
   const [isMobileOpen, setIsMobileOpen] = useState(false)
   const messageEndRef = useRef(null)
   const [dragStart, setDragStart] = useState(0)
 
+  // Current conversation details
   const currentConversation = conversations.find(
-    (c) => c.id === selectedConversationId
+    (c) => c._id === selectedConversationId
   )
-  const currentUser = currentConversation
-    ? MOCK_USERS.find((u) => u.id === currentConversation.userId)
-    : null
+  const selectedUser = currentConversation?.otherUser
+  // Socket connection and events
+  useEffect(() => {
+    if (currentLoggedInUser) {
+      const socket = socketService.connect(localStorage.getItem('token'))
+
+      socket.on('new_message', ({ message, conversationId }) => {
+        if (selectedConversationId === conversationId) {
+          setMessages((prev) => [...prev, message])
+        }
+        
+        // Update conversation list
+        setConversations((prev) =>
+          prev.map((c) =>
+            c._id === conversationId ? { ...c, lastMessage: message, unreadCount: selectedConversationId === conversationId ? c.unreadCount : (c.unreadCount + 1), showUnreadDot: selectedConversationId !== conversationId } : c
+          ).sort((a, b) => new Date(b.lastMessageAt || b.updatedAt) - new Date(a.lastMessageAt || a.updatedAt))
+        )
+      })
+
+      socket.on('presence_update', ({ userId, status, lastSeen }) => {
+        setConversations((prev) =>
+          prev.map((c) => {
+            if (c.otherUser._id === userId) {
+              return {
+                ...c,
+                otherUser: { ...c.otherUser, status, lastSeen },
+              }
+            }
+            return c
+          })
+        )
+      })
+
+      return () => {
+        socketService.disconnect()
+      }
+    }
+  }, [currentLoggedInUser, selectedConversationId])
+
+  // Join conversation room
+  useEffect(() => {
+    if (selectedConversationId) {
+      socketService.joinConversation(selectedConversationId)
+      return () => socketService.leaveConversation(selectedConversationId)
+    }
+  }, [selectedConversationId])
+
+  // Fetch conversations on mount
+  useEffect(() => {
+    const loadConversations = async () => {
+      try {
+        setIsLoading(true)
+        const response = await messageService.getConversations()
+        if (response.data.status === 'success') {
+          const convs = response.data.data.conversations
+          setConversations(convs)
+          
+          // Handle navigation from profile "Message" button
+          if (location.state?.recipientId) {
+            const existing = convs.find(
+              c => c.otherUser._id === location.state.recipientId
+            )
+            if (existing) {
+              setSelectedConversationId(existing._id)
+            } else {
+              // Start new conversation if they are connected
+              try {
+                const startRes = await messageService.startConversation(location.state.recipientId)
+                if (startRes.data.status === 'success') {
+                  const newConv = startRes.data.data.conversation
+                  // Refresh conversations to get enriched data
+                  const refreshed = await messageService.getConversations()
+                  setConversations(refreshed.data.data.conversations)
+                  setSelectedConversationId(newConv._id)
+                }
+              } catch (err) {
+                toast.error(err.response?.data?.message || 'Could not start conversation')
+              }
+            }
+          } else if (convs.length > 0 && !selectedConversationId) {
+            setSelectedConversationId(convs[0]._id)
+          } else if (convs.length === 0) {
+            setActiveTab('requests')
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load conversations:', error)
+        toast.error('Failed to load conversations')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    if (currentLoggedInUser) {
+      loadConversations()
+    }
+  }, [currentLoggedInUser, location.state])
+
+  // Fetch messages when selectedConversationId changes
+  useEffect(() => {
+    const loadMessages = async () => {
+      if (!selectedConversationId) return
+      try {
+        const response = await messageService.getMessages(selectedConversationId)
+        if (response.data.status === 'success') {
+          setMessages(response.data.data.messages)
+        }
+      } catch (error) {
+        console.error('Failed to load messages:', error)
+      }
+    }
+    loadMessages()
+  }, [selectedConversationId])
+
+  // Fetch requests when tab changes to 'requests'
+  useEffect(() => {
+    const loadRequests = async () => {
+      if (activeTab !== 'requests' || !currentLoggedInUser) return
+      try {
+        const response = await connectionService.getPendingRequests(currentLoggedInUser._id)
+        if (response.data.status === 'success') {
+          // Format requests to match expected UI
+          const formatted = response.data.data.requests.map(req => ({
+            id: req._id,
+            userId: req.from._id,
+            name: req.from.name,
+            message: req.message,
+            timestamp: new Date(req.createdAt).toLocaleDateString(),
+            from: req.from
+          }))
+          setRequests(formatted)
+        }
+      } catch (error) {
+        console.error('Failed to load requests:', error)
+      }
+    }
+    loadRequests()
+  }, [activeTab, currentLoggedInUser])
+
+  // Auto scroll to bottom
+  useEffect(() => {
+    messageEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
 
   // Handle swipe gestures for mobile
   const handleDragStart = (e) => {
@@ -619,77 +516,86 @@ function MessagePage() {
     }
   }
 
-  const handleSendMessage = () => {
-    if (!newMessage.trim() || !currentConversation) return
-    setConversations((prev) =>
-      prev.map((conv) =>
-        conv.id === selectedConversationId
-          ? {
-              ...conv,
-              messages: [
-                ...conv.messages,
-                {
-                  id: conv.messages.length + 1,
-                  sender: 'self',
-                  text: newMessage,
-                  timestamp: new Date().toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  }),
-                },
-              ],
-            }
-          : conv
-      )
-    )
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !selectedConversationId || isSending) return
+    
+    const messageContent = newMessage.trim()
     setNewMessage('')
-  }
-
-  const handleAcceptRequest = (requestId) => {
-    const request = requests.find((r) => r.id === requestId)
-    if (request) {
-      const newConversation = {
-        id: Math.max(...conversations.map((c) => c.id)) + 1,
-        userId: request.userId,
-        messages: [
-          {
-            id: 1,
-            sender: 'other',
-            text: request.message,
-            timestamp: request.timestamp,
-          },
-        ],
-        unread: 1,
+    setIsSending(true)
+    
+    try {
+      const response = await messageService.sendMessage(selectedConversationId, messageContent)
+      if (response.data.status === 'success') {
+        const sentMsg = response.data.data.message
+        setMessages(prev => [...prev, sentMsg])
+        
+        // Update last message in conversations list
+        setConversations(prev => prev.map(c => 
+          c._id === selectedConversationId ? { ...c, lastMessage: sentMsg } : c
+        ))
       }
-      setConversations([newConversation, ...conversations])
-      setRequests((prev) => prev.filter((r) => r.id !== requestId))
-      setSelectedConversationId(newConversation.id)
-      setActiveTab('network')
-      setExpandedProfile(null)
+    } catch (error) {
+      console.error('Failed to send message:', error)
+      toast.error(error.response?.data?.message || 'Failed to send message')
+      // If it failed, we could put the message back, but clearing is often preferred 
+      // to avoid double-sends. Let's at least not overwrite if they started typing again.
+    } finally {
+      setIsSending(false)
     }
   }
 
-  const handleDeclineRequest = (requestId) => {
-    setRequests((prev) => prev.filter((r) => r.id !== requestId))
-    setExpandedProfile(null)
+  const handleAcceptRequest = async (requestId) => {
+    try {
+      const response = await connectionService.acceptRequest(currentLoggedInUser._id, requestId)
+      if (response.data.status === 'success') {
+        toast.success('Connection request accepted!')
+        setRequests(prev => prev.filter(r => r.id !== requestId))
+        setExpandedProfile(null)
+        
+        // Refresh conversations to show the new connection
+        const convs = await messageService.getConversations()
+        setConversations(convs.data.data.conversations)
+        
+        // Find the new conversation and select it
+        const newConv = convs.data.data.conversations.find(c => 
+          c.participant1._id === requestId || c.participant2._id === requestId
+        )
+        if (newConv) setSelectedConversationId(newConv._id)
+        
+        setActiveTab('network')
+      }
+    } catch (error) {
+      console.error('Failed to accept request:', error)
+      toast.error('Failed to accept request')
+    }
+  }
+
+  const handleDeclineRequest = async (requestId) => {
+    try {
+      await connectionService.declineRequest(currentLoggedInUser._id, requestId)
+      setRequests(prev => prev.filter(r => r.id !== requestId))
+      setExpandedProfile(null)
+      toast.success('Connection request declined')
+    } catch (error) {
+      console.error('Failed to decline request:', error)
+      toast.error('Failed to decline request')
+    }
   }
 
   const filteredItems =
     activeTab === 'network'
       ? conversations.filter((conv) => {
-          const user = MOCK_USERS.find((u) => u.id === conv.userId)
+          const user = conv.otherUser
           const searchLower = searchQuery.toLowerCase()
           return (
             user?.name.toLowerCase().includes(searchLower) ||
-            conv.messages.some((m) =>
-              m.text.toLowerCase().includes(searchLower)
-            )
+            conv.lastMessage?.content.toLowerCase().includes(searchLower)
           )
         })
       : requests.filter(
           (req) =>
             req.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            req.message.toLowerCase().includes(searchQuery.toLowerCase())
+            req.message?.toLowerCase().includes(searchQuery.toLowerCase())
         )
 
   return (
@@ -816,17 +722,17 @@ function MessagePage() {
               ) : activeTab === 'network' ? (
                 <div>
                   {filteredItems.map((conv) => {
-                    const user = MOCK_USERS.find((u) => u.id === conv.userId)
-                    const lastMsg = conv.messages[conv.messages.length - 1]
+                    const user = conv.otherUser
+                    const lastMsg = conv.lastMessage
                     return (
                       <div
-                        key={conv.id}
+                        key={conv._id}
                         onClick={() => {
-                          setSelectedConversationId(conv.id)
+                          setSelectedConversationId(conv._id)
                           setIsMobileOpen(false)
                         }}
                         className={`w-full p-3 border-b border-gray-100 text-left transition-all hover:bg-gray-50 ${
-                          selectedConversationId === conv.id
+                          selectedConversationId === conv._id
                             ? 'bg-[#163146]/5'
                             : ''
                         }`}
@@ -842,12 +748,16 @@ function MessagePage() {
                           >
                             <div
                               className={`w-8 h-8 rounded-full bg-gradient-to-br ${getAvatarColor(
-                                user?.id
+                                user?._id
                               )} flex items-center justify-center text-white font-semibold text-xs`}
                             >
-                              {getInitials(user?.name)}
+                              {user?.profileImage ? (
+                                <img src={getImageUrl(user.profileImage)} alt="" className="w-full h-full rounded-full object-cover" />
+                              ) : (
+                                getInitials(user?.name || '')
+                              )}
                             </div>
-                            {user?.online && (
+                            {user?.status === 'online' && (
                               <div className='absolute bottom-0 right-0 w-2 h-2 bg-green-500 rounded-full border border-white' />
                             )}
                           </button>
@@ -857,11 +767,11 @@ function MessagePage() {
                                 {user?.name}
                               </h3>
                               <span className='text-xs text-gray-500 flex-shrink-0'>
-                                {lastMsg?.timestamp}
+                                 {conv.lastMessageAt ? new Date(conv.lastMessageAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                               </span>
                             </div>
                             <p className='text-xs text-gray-500 truncate'>
-                              {lastMsg?.text}
+                               {conv.lastMessageSnippet || 'No messages yet'}
                             </p>
                           </div>
                         </div>
@@ -929,14 +839,15 @@ function MessagePage() {
         </motion.div>
 
         {/* Left Panel - Desktop */}
-        <div className='hidden lg:flex flex-col w-64 rounded-xl overflow-hidden bg-white border border-gray-200 h-full'>
-          {/* Search */}
-          <div className='p-3 border-b border-gray-100'>
-            <div className='flex items-center gap-2 bg-gray-50 rounded-lg px-2 py-1.5'>
-              <Search size={16} className='text-gray-400 flex-shrink-0' />
+        <div className='hidden lg:flex flex-col w-80 rounded-2xl overflow-hidden bg-white border border-gray-200 h-full shadow-lg shadow-gray-200/50 transition-all hover:shadow-xl'>
+          <div className='p-4 border-b border-gray-100 bg-gray-50/50'>
+            <h2 className='text-lg font-bold text-[#163146] mb-3'>Messaging</h2>
+            {/* Search */}
+            <div className='flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2 focus-within:ring-2 focus-within:ring-amber-500/20 focus-within:border-amber-500 transition-all'>
+              <Search size={18} className='text-gray-400 flex-shrink-0' />
               <input
                 type='text'
-                placeholder='Search...'
+                placeholder='Search messages...'
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className='flex-1 bg-transparent text-sm focus:outline-none'
@@ -945,18 +856,18 @@ function MessagePage() {
           </div>
 
           {/* Tabs */}
-          <div className='flex gap-2 p-3 border-b border-gray-100'>
+          <div className='flex gap-1 p-2 bg-gray-50/80 m-2 rounded-xl'>
             {['network', 'requests'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`flex-1 py-2 px-3 rounded-lg text-xs font-medium transition-all ${
+                className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
                   activeTab === tab
-                    ? 'text-white bg-[#163146]'
-                    : 'text-gray-600 hover:bg-gray-100'
+                    ? 'text-white bg-[#163146] shadow-md'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
                 }`}
               >
-                {tab === 'network' ? 'Network' : 'Requests'}
+                {tab === 'network' ? 'Network' : `Requests ${requests.length > 0 ? `(${requests.length})` : ''}`}
               </button>
             ))}
           </div>
@@ -969,56 +880,68 @@ function MessagePage() {
               </div>
             ) : activeTab === 'network' ? (
               <div>
-                {filteredItems.map((conv) => {
-                  const user = MOCK_USERS.find((u) => u.id === conv.userId)
-                  const lastMsg = conv.messages[conv.messages.length - 1]
-                  return (
-                    <div
-                      key={conv.id}
-                      onClick={() => setSelectedConversationId(conv.id)}
-                      className={`w-full p-3 border-b border-gray-100 text-left transition-all hover:bg-gray-50 ${
-                        selectedConversationId === conv.id
-                          ? 'bg-[#163146]/5'
-                          : ''
-                      }`}
-                    >
-                      <div className='flex items-start gap-3'>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setExpandedProfile(user)
-                            setExpandedProfileType('user')
-                          }}
-                          className='relative flex-shrink-0 hover:opacity-75 transition-opacity'
-                        >
-                          <div
-                            className={`w-10 h-10 rounded-full bg-gradient-to-br ${getAvatarColor(
-                              user?.id
-                            )} flex items-center justify-center text-white font-semibold text-sm`}
+                  {filteredItems.map((conv) => {
+                    const user = conv.otherUser
+                    const lastMsg = conv.lastMessage
+                    return (
+                      <div
+                        key={conv._id}
+                        onClick={() => setSelectedConversationId(conv._id)}
+                        className={`w-full p-3 border-b border-gray-100 text-left transition-all hover:bg-gray-50 cursor-pointer relative ${
+                          selectedConversationId === conv._id
+                            ? 'bg-amber-50/50'
+                            : ''
+                        }`}
+                      >
+                        {conv.showUnreadDot && (
+                          <div className='absolute right-3 top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-amber-500 rounded-full shadow-sm' />
+                        )}
+                        <div className='flex items-start gap-3'>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setExpandedProfile(user)
+                              setExpandedProfileType('user')
+                            }}
+                            className='relative flex-shrink-0 hover:opacity-75 transition-opacity'
                           >
-                            {getInitials(user?.name)}
+                            <div
+                              className={`w-12 h-12 rounded-full bg-gradient-to-br ${getAvatarColor(
+                                user?._id
+                              )} flex items-center justify-center text-white font-semibold text-base shadow-sm`}
+                            >
+                              {user?.profileImage ? (
+                                <img src={getImageUrl(user.profileImage)} alt="" className="w-full h-full rounded-full object-cover" />
+                              ) : (
+                                  getInitials(user?.name || '')
+                              )}
+                            </div>
+                            <div className='absolute bottom-0 right-0'>
+                              <PresenceIndicator status={user?.status} />
+                            </div>
+                          </button>
+                          <div className='flex-1 min-w-0'>
+                            <div className='flex justify-between items-start gap-2'>
+                              <h3 className={`font-semibold text-gray-900 text-sm truncate ${conv.showUnreadDot ? 'font-bold' : ''}`}>
+                                {user?.name}
+                              </h3>
+                              <div className='flex items-center gap-1.5 flex-shrink-0'>
+                                <span className='text-[10px] text-gray-500'>
+                                  {conv.lastMessageAt ? new Date(conv.lastMessageAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                                </span>
+                                {conv.showUnreadDot && (
+                                  <div className='w-2.5 h-2.5 bg-amber-500 rounded-full shadow-sm' />
+                                )}
+                              </div>
+                            </div>
+                            <p className={`text-xs text-gray-500 truncate mt-0.5 ${conv.showUnreadDot ? 'font-semibold text-gray-700' : ''}`}>
+                              {conv.lastMessageSnippet || 'No messages yet'}
+                            </p>
                           </div>
-                          {user?.online && (
-                            <div className='absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white' />
-                          )}
-                        </button>
-                        <div className='flex-1 min-w-0'>
-                          <div className='flex justify-between items-start gap-2'>
-                            <h3 className='font-semibold text-gray-900 text-sm'>
-                              {user?.name}
-                            </h3>
-                            <span className='text-xs text-gray-500 flex-shrink-0'>
-                              {lastMsg?.timestamp}
-                            </span>
-                          </div>
-                          <p className='text-xs text-gray-500 truncate'>
-                            {lastMsg?.text}
-                          </p>
                         </div>
                       </div>
-                    </div>
-                  )
-                })}
+                    )
+                  })}
               </div>
             ) : (
               <div>
@@ -1076,48 +999,52 @@ function MessagePage() {
         </div>
 
         {/* Right Panel - Chat */}
-        {currentConversation && currentUser && (
+        {currentConversation && selectedUser ? (
           <div className='flex-1 flex flex-col min-w-0 rounded-xl overflow-hidden bg-white border border-gray-200 h-full chat-panel'>
-            {/* Chat Header - Optimized for mobile */}
-            <div className='px-2 sm:px-3 py-2 border-b border-gray-100 flex items-center justify-between flex-shrink-0'>
-              <div className='flex items-center gap-2 flex-1 min-w-0'>
+            {/* Chat Header */}
+            <div className='px-4 py-3 border-b border-gray-100 flex items-center justify-between flex-shrink-0 bg-white shadow-sm z-10'>
+              <div className='flex items-center gap-3 flex-1 min-w-0'>
                 <button
                   onClick={() => setIsMobileOpen(true)}
-                  className='lg:hidden p-1 hover:bg-gray-100 rounded transition-colors'
-                  title='Swipe right to open menu'
+                  className='lg:hidden p-1.5 hover:bg-gray-100 rounded-lg transition-colors'
                 >
-                  <Menu size={18} className='text-gray-600' />
+                  <Menu size={20} className='text-gray-600' />
                 </button>
                 <div
-                  className='flex items-center gap-2 flex-1 min-w-0 cursor-pointer'
+                  className='flex items-center gap-3 flex-1 min-w-0 cursor-pointer group'
                   onClick={() => {
-                    setExpandedProfile(currentUser)
+                    setExpandedProfile(selectedUser)
                     setExpandedProfileType('user')
                   }}
                 >
                   <div className='relative flex-shrink-0'>
                     <div
-                      className={`w-7 sm:w-8 h-7 sm:h-8 rounded-full bg-gradient-to-br ${getAvatarColor(
-                        currentUser?.id
-                      )} flex items-center justify-center text-white font-semibold text-xs`}
+                      className={`w-10 h-10 rounded-full bg-gradient-to-br ${getAvatarColor(
+                        selectedUser?._id
+                      )} flex items-center justify-center text-white font-semibold text-sm shadow-sm group-hover:ring-2 group-hover:ring-amber-500 transition-all`}
                     >
-                      {getInitials(currentUser.name)}
+                      {selectedUser?.profileImage ? (
+                        <img src={getImageUrl(selectedUser.profileImage)} alt="" className="w-full h-full rounded-full object-cover" />
+                      ) : (
+                        getInitials(selectedUser?.name || '')
+                      )}
                     </div>
-                    {currentUser.online && (
-                      <div className='absolute bottom-0 right-0 w-2 h-2 bg-green-500 rounded-full border border-white' />
-                    )}
-                    {!currentUser.online && (
-                      <div className='absolute bottom-0 right-0 w-2 h-2 bg-orange-400 rounded-full border border-white' />
-                    )}
+                    <div className='absolute bottom-0 right-0 border-2 border-white rounded-full'>
+                      <PresenceIndicator status={selectedUser?.status} />
+                    </div>
                   </div>
                   <div className='min-w-0'>
-                    <h2 className='font-bold text-gray-900 text-xs sm:text-sm truncate'>
-                      {currentUser.name}
+                    <h2 className='font-bold text-gray-900 text-sm sm:text-base truncate group-hover:text-amber-600 transition-colors'>
+                      {selectedUser.name}
                     </h2>
-                    <p className='text-xs text-gray-500'>
-                      {currentUser.online
-                        ? 'Online'
-                        : `Away - ${currentUser.lastSeen}`}
+                    <p className='text-[10px] sm:text-xs text-gray-500 flex items-center gap-1'>
+                      {selectedUser?.status === 'online' ? (
+                        <span className='text-green-600 font-medium'>Online</span>
+                      ) : (
+                        <span>
+                          Last seen {selectedUser?.lastSeen ? new Date(selectedUser.lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'recently'}
+                        </span>
+                      )}
                     </p>
                   </div>
                 </div>
@@ -1126,29 +1053,29 @@ function MessagePage() {
 
             {/* Messages - Scrollable container */}
             <div className='flex-1 overflow-y-auto p-2 space-y-2 min-h-0 chat-messages-area'>
-              {currentConversation.messages.map((msg, idx) => (
+              {messages.map((msg) => (
                 <div
-                  key={msg.id}
+                  key={msg._id}
                   className={`flex ${
-                    msg.sender === 'self' ? 'justify-end' : 'justify-start'
+                    msg.sender === currentLoggedInUser._id ? 'justify-end' : 'justify-start'
                   }`}
                 >
                   <div
                     className={`max-w-xs px-3 py-2 rounded-2xl text-xs ${
-                      msg.sender === 'self'
+                      msg.sender === currentLoggedInUser._id
                         ? 'text-white bg-[#163146]'
                         : 'bg-gray-100 text-gray-900'
                     }`}
                   >
-                    <p className='break-words'>{msg.text}</p>
+                    <p className='break-words'>{msg.content}</p>
                     <p
-                      className={`text-xs mt-0.5 ${
-                        msg.sender === 'self'
+                      className={`text-[10px] mt-0.5 ${
+                        msg.sender === currentLoggedInUser._id
                           ? 'text-amber-100'
                           : 'text-gray-500'
                       }`}
                     >
-                      {msg.timestamp}
+                      {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </p>
                   </div>
                 </div>
@@ -1157,30 +1084,61 @@ function MessagePage() {
             </div>
 
             {/* Message Input */}
-            <div className='px-2 py-2 border-t border-gray-100 flex-shrink-0 bg-white chat-input-area'>
-              <div className='lg:hidden text-xs text-gray-400 text-center mb-1.5'>
-                Swipe right to open menu
-              </div>
-              <div className='flex gap-1 items-end'>
-                <button className='p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-600 flex-shrink-0'>
-                  <Paperclip size={16} />
-                </button>
-                <input
-                  type='text'
-                  placeholder='Message...'
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                  className='flex-1 px-2.5 py-1.5 bg-gray-50 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#163146] transition-all min-w-0'
-                />
+            <div className='px-4 py-4 border-t border-gray-100 flex-shrink-0 bg-white chat-input-area'>
+              <div className='flex gap-2 items-end max-w-4xl mx-auto'>
+                <div className='flex gap-1 pb-1'>
+                  <button 
+                    className='p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-500'
+                    title="Attach file"
+                  >
+                    <Paperclip size={20} />
+                  </button>
+                  <button 
+                    className='p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-500'
+                    title="Schedule event"
+                  >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </button>
+                </div>
+                <div className='flex-1 relative'>
+                  <textarea
+                    rows={1}
+                    placeholder='Write a message...'
+                    value={newMessage}
+                    onChange={(e) => {
+                      setNewMessage(e.target.value)
+                      socketService.sendTyping(selectedConversationId, e.target.value.length > 0)
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault()
+                        handleSendMessage()
+                      }
+                    }}
+                    className='w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all resize-none max-h-32'
+                    style={{ height: 'auto' }}
+                  />
+                </div>
                 <button
                   onClick={handleSendMessage}
-                  className='p-1.5 rounded-lg text-white transition-all flex-shrink-0 flex items-center justify-center bg-[#163146]'
+                  disabled={!newMessage.trim() || isSending}
+                  className={`p-3 rounded-full transition-all flex-shrink-0 flex items-center justify-center shadow-lg ${
+                    newMessage.trim() && !isSending 
+                      ? 'bg-[#163146] text-white hover:bg-opacity-90 hover:-translate-y-0.5' 
+                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  }`}
                 >
-                  <Send size={16} />
+                  <Send size={20} className={isSending ? 'animate-pulse' : ''} />
                 </button>
               </div>
             </div>
+          </div>
+        ) : (
+          <div className='flex-1 flex flex-col items-center justify-center bg-gray-50 rounded-xl border border-gray-200'>
+            <MessageSquare size={48} className='text-gray-300 mb-4' />
+            <p className='text-gray-500 font-medium'>Select a conversation to start messaging</p>
           </div>
         )}
       </div>

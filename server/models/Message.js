@@ -19,13 +19,27 @@ const MessageSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    type: {
+      type: String,
+      enum: ['text', 'image', 'document', 'event', 'link'],
+      default: 'text',
+    },
     attachments: [
       {
-        type: String, // URL or file path
+        url: String,
         name: String,
         mimeType: String,
+        size: Number,
       },
     ],
+    eventInfo: {
+      eventId: { type: mongoose.Schema.Types.ObjectId, ref: 'Event' },
+      title: String,
+      startTime: Date,
+      endTime: Date,
+      location: String,
+      link: String,
+    },
     isRead: {
       type: Boolean,
       default: false,

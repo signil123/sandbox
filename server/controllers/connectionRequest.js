@@ -60,9 +60,9 @@ export const sendConnectionRequest = async (req, res, next) => {
 
     // Check if request already sent
     const existingRequest = await ConnectionRequest.findOne({
-      sender: userId,
-      recipient: targetUserId,
-      status: 'sent',
+      from: userId,
+      to: targetUserId,
+      status: 'pending',
     })
 
     if (existingRequest) {
@@ -82,16 +82,15 @@ export const sendConnectionRequest = async (req, res, next) => {
     })
 
     // Create notification for recipient
+    // Create notification for recipient
     await Notification.create({
-      user: targetUserId,
-      type: 'connection_request',
-      priority: 'normal',
       recipient: targetUserId,
-      relatedUser: userId,
+      sender: userId,
+      type: 'connection_request',
+      priority: 'medium',
       title: `${sender.name} sent you a connection request`,
-      message: message ? `"${message}"` : `${sender.name} wants to connect`,
-      actionUrl: `/messages/requests/${request._id}`,
-      isRead: false,
+      description: message ? `"${message}"` : `${sender.name} wants to connect`,
+      actionUrl: `/profile/public/${userId}`,
     })
 
     res.status(201).json({
@@ -258,15 +257,13 @@ export const acceptConnectionRequest = async (req, res, next) => {
     ])
 
     await Notification.create({
-      user: request.from,
-      type: 'connection_accepted',
-      priority: 'normal',
       recipient: request.from,
-      relatedUser: request.to,
+      sender: request.to,
+      type: 'connection_accepted',
+      priority: 'medium',
       title: `${recipient.name} accepted your connection request`,
-      message: `You're now connected with ${recipient.name}`,
-      actionUrl: `/messages/conversations/${request.to}`,
-      isRead: false,
+      description: `You're now connected with ${recipient.name}`,
+      actionUrl: `/profile/public/${request.to}`,
     })
 
     res.status(200).json({
@@ -396,6 +393,72 @@ export const getRequestsSummary = async (req, res, next) => {
     })
   } catch (error) {
     console.error('Error in getRequestsSummary:', error)
+    next(error)
+  }
+}
+/**
+ * Get all active connections for a user
+ */
+export const getUserConnections = async (req, res, next) => {
+  try {
+    const { userId } = req.params
+    const { page = 1, limit = 10 } = req.query
+
+    const skip = (parseInt(page) - 1) * parseInt(limit)
+
+    // Find connections where user is either user1 or user2
+    const connections = await Connection.find({
+      $or: [{ user1: userId }, { user2: userId }],
+      status: 'active',
+    })
+      .populate('user1', 'name email userType')
+      .populate('user2', 'name email userType')
+      .skip(skip)
+      .limit(parseInt(limit))
+      .sort({ connectedAt: -1 })
+
+    const total = await Connection.countDocuments({
+      $or: [{ user1: userId }, { user2: userId }],
+      status: 'active',
+    })
+
+    // Format connections to show the "other" user
+    const formattedConnections = await Promise.all(
+      connections.map(async (conn) => {
+        const otherUser =
+          conn.user1._id.toString() === userId ? conn.user2 : conn.user1
+        
+        // Get profile image/title for the other user
+        const profile = await Profile.findOne({ user: otherUser._id }).select('profileImage title location')
+
+        return {
+          connectionId: conn._id,
+          connectedUser: {
+            userId: otherUser._id,
+            name: otherUser.name,
+            email: otherUser.email,
+            userType: otherUser.userType,
+            profileImage: profile?.profileImage,
+            title: profile?.title,
+            location: profile?.location,
+          },
+          connectedAt: conn.connectedAt,
+        }
+      })
+    )
+
+    res.status(200).json({
+      status: 'success',
+      results: formattedConnections.length,
+      totalResults: total,
+      totalPages: Math.ceil(total / parseInt(limit)),
+      currentPage: parseInt(page),
+      data: {
+        connections: formattedConnections,
+      },
+    })
+  } catch (error) {
+    console.error('Error in getUserConnections:', error)
     next(error)
   }
 }

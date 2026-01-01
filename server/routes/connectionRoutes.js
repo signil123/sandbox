@@ -1,17 +1,18 @@
 // File: server/routes/connectionRoutes.js
 import express from 'express'
 import {
-  acceptConnectionRequest,
-  cancelConnectionRequest,
-  declineConnectionRequest,
-  getPendingRequests,
-  getRequestsSummary,
-  getSentRequests,
-  sendConnectionRequest,
+    acceptConnectionRequest,
+    cancelConnectionRequest,
+    declineConnectionRequest,
+    getPendingRequests,
+    getRequestsSummary,
+    getSentRequests,
+    getUserConnections,
+    sendConnectionRequest,
 } from '../controllers/connectionRequest.js'
 import {
-  checkOwnershipOrAdmin,
-  verifyToken,
+    checkOwnershipOrAdmin,
+    verifyToken,
 } from '../middleware/authMiddleware.js'
 
 const router = express.Router()
@@ -68,6 +69,13 @@ router.get(
   '/summary/:userId',
   checkOwnershipOrAdmin('userId'),
   getRequestsSummary
+)
+
+// Get user's network (active connections)
+router.get(
+  '/network/:userId',
+  checkOwnershipOrAdmin('userId'),
+  getUserConnections
 )
 
 export default router

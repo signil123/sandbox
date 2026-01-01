@@ -3,6 +3,7 @@
 import { createError } from '../error.js'
 import { Interest, NILPreference } from '../models/Content.js'
 import Profile from '../models/Profile.js'
+import { Connection } from '../models/Relationship.js'
 import User from '../models/User.js'
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -280,6 +281,7 @@ export const getRecommendations = async (req, res, next) => {
         const matchProfile = await Profile.findOne({ user: match.user._id })
         const interests = await Interest.find({ user: match.user._id })
         const nil = await NILPreference.findOne({ user: match.user._id })
+        const connectionStatus = await Connection.getConnectionStatus(userId, match.user._id)
 
         return {
           userId: match.user._id,
@@ -288,6 +290,7 @@ export const getRecommendations = async (req, res, next) => {
           userType: match.user.userType,
           matchScore: match.matchScore,
           isBestMatch: match.matchScore >= 90,
+          connectionStatus,
           profile: matchProfile,
           interests,
           nilPreferences: nil,

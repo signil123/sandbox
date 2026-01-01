@@ -2,6 +2,7 @@
 import { createError } from '../error.js'
 import { Interest, NILPreference } from '../models/Content.js'
 import Profile from '../models/Profile.js'
+import { Connection } from '../models/Relationship.js'
 import User from '../models/User.js'
 import { calculateMatchScore } from './matching.js'
 
@@ -154,6 +155,7 @@ export const exploreUsers = async (req, res, next) => {
 
         // Calculate match score
         const matchScore = await calculateMatchScore(userId, profile.user)
+        const connectionStatus = await Connection.getConnectionStatus(userId, profile.user)
 
         return {
           userId: profile.user,
@@ -161,6 +163,7 @@ export const exploreUsers = async (req, res, next) => {
           userType: exploreUser.userType,
           profile: profile, // Return the full profile object for consistency
           matchScore,
+          connectionStatus,
           interests,
           nilPreferences: nil,
         }
@@ -230,12 +233,14 @@ export const getTrendingUsers = async (req, res, next) => {
       trendingProfiles.map(async (profile) => {
         const trendingUser = await User.findById(profile.user)
         const matchScore = await calculateMatchScore(userId, profile.user)
+        const connectionStatus = await Connection.getConnectionStatus(userId, profile.user)
 
         return {
           userId: profile.user,
           name: trendingUser.name,
           profile: profile,
           matchScore,
+          connectionStatus,
         }
       })
     )

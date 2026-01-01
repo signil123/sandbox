@@ -12,6 +12,7 @@ import authRoute from './routes/auth.js'
 import connectionRoute from './routes/connectionRoutes.js'
 import documentManagerRoutes from './routes/documentManager.js'
 import exploreRoute from './routes/exploreRoutes.js'
+import messageRoutes from './routes/messageRoutes.js'
 import notificationRoutes from './routes/notificationRoutes.js'
 import profileRoutes from './routes/profileRoutes.js'
 import uploadRoutes from './routes/uploadRoutes.js'
@@ -42,6 +43,7 @@ app.use('/api/advisor', advisorRoute)
 app.use('/api/athlete', athleteRoute)
 app.use('/api/explore', exploreRoute)
 app.use('/api/connections', connectionRoute)
+app.use('/api/messages', messageRoutes)
 app.use('/api/profile', profileRoutes)
 app.use('/api/notifications', notificationRoutes)
 app.use('/api/upload', uploadRoutes)
@@ -82,9 +84,16 @@ const connect = () => {
     })
 }
 
-const PORT = process.env.PORT || 8800
+import { createServer } from 'http'
+import { initSocket } from './socket.js'
 
-app.listen(PORT, () => {
+const PORT = process.env.PORT || 8800
+const server = createServer(app)
+
+// Initialize Socket.io
+initSocket(server)
+
+server.listen(PORT, () => {
   connect()
   console.log(`🚀 Server running on port ${PORT}`)
 })

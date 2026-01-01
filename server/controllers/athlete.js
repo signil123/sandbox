@@ -3,6 +3,7 @@ import { createError } from '../error.js'
 import { Interest, NILPreference } from '../models/Content.js'
 import { Event, Invitation } from '../models/Event.js'
 import Profile from '../models/Profile.js'
+import { Connection } from '../models/Relationship.js'
 import User from '../models/User.js'
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -435,6 +436,69 @@ export const getAthleteUpcomingEvents = async (req, res, next) => {
     })
   } catch (error) {
     console.error('Error in getAthleteUpcomingEvents:', error)
+    next(error)
+  }
+}
+
+/**
+ * Get connected advisors/agents for athlete
+ */
+export const getConnectedAdvisors = async (req, res, next) => {
+  try {
+    const { athleteId } = req.params
+    const { page = 1, limit = 10 } = req.query
+
+    const skip = (parseInt(page) - 1) * parseInt(limit)
+
+    // Find connections
+    const connections = await Connection.find({
+      $or: [{ user1: athleteId }, { user2: athleteId }],
+      status: 'active',
+    })
+      .populate('user1', 'name email userType')
+      .populate('user2', 'name email userType')
+
+    // Filter for advisors/agents and format
+    const advisors = await Promise.all(
+      connections
+        .map((conn) => (conn.user1._id.toString() === athleteId ? conn.user2 : conn.user1))
+        .filter((user) => ['advisor', 'agent'].includes(user.userType))
+        .map(async (user) => {
+          const profile = await Profile.findOne({ user: user._id }).select(
+            'profileImage title location specialization experience certifications rating'
+          )
+          return {
+            userId: user._id,
+            name: user.name,
+            email: user.email,
+            userType: user.userType,
+            profileImage: profile?.profileImage,
+            title: profile?.title,
+            location: profile?.location,
+            specialization: profile?.specialization,
+            experience: profile?.experience,
+            certifications: profile?.certifications,
+            rating: profile?.rating,
+          }
+        })
+    )
+
+    // Pagination
+    const totalResults = advisors.length
+    const paginatedAdvisors = advisors.slice(skip, skip + parseInt(limit))
+
+    res.status(200).json({
+      status: 'success',
+      results: paginatedAdvisors.length,
+      totalResults,
+      totalPages: Math.ceil(totalResults / parseInt(limit)),
+      currentPage: parseInt(page),
+      data: {
+        advisors: paginatedAdvisors,
+      },
+    })
+  } catch (error) {
+    console.error('Error in getConnectedAdvisors:', error)
     next(error)
   }
 }

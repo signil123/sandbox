@@ -1,17 +1,19 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  Award,
-  Briefcase,
-  CheckCircle,
-  MapPin,
-  MessageSquare,
-  Shield,
-  Star,
-  TrendingUp,
-  UserPlus,
-  X
+    Award,
+    Briefcase,
+    CheckCircle,
+    ExternalLink,
+    MapPin,
+    MessageSquare,
+    Shield,
+    Star,
+    TrendingUp,
+    UserPlus,
+    X
 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 const PRIMARY_COLOR = '#163146'
 const ACCENT_COLOR = '#986a41'
@@ -142,7 +144,10 @@ const ProfilePopup = ({
   onClose,
   isOpen,
   currentUserType = 'athlete',
+  onConnect,
+  onMessage
 }) => {
+  const navigate = useNavigate()
   const [showReviewModal, setShowReviewModal] = useState(false)
 
   useEffect(() => {
@@ -157,8 +162,8 @@ const ProfilePopup = ({
   if (!profile) return null
 
   const hasRating = profile.reviewCount > 0
-  const canConnect = currentUserType === 'athlete' || profile.verified
-  const canMessage = currentUserType === 'athlete' || profile.verified
+  const canConnect = onConnect && (currentUserType === 'athlete' || profile.verified)
+  const canMessage = onMessage && (currentUserType === 'athlete' || profile.verified)
 
   return (
     <>
@@ -217,8 +222,12 @@ const ProfilePopup = ({
                   {/* Text Details Left Aligned */}
                   <div className='text-left w-full'>
                     <div className='flex items-center justify-between'>
-                      <h2 className='text-2xl md:text-3xl font-bold text-gray-900 leading-tight'>
+                      <h2 
+                        className='text-2xl md:text-3xl font-bold text-gray-900 leading-tight hover:text-[#163146] cursor-pointer transition-colors flex items-center gap-2'
+                        onClick={() => navigate(`/profile/${profile.userId || profile.id || profile._id}`)}
+                      >
                           {profile.name}
+                          <ExternalLink size={18} className="opacity-0 group-hover:opacity-100 transition-opacity" />
                       </h2>
                       {profile.matchPercentage > 0 && (
                         <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border shadow-sm ${
@@ -251,6 +260,15 @@ const ProfilePopup = ({
                             </div>
                         )}
                     </div>
+                    
+                    <motion.button
+                      whileHover={{ x: 5 }}
+                      onClick={() => navigate(`/profile/${profile.userId || profile.id || profile._id}`)}
+                      className='text-[#163146] text-xs font-bold uppercase tracking-widest mt-4 flex items-center gap-1.5 hover:underline'
+                    >
+                      View Full Profile
+                      <ExternalLink size={12} />
+                    </motion.button>
                   </div>
 
                   {/* Stats Grid */}
@@ -345,6 +363,7 @@ const ProfilePopup = ({
                         className='flex-1 py-2.5 md:py-3 px-2 md:px-4 border-2 border-transparent bg-gray-100 text-gray-900 font-bold text-xs md:text-sm rounded-xl hover:bg-gray-200 transition-all flex items-center justify-center gap-1.5 md:gap-2'
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
+                        onClick={() => onMessage(profile)}
                     >
                         <MessageSquare size={16} />
                         Message
@@ -355,6 +374,7 @@ const ProfilePopup = ({
                         className='flex-1 py-2.5 md:py-3 px-2 md:px-4 bg-[#163146] text-white font-bold text-xs md:text-sm rounded-xl hover:bg-[#0f2332] shadow-lg shadow-[#163146]/20 transition-all flex items-center justify-center gap-1.5 md:gap-2'
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
+                        onClick={() => onConnect(profile)}
                     >
                         <UserPlus size={18} />
                         Connect

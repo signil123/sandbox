@@ -2,44 +2,47 @@
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  ExternalLink,
-  MapPin,
-  MessageCircle,
-  Search,
-  Settings,
-  Sliders,
-  Star,
-  TrendingUp,
-  UserPlus,
-  Users,
-  X,
+    ChevronDown,
+    ChevronLeft,
+    ChevronRight,
+    ExternalLink,
+    MapPin,
+    MessageCircle,
+    Search,
+    Settings,
+    Sliders,
+    Star,
+    TrendingUp,
+    UserPlus,
+    Users,
+    X,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSelector } from 'react-redux'
+import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 import ProfilePopup from '../../components/Dashboard/ProfilePopup'
 import SkeletonCard from '../../components/ui/SkeletonCard'
 import { getThemeById, themes } from '../../constants/themes'
 import { selectCurrentUser } from '../../redux/userSlice'
+import { connectionService } from '../../services/connectionService'
 import { exploreService } from '../../services/exploreService'
 import DashboardLayout from '../Layout/DashboardLayout'
 
@@ -594,6 +597,7 @@ function CompactFilterDropdown({
 }
 
 function ExplorePageContent() {
+  const navigate = useNavigate()
   const currentUser = useSelector(selectCurrentUser)
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(true)
@@ -752,11 +756,24 @@ function ExplorePageContent() {
     setShowConnectionModal(true)
   }
 
-  const handleSendConnection = () => {
-    console.log('Connection sent to', selectedUser?.name)
-    setShowConnectionModal(false)
-    setConnectionMessage('')
-    setSelectedUser(null)
+  const handleSendConnection = async () => {
+    if (!selectedUser || !currentUser) return
+    try {
+      const response = await connectionService.sendRequest(
+        currentUser._id,
+        selectedUser.id,
+        connectionMessage
+      )
+      if (response.data.status === 'success') {
+        toast.success(`Connection request sent to ${selectedUser.name}`)
+        setShowConnectionModal(false)
+        setConnectionMessage('')
+        setSelectedUser(null)
+      }
+    } catch (error) {
+      console.error('Error sending connection request:', error)
+      toast.error(error.response?.data?.message || 'Failed to send connection request')
+    }
   }
 
   const hasActiveFilters =
@@ -1670,15 +1687,15 @@ function ExplorePageContent() {
                   Message (Optional)
                 </label>
                 <Textarea
-                  placeholder='Add a personal message (max 300 characters)'
+                  placeholder='Add a personal message (max 150 characters)'
                   value={connectionMessage}
                   onChange={(e) =>
-                    setConnectionMessage(e.target.value.slice(0, 300))
+                    setConnectionMessage(e.target.value.slice(0, 150))
                   }
                   rows={4}
                 />
                 <p className='text-xs text-gray-500 mt-1'>
-                  {connectionMessage.length}/300
+                  {connectionMessage.length}/150
                 </p>
               </div>
             </div>
@@ -1708,7 +1725,9 @@ function ExplorePageContent() {
           profile={selectedUser}
           isOpen={profilePopupOpen}
           onClose={() => setProfilePopupOpen(false)}
-          currentUserType={userType === 'athlete' ? 'athlete' : 'advisor'}
+          currentUserType={currentUser?.userType || 'athlete'}
+          onConnect={handleConnect}
+          onMessage={(u) => navigate('/inbox', { state: { recipientId: u.id } })}
         />
       </div>
     </>

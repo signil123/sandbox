@@ -199,6 +199,17 @@ const UserSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+
+    // Presence
+    status: {
+      type: String,
+      enum: ['online', 'away', 'offline'],
+      default: 'offline',
+    },
+    lastSeen: {
+      type: Date,
+      default: Date.now,
+    },
   },
   {
     timestamps: true,

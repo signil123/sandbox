@@ -155,6 +155,38 @@ ConnectionSchema.statics.areConnected = async function (userId1, userId2) {
   return !!connection
 }
 
+ConnectionSchema.statics.getConnectionStatus = async function (userId1, userId2) {
+  // 1. Check if they are already connected
+  const connection = await this.findOne({
+    $or: [
+      { user1: userId1, user2: userId2, status: 'active' },
+      { user1: userId2, user2: userId1, status: 'active' },
+    ],
+  })
+
+  if (connection) return 'connected'
+
+  // 2. Check if there's a pending request from userId1 to userId2
+  const sentRequest = await mongoose.models.ConnectionRequest.findOne({
+    from: userId1,
+    to: userId2,
+    status: 'pending',
+  })
+
+  if (sentRequest) return 'pending'
+
+  // 3. Check if there's a pending request from userId2 to userId1
+  const receivedRequest = await mongoose.models.ConnectionRequest.findOne({
+    from: userId2,
+    to: userId1,
+    status: 'pending',
+  })
+
+  if (receivedRequest) return 'received'
+
+  return 'not_connected'
+}
+
 ConnectionSchema.statics.getConnections = function (userId) {
   return this.find({
     $or: [{ user1: userId }, { user2: userId }],

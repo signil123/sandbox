@@ -1,24 +1,24 @@
 import express from 'express'
 import mongoose from 'mongoose'
 import {
-  deleteProfile,
-  getAllAdvisors,
-  getAthleteProfileBundle,
-  getOrCreateProfile,
-  getProfileByUserId,
-  getProfileCompletion,
-  getRecommendedAdvisors,
-  updateAdvisorProfile,
-  updateAthleteInterests,
-  updateAthleteProfile,
-  updateNILPreferences,
-  updateProfile,
+    deleteProfile,
+    getAllAdvisors,
+    getAthleteProfileBundle,
+    getOrCreateProfile,
+    getProfileByUserId,
+    getProfileCompletion,
+    getRecommendedAdvisors,
+    updateAdvisorProfile,
+    updateAthleteInterests,
+    updateAthleteProfile,
+    updateNILPreferences,
+    updateProfile,
 } from '../controllers/profileController.js'
 import { createError } from '../error.js'
 import {
-  checkOwnershipOrAdmin,
-  restrictTo,
-  verifyToken,
+    checkOwnershipOrAdmin,
+    restrictTo,
+    verifyToken,
 } from '../middleware/authMiddleware.js'
 import Profile from '../models/Profile.js'
 
@@ -70,38 +70,7 @@ router.put('/me/nil-preferences', updateNILPreferences)
 router.put('/me/advisor', updateAdvisorProfile)
 
 // Get profile for specific user (with privacy check)
-router.get('/:userId', async (req, res, next) => {
-  try {
-    const { userId } = req.params
-
-    if (!mongoose.Types.ObjectId.isValid(userId)) {
-      return next(createError(400, 'Invalid user ID'))
-    }
-
-    const profile = await Profile.findOne({ user: userId }).populate(
-      'user',
-      '-password'
-    )
-
-    if (!profile) {
-      return next(createError(404, 'Profile not found'))
-    }
-
-    if (
-      !profile.isPublic &&
-      profile.user._id.toString() !== req.user._id.toString()
-    ) {
-      return next(createError(403, 'This profile is private'))
-    }
-
-    res.status(200).json({
-      status: 'success',
-      data: { profile },
-    })
-  } catch (error) {
-    next(error)
-  }
-})
+router.get('/:userId', getProfileByUserId)
 
 // Delete profile
 router.delete('/:userId', checkOwnershipOrAdmin('userId'), deleteProfile)

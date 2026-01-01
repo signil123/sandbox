@@ -12,6 +12,7 @@ import MessagePage from './pages/Message/MessagePage'
 import NewsPage from './pages/News/NewsPage'
 import AdvisorProfilePage from './pages/Profile/AdvisorProfilePage'
 import ProfilePage from './pages/Profile/ProfilePage'
+import PublicProfilePage from './pages/Profile/PublicProfilePage'
 import { persistor, store } from './redux/store'
 
 const App = () => {
@@ -98,6 +99,14 @@ const App = () => {
                 element={
                   <PrivateRoute>
                     <AdvisorProfilePage type='agent' />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path='/profile/public/:id'
+                element={
+                  <PrivateRoute>
+                    <PublicProfilePage />
                   </PrivateRoute>
                 }
               />

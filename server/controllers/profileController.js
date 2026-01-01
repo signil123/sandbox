@@ -3,6 +3,7 @@ import { createError } from '../error.js'
 import Notification from '../models/Notification.js'
 import Profile from '../models/Profile.js'
 import ProfileView from '../models/ProfileView.js'
+import { Connection, ConnectionRequest } from '../models/Relationship.js'
 import User from '../models/User.js'
 
 /**
@@ -34,7 +35,7 @@ export const getOrCreateProfile = async (req, res, next) => {
 
     res.status(200).json({
       status: 'success',
-      data: { profile },
+      data: { profile, connectionStatus: req.user ? await Connection.getConnectionStatus(req.user.id, userId) : 'not_connected' },
     })
   } catch (error) {
     console.error('Error in getOrCreateProfile:', error)
@@ -100,7 +101,7 @@ export const getUserProfile = async (req, res, next) => {
 
     res.status(200).json({
       status: 'success',
-      data: { profile },
+      data: { profile, connectionStatus: req.user ? await Connection.getConnectionStatus(req.user.id, userId) : 'not_connected' },
     })
   } catch (error) {
     console.error('Error in getUserProfile:', error)
@@ -172,7 +173,7 @@ export const updateProfile = async (req, res, next) => {
 
     res.status(200).json({
       status: 'success',
-      data: { profile },
+      data: { profile, connectionStatus: req.user ? await Connection.getConnectionStatus(req.user.id, userId) : 'not_connected' },
     })
   } catch (error) {
     console.error('Error in updateProfile:', error)
@@ -271,7 +272,7 @@ export const updateAthleteProfile = async (req, res, next) => {
 
     res.status(200).json({
       status: 'success',
-      data: { profile },
+      data: { profile, connectionStatus: req.user ? await Connection.getConnectionStatus(req.user.id, userId) : 'not_connected' },
     })
   } catch (error) {
     console.error('Error in updateAthleteProfile:', error)
@@ -392,7 +393,7 @@ export const updateNILPreferences = async (req, res, next) => {
 
     res.status(200).json({
       status: 'success',
-      data: { profile },
+      data: { profile, connectionStatus: req.user ? await Connection.getConnectionStatus(req.user.id, userId) : 'not_connected' },
     })
   } catch (error) {
     console.error('Error in updateNILPreferences:', error)
@@ -439,7 +440,7 @@ export const updateAdvisorProfile = async (req, res, next) => {
 
     res.status(200).json({
       status: 'success',
-      data: { profile },
+      data: { profile, connectionStatus: req.user ? await Connection.getConnectionStatus(req.user.id, userId) : 'not_connected' },
     })
   } catch (error) {
     console.error('Error in updateAdvisorProfile:', error)
@@ -510,9 +511,43 @@ export const getProfileByUserId = async (req, res, next) => {
       }
     }
 
+    let connectionStatus = 'not_connected'
+    let connectionRequestId = null
+    let connectionRequestMessage = null
+
+    if (req.user) {
+      connectionStatus = await Connection.getConnectionStatus(req.user.id, userId)
+      
+      if (connectionStatus === 'received') {
+        const request = await ConnectionRequest.findOne({
+          from: userId,
+          to: req.user.id,
+          status: 'pending'
+        })
+        if (request) {
+          connectionRequestId = request._id
+          connectionRequestMessage = request.message
+        }
+      } else if (connectionStatus === 'pending') {
+         const request = await ConnectionRequest.findOne({
+          from: req.user.id,
+          to: userId,
+          status: 'pending'
+        })
+        if (request) {
+          connectionRequestId = request._id
+        }
+      }
+    }
+
     res.status(200).json({
       status: 'success',
-      data: { profile },
+      data: { 
+        profile, 
+        connectionStatus,
+        connectionRequestId,
+        connectionRequestMessage
+      },
     })
   } catch (error) {
     console.error('Error in getProfileByUserId:', error)

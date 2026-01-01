@@ -1,11 +1,12 @@
 import { createError } from '../error.js'
 import {
-  Interest,
-  NILPreference,
+    Interest,
+    NILPreference,
 } from '../models/Content.js'
 import Notification from '../models/Notification.js'
 import Profile from '../models/Profile.js'
 import ProfileView from '../models/ProfileView.js'
+import { Connection } from '../models/Relationship.js'
 import User from '../models/User.js'
 import Document from '../models/Verification.js'
 
@@ -439,6 +440,68 @@ export const getVerificationStatus = async (req, res, next) => {
     })
   } catch (error) {
     console.error('Error in getVerificationStatus:', error)
+    next(error)
+  }
+}
+
+/**
+ * Get roster (connected athletes) for advisor
+ */
+export const getAdvisorRoster = async (req, res, next) => {
+  try {
+    const { advisorId } = req.params
+    const { page = 1, limit = 10 } = req.query
+
+    const skip = (parseInt(page) - 1) * parseInt(limit)
+
+    // Find connections
+    const connections = await Connection.find({
+      $or: [{ user1: advisorId }, { user2: advisorId }],
+      status: 'active',
+    })
+      .populate('user1', 'name email userType')
+      .populate('user2', 'name email userType')
+
+    // Filter for athletes and format
+    const athletes = await Promise.all(
+      connections
+        .map((conn) => (conn.user1._id.toString() === advisorId ? conn.user2 : conn.user1))
+        .filter((user) => user.userType === 'athlete')
+        .map(async (user) => {
+          const profile = await Profile.findOne({ user: user._id }).select(
+            'profileImage title location sport school position classYear'
+          )
+          return {
+            userId: user._id,
+            name: user.name,
+            email: user.email,
+            profileImage: profile?.profileImage,
+            title: profile?.title,
+            location: profile?.location,
+            sport: profile?.sport,
+            school: profile?.school,
+            position: profile?.position,
+            classYear: profile?.classYear,
+          }
+        })
+    )
+
+    // Pagination for the filtered list
+    const totalResults = athletes.length
+    const paginatedAthletes = athletes.slice(skip, skip + parseInt(limit))
+
+    res.status(200).json({
+      status: 'success',
+      results: paginatedAthletes.length,
+      totalResults,
+      totalPages: Math.ceil(totalResults / parseInt(limit)),
+      currentPage: parseInt(page),
+      data: {
+        roster: paginatedAthletes,
+      },
+    })
+  } catch (error) {
+    console.error('Error in getAdvisorRoster:', error)
     next(error)
   }
 }

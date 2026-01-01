@@ -1,20 +1,21 @@
 // File: server/routes/athlete.js
 import express from 'express'
 import {
-  addInterest,
-  getAthleteInterests,
-  getAthleteProfile,
-  getAthleteUpcomingEvents,
-  getNILPreferences,
-  getProfileCompletion,
-  removeInterest,
-  updateNILPreferences,
-  updatePersonalInfo,
-  updateSportsInfo,
+    addInterest,
+    getAthleteInterests,
+    getAthleteProfile,
+    getAthleteUpcomingEvents,
+    getConnectedAdvisors,
+    getNILPreferences,
+    getProfileCompletion,
+    removeInterest,
+    updateNILPreferences,
+    updatePersonalInfo,
+    updateSportsInfo,
 } from '../controllers/athlete.js'
 import {
-  checkOwnershipOrAdmin,
-  verifyToken,
+    checkOwnershipOrAdmin,
+    verifyToken,
 } from '../middleware/authMiddleware.js'
 
 const router = express.Router()
@@ -87,5 +88,12 @@ router.put(
 
 // Get upcoming events for athlete
 router.get('/upcoming-events/:athleteId', getAthleteUpcomingEvents)
+
+// Get connected advisors/agents
+router.get(
+  '/profile/:athleteId/advisors',
+  checkOwnershipOrAdmin('athleteId'),
+  getConnectedAdvisors
+)
 
 export default router

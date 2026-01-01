@@ -170,6 +170,43 @@ const DashboardLayout = ({ children }) => {
     }
   }
 
+  const handleNotificationClick = async (notif) => {
+    if (!notif.isRead) {
+      handleMarkAsRead(notif._id)
+    }
+    
+    setIsNotificationOpen(false)
+
+    switch (notif.type) {
+      case 'connection_request':
+        if (notif.sender?._id) {
+          navigate(`/profile/public/${notif.sender._id}`)
+        } else {
+           navigate('/inbox', { state: { tab: 'requests' } })
+        }
+        break
+      case 'connection_accepted':
+        if (notif.sender?._id) {
+            navigate(`/profile/public/${notif.sender._id}`)
+        }
+        break
+      case 'message':
+        if (notif.sender?._id) {
+            navigate('/inbox', { state: { recipientId: notif.sender._id } })
+        } else {
+            navigate('/inbox')
+        }
+        break
+      case 'profile_view':
+        if (notif.sender?._id) {
+            navigate(`/profile/public/${notif.sender._id}`)
+        }
+        break
+      default:
+        break
+    }
+  }
+
   const getNotificationIcon = (type) => {
     switch (type) {
       case 'message':
@@ -552,10 +589,7 @@ const DashboardLayout = ({ children }) => {
                                             animate={{ opacity: 1, scale: 1 }}
                                             whileHover={{ scale: 1.01 }}
                                             whileTap={{ scale: 0.99 }}
-                                            onClick={() =>
-                                              !notif.isRead &&
-                                              handleMarkAsRead(notif._id)
-                                            }
+                                            onClick={() => handleNotificationClick(notif)}
                                             className={`relative overflow-hidden rounded-xl border p-4 transition-all cursor-pointer group ${
                                               notif.isRead
                                                 ? 'bg-white border-gray-100 opacity-70 hover:opacity-100'
