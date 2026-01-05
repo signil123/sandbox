@@ -10,8 +10,11 @@ import { calculateMatchScore } from './matching.js'
 // EXPLORE ENDPOINTS
 // ═══════════════════════════════════════════════════════════════════════════
 
+// Helper to get target user types based on requester type
+const getTargetUserTypes = (userType) => User.getTargetTypes(userType)
+
 /**
- * Get Explore results - athletes see advisors, advisors see athletes
+ * Get Explore results - athletes see advisors/agents, advisors/agents see athletes
  * Supports: search, filters, sorting, pagination
  */
 export const exploreUsers = async (req, res, next) => {
@@ -50,15 +53,26 @@ export const exploreUsers = async (req, res, next) => {
     }
 
     // Determine which users to show
-    // Show all users except self
-    query.user = { $ne: userId }
+    const targetUserTypes = getTargetUserTypes(user.userType)
+    
+    // Find users of target types
+    const matchingTypeUsers = await User.find({ 
+      userType: { $in: targetUserTypes },
+      _id: { $ne: userId }
+    })
+    const matchingTypeUserIds = matchingTypeUsers.map(u => u._id)
+    
+    query.user = { $in: matchingTypeUserIds }
 
     // SEARCH FILTER
     if (search) {
       const searchRegex = new RegExp(search, 'i')
-      const matchingUsers = await User.find({ name: searchRegex })
-      const userIds = matchingUsers.map((u) => u._id)
-      query.user = { $in: userIds, ...query.user }
+      const searchMatchingUsers = await User.find({ 
+        _id: { $in: matchingTypeUserIds },
+        name: searchRegex 
+      })
+      const userIds = searchMatchingUsers.map((u) => u._id)
+      query.user = { $in: userIds }
     }
 
     // EXPERTISE/SPECIALIZATION FILTER
@@ -68,6 +82,8 @@ export const exploreUsers = async (req, res, next) => {
       
       // Update: Expertise can be in Profile.specialization, Profile.specialties OR User.specialties
       const userIdsWithSpecs = await User.find({
+        userType: { $in: targetUserTypes },
+        _id: { $ne: userId },
         specialties: { $in: expertiseRegexArray }
       }).distinct('_id')
 
@@ -82,14 +98,27 @@ export const exploreUsers = async (req, res, next) => {
     if (nilFocus) {
       const nilArray = nilFocus.split(',')
       const nilRegexArray = nilArray.map((n) => new RegExp(n.trim(), 'i'))
+      
+      // Find matching NIL preferences
       const nilDocs = await NILPreference.find({
         categories: { $in: nilRegexArray },
       })
-      const userIds = nilDocs.map((doc) => doc.user)
+      const matchingNILUserIds = nilDocs.map((doc) => doc.user)
+      
+      // Intersect with matchingTypeUserIds to maintain type restriction
+      const filteredUserIds = matchingNILUserIds.filter(id => 
+        matchingTypeUserIds.some(targetId => targetId.toString() === id.toString())
+      )
+
       if (query.user && query.user.$in) {
-        query.user.$in = [...new Set([...query.user.$in, ...userIds])]
+        // If we already have user IDs (e.g. from search), we should intersect or combine?
+        // Usually, multiple filters are additive (AND).
+        // If they searched for "Alex" and NIL focus "Marketing", they should see "Alex" who does "Marketing".
+        query.user.$in = query.user.$in.filter(id => 
+          filteredUserIds.some(fid => fid.toString() === id.toString())
+        )
       } else {
-        query.user = { $in: userIds, ...query.user }
+        query.user = { $in: filteredUserIds }
       }
     }
 
@@ -219,10 +248,19 @@ export const getTrendingUsers = async (req, res, next) => {
       return next(createError(404, 'User not found'))
     }
 
-    let query = { verified: true, isPublic: true }
+    // Trending only for target user types
+    const targetUserTypes = getTargetUserTypes(user.userType)
+    const matchingTypeUsers = await User.find({ 
+      userType: { $in: targetUserTypes },
+      _id: { $ne: userId }
+    })
+    const matchingTypeUserIds = matchingTypeUsers.map(u => u._id)
 
-    // Show all users except self
-    query.user = { $ne: userId }
+    let query = { 
+      verified: true, 
+      isPublic: true,
+      user: { $in: matchingTypeUserIds }
+    }
 
     // Trending = highest rated with recent activity
     const trendingProfiles = await Profile.find(query)
@@ -271,14 +309,20 @@ export const getFeaturedUsers = async (req, res, next) => {
       return next(createError(404, 'User not found'))
     }
 
+    // Featured only for target user types
+    const targetUserTypes = getTargetUserTypes(user.userType)
+    const matchingTypeUsers = await User.find({ 
+      userType: { $in: targetUserTypes },
+      _id: { $ne: userId }
+    })
+    const matchingTypeUserIds = matchingTypeUsers.map(u => u._id)
+
     let query = {
       verified: true,
       isPublic: true,
-      featured: true, // Added field in Profile schema
+      featured: true,
+      user: { $in: matchingTypeUserIds }
     }
-
-    // Show all users except self
-    query.user = { $ne: userId }
 
     const featuredProfiles = await Profile.find(query)
       .sort({ 'ratings.averageRating': -1 })
@@ -328,10 +372,20 @@ export const getSimilarUsers = async (req, res, next) => {
     const userInterests = await Interest.find({ user: userId })
     const userNIL = await NILPreference.findOne({ user: userId })
 
-    // Find users with similar interests
-    let query = { verified: true, isPublic: true, user: { $ne: userId } }
+    // Similar only for target user types
+    const targetUserTypes = getTargetUserTypes(user.userType)
+    const matchingTypeUsers = await User.find({ 
+      userType: { $in: targetUserTypes },
+      _id: { $ne: userId }
+    })
+    const matchingTypeUserIds = matchingTypeUsers.map(u => u._id)
 
-    // Show all users (already filtered by $ne)
+    // Find users with similar interests
+    let query = { 
+      verified: true, 
+      isPublic: true, 
+      user: { $in: matchingTypeUserIds } 
+    }
 
     // Get candidates
     const candidates = await Profile.find(query).limit(parseInt(limit) * 3)
@@ -394,10 +448,12 @@ export const getExploreFilters = async (req, res, next) => {
 
     let filters = {}
 
+    const targetUserTypes = User.getTargetTypes(user.userType)
+
     if (user.userType === 'athlete') {
       // Show expertise areas from advisors
       const advisorProfiles = await Profile.find({
-        profileType: { $in: ['advisor', 'agent'] },
+        profileType: { $in: targetUserTypes },
         verified: true,
       })
       const expertise = new Set()
@@ -410,6 +466,7 @@ export const getExploreFilters = async (req, res, next) => {
 
       // NIL categories from advisors
       const advisorNIL = await NILPreference.find({
+        user: { $in: await User.find({ userType: { $in: targetUserTypes } }).distinct('_id') },
         categories: { $exists: true, $not: { $size: 0 } },
       })
       const nilCategories = new Set()
@@ -420,7 +477,7 @@ export const getExploreFilters = async (req, res, next) => {
     } else {
       // Show sports and positions from athletes
       const athleteProfiles = await Profile.find({
-        profileType: 'athlete',
+        profileType: { $in: targetUserTypes },
         isPublic: true,
       })
       const sports = new Set()

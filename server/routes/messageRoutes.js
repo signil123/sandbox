@@ -5,6 +5,7 @@ import {
     blockUser,
     getConversations,
     getMessages,
+    searchMessages,
     sendMessage,
     startConversation,
     updateSettings
@@ -18,6 +19,9 @@ router.use(verifyToken)
 
 // Start or get conversation
 router.post('/conversations', startConversation)
+
+// Search messages
+router.get('/search', searchMessages)
 
 // Get all conversations for current user
 router.get('/conversations', getConversations)

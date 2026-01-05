@@ -10,6 +10,7 @@ import EmojiPicker from 'emoji-picker-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
     Ban,
+    Calendar,
     Check,
     Download,
     FileText,
@@ -33,6 +34,7 @@ import { toast } from 'sonner'
 import { selectCurrentUser, setUser } from '../../redux/userSlice'
 import { authService } from '../../services/authService'
 import { connectionService } from '../../services/connectionService'
+import { eventService } from '../../services/eventService'
 import { messageService } from '../../services/messageService'
 import { profileService } from '../../services/profileService'
 import { socketService } from '../../services/socketService'
@@ -341,6 +343,128 @@ function ExpandedProfileView({
   )
 }
 
+// Event Scheduling Modal
+function EventModal({ isOpen, onClose, onSubmit, eventData, setEventData, isSubmitting }) {
+  if (!isOpen) return null
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className='fixed inset-0 backdrop-blur-sm bg-black/40 z-[60] flex items-center justify-center p-4'
+      >
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.95, y: 20 }}
+          onClick={(e) => e.stopPropagation()}
+          className='bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col'
+        >
+          <div className='p-4 border-b border-gray-100 flex items-center justify-between'>
+            <h3 className='font-bold text-[#163146]'>Schedule Event</h3>
+            <button onClick={onClose} className='p-1 hover:bg-gray-100 rounded-lg'><X size={20} /></button>
+          </div>
+
+          <div className='p-4 space-y-4 overflow-y-auto max-h-[70vh]'>
+            <div>
+              <label className='block text-xs font-bold text-gray-500 uppercase mb-1'>Event Title</label>
+              <input 
+                type="text" 
+                value={eventData.title}
+                onChange={(e) => setEventData({ ...eventData, title: e.target.value })}
+                placeholder="e.g., Discovery Call"
+                className='w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#986a41]/20 focus:border-[#986a41] outline-none'
+              />
+            </div>
+
+            <div className='grid grid-cols-2 gap-3'>
+              <div>
+                <label className='block text-xs font-bold text-gray-500 uppercase mb-1'>Start Date</label>
+                <input 
+                  type="date" 
+                  value={eventData.startDate}
+                  onChange={(e) => setEventData({ ...eventData, startDate: e.target.value })}
+                  className='w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none'
+                />
+              </div>
+              <div>
+                <label className='block text-xs font-bold text-gray-500 uppercase mb-1'>Start Time</label>
+                <input 
+                  type="time" 
+                  value={eventData.startTime}
+                  onChange={(e) => setEventData({ ...eventData, startTime: e.target.value })}
+                  className='w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none'
+                />
+              </div>
+            </div>
+
+            <div className='grid grid-cols-2 gap-3'>
+              <div>
+                <label className='block text-xs font-bold text-gray-500 uppercase mb-1'>End Date</label>
+                <input 
+                  type="date" 
+                  value={eventData.endDate}
+                  onChange={(e) => setEventData({ ...eventData, endDate: e.target.value })}
+                  className='w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none'
+                />
+              </div>
+              <div>
+                <label className='block text-xs font-bold text-gray-500 uppercase mb-1'>End Time</label>
+                <input 
+                  type="time" 
+                  value={eventData.endTime}
+                  onChange={(e) => setEventData({ ...eventData, endTime: e.target.value })}
+                  className='w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none'
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className='block text-xs font-bold text-gray-500 uppercase mb-1'>Location / Link</label>
+              <input 
+                type="text" 
+                value={eventData.virtualLocation.link}
+                onChange={(e) => setEventData({ ...eventData, virtualLocation: { ...eventData.virtualLocation, link: e.target.value } })}
+                placeholder="Zoom link or Physical Address"
+                className='w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none'
+              />
+            </div>
+
+            <div>
+              <label className='block text-xs font-bold text-gray-500 uppercase mb-1'>Description</label>
+              <textarea 
+                value={eventData.description}
+                onChange={(e) => setEventData({ ...eventData, description: e.target.value })}
+                className='w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none resize-none'
+                rows={3}
+              />
+            </div>
+          </div>
+
+          <div className='p-4 border-t border-gray-100 flex gap-2'>
+            <button 
+              onClick={onClose}
+              className='flex-1 py-2 text-sm font-bold text-gray-500 hover:bg-gray-50 rounded-xl'
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={onSubmit}
+              disabled={isSubmitting || !eventData.title || !eventData.startDate}
+              className='flex-1 py-2 text-sm font-bold text-white bg-[#163146] hover:bg-[#0f1f27] rounded-xl disabled:opacity-50'
+            >
+              {isSubmitting ? 'Scheduling...' : 'Schedule Event'}
+            </button>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  )
+}
+
 // Main Component
 
 function MessagePage() {
@@ -369,6 +493,20 @@ function MessagePage() {
   const [showSettings, setShowSettings] = useState(false)
   const [showChatMenu, setShowChatMenu] = useState(false)
   const [userSettings, setUserSettings] = useState(currentLoggedInUser?.settings || { showLastSeen: true })
+  const [searchResults, setSearchResults] = useState([])
+  const [isSearching, setIsSearching] = useState(false)
+  const [showEventModal, setShowEventModal] = useState(false)
+  const [eventData, setEventData] = useState({
+    title: '',
+    description: '',
+    eventType: 'networking',
+    startDate: '',
+    startTime: '',
+    endDate: '',
+    endTime: '',
+    isVirtual: true,
+    virtualLocation: { platform: 'Zoom', link: '' }
+  })
   const fileInputRef = useRef(null)
   const emojiPickerRef = useRef(null)
   const chatMenuRef = useRef(null)
@@ -435,34 +573,40 @@ function MessagePage() {
 
   // Fetch conversations on mount
   useEffect(() => {
+    let isMounted = true
     const loadConversations = async () => {
       try {
         setIsLoading(true)
         const response = await messageService.getConversations()
-        if (response.data.status === 'success') {
+        if (response.data.status === 'success' && isMounted) {
           const convs = response.data.data.conversations
           setConversations(convs)
           
-          // Handle navigation from profile "Message" button
-          if (location.state?.recipientId) {
+          // Handle navigation from profile "Message" button or Dashboard
+          const recipientId = location.state?.recipientId
+          if (recipientId) {
             const existing = convs.find(
-              c => c.otherUser._id === location.state.recipientId
+              c => c.otherUser._id === recipientId || c.otherUser.userId === recipientId
             )
             if (existing) {
               setSelectedConversationId(existing._id)
             } else {
               // Start new conversation if they are connected
               try {
-                const startRes = await messageService.startConversation(location.state.recipientId)
-                if (startRes.data.status === 'success') {
+                const startRes = await messageService.startConversation(recipientId)
+                if (startRes.data.status === 'success' && isMounted) {
                   const newConv = startRes.data.data.conversation
                   // Refresh conversations to get enriched data
                   const refreshed = await messageService.getConversations()
-                  setConversations(refreshed.data.data.conversations)
-                  setSelectedConversationId(newConv._id)
+                  if (isMounted) {
+                    setConversations(refreshed.data.data.conversations)
+                    setSelectedConversationId(newConv._id)
+                  }
                 }
               } catch (err) {
-                toast.error(err.response?.data?.message || 'Could not start conversation')
+                if (isMounted) {
+                  toast.error(err.response?.data?.message || 'Could not start conversation')
+                }
               }
             }
           } else if (convs.length > 0 && !selectedConversationId) {
@@ -472,17 +616,25 @@ function MessagePage() {
           }
         }
       } catch (error) {
-        console.error('Failed to load conversations:', error)
-        toast.error('Failed to load conversations')
+        if (isMounted) {
+          console.error('Failed to load conversations:', error)
+          toast.error('Failed to load conversations')
+        }
       } finally {
-        setIsLoading(false)
+        if (isMounted) {
+          setIsLoading(false)
+        }
       }
     }
 
     if (currentLoggedInUser) {
       loadConversations()
     }
-  }, [currentLoggedInUser, location.state])
+
+    return () => {
+      isMounted = false
+    }
+  }, [currentLoggedInUser, location.state?.recipientId])
 
   // Fetch messages when selectedConversationId changes
   useEffect(() => {
@@ -541,6 +693,29 @@ function MessagePage() {
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  // Search Effect
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(async () => {
+      if (searchQuery.length >= 2) {
+        setIsSearching(true)
+        try {
+          const res = await messageService.searchMessages(searchQuery)
+          if (res.data.status === 'success') {
+            setSearchResults(res.data.data.messages)
+          }
+        } catch (error) {
+          console.error('Search failed:', error)
+        } finally {
+          setIsSearching(false)
+        }
+      } else {
+        setSearchResults([])
+      }
+    }, 500)
+
+    return () => clearTimeout(delayDebounceFn)
+  }, [searchQuery])
 
   // Auto scroll to bottom
   useEffect(() => {
@@ -724,6 +899,60 @@ function MessagePage() {
       // to avoid double-sends. Let's at least not overwrite if they started typing again.
     } finally {
       setIsSending(false)
+    }
+  }
+
+  const handleCreateEvent = async () => {
+    if (!selectedConversationId || !selectedUser) return
+    setIsSending(true)
+    try {
+        const start = `${eventData.startDate}T${eventData.startTime || '00:00'}:00`
+        const end = `${eventData.endDate || eventData.startDate}T${eventData.endTime || '23:59'}:00`
+        
+        const res = await eventService.createEvent({
+            ...eventData,
+            startDate: new Date(start),
+            endDate: new Date(end),
+            inviteeId: selectedUser._id
+        })
+
+        if (res.data.status === 'success') {
+            const event = res.data.data.event
+            // Send message with event info
+            const msgRes = await messageService.sendMessage(selectedConversationId, `📅 Event Scheduled: ${event.title}`, {
+                type: 'event',
+                eventInfo: {
+                    eventId: event._id,
+                    title: event.title,
+                    startTime: event.startDate,
+                    endTime: event.endDate,
+                    location: event.virtualLocation?.link || event.location?.address
+                }
+            })
+
+            if (msgRes.data.status === 'success') {
+                setMessages(prev => [...prev, msgRes.data.data.message])
+                setShowEventModal(false)
+                toast.success('Event scheduled and sent!')
+                // Reset form
+                setEventData({
+                    title: '',
+                    description: '',
+                    eventType: 'networking',
+                    startDate: '',
+                    startTime: '',
+                    endDate: '',
+                    endTime: '',
+                    isVirtual: true,
+                    virtualLocation: { platform: 'Zoom', link: '' }
+                })
+            }
+        }
+    } catch (error) {
+        console.error('Failed to create event:', error)
+        toast.error('Failed to schedule event')
+    } finally {
+        setIsSending(false)
     }
   }
 
@@ -913,6 +1142,37 @@ function MessagePage() {
             </div>
 
             {/* Conversation List */}
+            {searchQuery.length >= 2 ? (
+              <div className='flex-1 overflow-y-auto'>
+                <div className='p-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest'>Search Results</div>
+                {isSearching ? (
+                  <div className='p-4 text-center text-xs text-gray-400'>Searching...</div>
+                ) : searchResults.length === 0 ? (
+                  <div className='p-4 text-center text-xs text-gray-400'>No messages found</div>
+                ) : (
+                  searchResults.map((msg) => (
+                    <div 
+                      key={msg._id} 
+                      onClick={() => {
+                        setSelectedConversationId(msg.conversationInfo._id)
+                        setSearchQuery('')
+                        setIsMobileOpen(false)
+                      }}
+                      className='p-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer'
+                    >
+                      <div className='flex items-center gap-2 mb-1'>
+                        <div className={`w-6 h-6 rounded-full bg-gradient-to-br ${getAvatarColor(msg.conversationInfo.otherUser._id)} flex items-center justify-center text-[10px] text-white font-bold`}>
+                          {msg.conversationInfo.otherUser.profileImage ? <img src={getImageUrl(msg.conversationInfo.otherUser.profileImage)} className='w-full h-full rounded-full object-cover' /> : getInitials(msg.conversationInfo.otherUser.name)}
+                        </div>
+                        <span className='text-[10px] font-bold text-gray-700'>{msg.conversationInfo.otherUser.name}</span>
+                        <span className='text-[8px] text-gray-400 ml-auto'>{new Date(msg.createdAt).toLocaleDateString()}</span>
+                      </div>
+                      <p className='text-xs text-gray-600 line-clamp-2 italic'>"{msg.content}"</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            ) : (
             <div className='flex-1 overflow-y-auto'>
               {filteredItems.length === 0 ? (
                 <div className='p-3 text-center text-gray-400 text-xs'>
@@ -1034,6 +1294,7 @@ function MessagePage() {
                 </div>
               )}
             </div>
+            )}
           </div>
         </motion.div>
 
@@ -1072,6 +1333,40 @@ function MessagePage() {
           </div>
 
           {/* Conversation List */}
+          {searchQuery.length >= 2 ? (
+            <div className='flex-1 overflow-y-auto'>
+               <div className='p-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest'>Search Results</div>
+               {isSearching ? (
+                 <div className='p-4 text-center text-xs text-gray-400'>Searching...</div>
+               ) : searchResults.length === 0 ? (
+                 <div className='p-4 text-center text-xs text-gray-400'>No messages found</div>
+               ) : (
+                 searchResults.map((msg) => (
+                   <div 
+                     key={msg._id} 
+                     onClick={() => {
+                        setSelectedConversationId(msg.conversationInfo._id)
+                        setSearchQuery('')
+                     }}
+                     className='p-4 border-b border-gray-100 hover:bg-stone-50 cursor-pointer transition-colors group'
+                   >
+                     <div className='flex items-center gap-3 mb-2'>
+                        <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${getAvatarColor(msg.conversationInfo.otherUser._id)} flex items-center justify-center text-xs text-white font-bold shadow-sm`}>
+                           {msg.conversationInfo.otherUser.profileImage ? <img src={getImageUrl(msg.conversationInfo.otherUser.profileImage)} className='w-full h-full rounded-full object-cover' /> : getInitials(msg.conversationInfo.otherUser.name)}
+                        </div>
+                        <div className='flex-1 min-w-0'>
+                          <div className='flex justify-between items-center'>
+                            <span className='text-xs font-bold text-gray-900 group-hover:text-[#986a41]'>{msg.conversationInfo.otherUser.name}</span>
+                            <span className='text-[10px] text-gray-400'>{new Date(msg.createdAt).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                     </div>
+                     <p className='text-xs text-gray-600 line-clamp-2 italic pl-11 group-hover:text-gray-900 transition-colors'>"{msg.content}"</p>
+                   </div>
+                 ))
+               )}
+            </div>
+          ) : (
           <div className='flex-1 overflow-y-auto'>
             {filteredItems.length === 0 ? (
               <div className='p-4 text-center text-gray-400 text-sm'>
@@ -1195,6 +1490,7 @@ function MessagePage() {
               </div>
             )}
           </div>
+          )}
         </div>
 
         {/* Right Panel - Chat */}
@@ -1370,6 +1666,32 @@ function MessagePage() {
                             </a>
                         </div>
                     )}
+                    {msg.type === 'event' && msg.eventInfo && (
+                        <div className={`mb-2 p-3 rounded-xl border flex flex-col gap-2 ${msg.sender === currentLoggedInUser._id ? 'bg-white/10 border-white/20' : 'bg-amber-50 border-amber-100'}`}>
+                            <div className='flex items-center gap-2'>
+                                <Calendar size={18} className='text-brand-accent' />
+                                <span className='font-bold text-xs uppercase tracking-wider'>Event: {msg.eventInfo.title}</span>
+                            </div>
+                            <div className='space-y-1'>
+                                <p className='text-[10px] opacity-90 flex items-center gap-1'>
+                                    <span>🕒</span>
+                                    {new Date(msg.eventInfo.startTime).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                                </p>
+                                {msg.eventInfo.location && (
+                                    <p className='text-[10px] opacity-90 flex items-center gap-1'>
+                                        <span>📍</span>
+                                        {msg.eventInfo.location}
+                                    </p>
+                                )}
+                            </div>
+                            <button 
+                                onClick={() => window.open('/calendar', '_blank')}
+                                className={`mt-2 py-1.5 px-3 rounded-lg text-[10px] font-bold transition-all ${msg.sender === currentLoggedInUser._id ? 'bg-white text-[#163146]' : 'bg-[#163146] text-white'}`}
+                            >
+                                View Details
+                            </button>
+                        </div>
+                    )}
                     {msg.content && <p className='text-sm sm:text-base break-words leading-relaxed'>{msg.content}</p>}
                     <div
                       className={`flex items-center justify-end gap-1 mt-1 ${
@@ -1476,6 +1798,13 @@ function MessagePage() {
                   >
                     <PaperclipIcon size={20} />
                   </button>
+                  <button 
+                    onClick={() => setShowEventModal(true)}
+                    className='p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-500'
+                    title="Schedule Event"
+                  >
+                    <Calendar size={20} />
+                  </button>
                   <input 
                     type="file"
                     ref={fileInputRef}
@@ -1545,6 +1874,15 @@ function MessagePage() {
           />
         )}
       </AnimatePresence>
+
+      <EventModal 
+        isOpen={showEventModal}
+        onClose={() => setShowEventModal(false)}
+        onSubmit={handleCreateEvent}
+        eventData={eventData}
+        setEventData={setEventData}
+        isSubmitting={isSending}
+      />
     </DashboardLayout>
   )
 }

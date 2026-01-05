@@ -11,6 +11,7 @@ import athleteRoute from './routes/athlete.js'
 import authRoute from './routes/auth.js'
 import connectionRoute from './routes/connectionRoutes.js'
 import documentManagerRoutes from './routes/documentManager.js'
+import eventRoutes from './routes/eventRoutes.js'
 import exploreRoute from './routes/exploreRoutes.js'
 import messageRoutes from './routes/messageRoutes.js'
 import notificationRoutes from './routes/notificationRoutes.js'
@@ -44,6 +45,7 @@ app.use('/api/athlete', athleteRoute)
 app.use('/api/explore', exploreRoute)
 app.use('/api/connections', connectionRoute)
 app.use('/api/messages', messageRoutes)
+app.use('/api/events', eventRoutes)
 app.use('/api/profile', profileRoutes)
 app.use('/api/notifications', notificationRoutes)
 app.use('/api/upload', uploadRoutes)

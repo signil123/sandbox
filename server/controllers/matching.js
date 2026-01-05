@@ -246,27 +246,13 @@ export const getRecommendations = async (req, res, next) => {
       return next(createError(404, 'Profile not found'))
     }
 
-    // Determine recommendation type
-    let query = {}
+    // Determine target user types
+    const targetUserTypes = User.getTargetTypes(user.userType)
 
-    if (user.userType === 'athlete') {
-      // Athletes see verified advisors/agents
-      query = {
-        profileType: { $in: ['advisor', 'agent'] },
-        verified: true,
-        isPublic: true,
-      }
-    } else {
-      // Advisors/agents see athletes
-      query = {
-        profileType: 'athlete',
-        isPublic: true,
-      }
-    }
-
-    // Get potential matches
+    // Get potential matches of target types
     const potentialMatches = await User.find({
       _id: { $ne: userId },
+      userType: { $in: targetUserTypes }
     }).limit(parseInt(limit) * 2) // Get more to filter
 
     // Calculate match scores

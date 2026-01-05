@@ -10,7 +10,7 @@ export const socketService = {
     const socketUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || '/'
     socket = io(socketUrl, {
       auth: { token },
-      transports: ['websocket'],
+      transports: ['websocket', 'polling'],
     })
 
     socket.on('connect', () => {

@@ -360,7 +360,7 @@ const PublicProfilePage = () => {
                                             <span>{profileData.sport || 'Sport'}</span>
                                         </>
                                     ) : (
-                                        <span>{profileData.title || (profileData.profileType === 'advisor' ? 'Advisor' : 'Agent')}</span>
+                                        <span>{profileData.title || (profileData.profileType.charAt(0).toUpperCase() + profileData.profileType.slice(1))}</span>
                                     )}
                                 </p>
                                 <p className='text-sm text-slate-500 flex items-center justify-center lg:justify-start gap-1.5'>

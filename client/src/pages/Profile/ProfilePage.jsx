@@ -342,9 +342,9 @@ const ProfileSkeleton = () => (
             return {
               id: u.user?._id || u.user?.id || u._id,
               name: userName,
-              title: u.title || (u.user?.userType === 'advisor' ? 'Advisor' : 'Agent'),
+              title: u.title || (u.user?.userType ? (u.user.userType.charAt(0).toUpperCase() + u.user.userType.slice(1)) : 'Athlete'),
               location: u.location || 'Remote',
-              specialty: u.specialization?.[0] || (u.user?.userType === 'advisor' ? 'Advisor' : 'Agent'),
+              specialty: u.specialization?.[0] || u.sport || (u.user?.userType ? (u.user.userType.charAt(0).toUpperCase() + u.user.userType.slice(1)) : 'Athlete'),
               specialties: u.specialization || u.specialties || [],
               experience: parseInt(u.experience) || 0,
               connections: 0,

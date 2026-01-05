@@ -659,8 +659,8 @@ function ExplorePageContent() {
             description: profile.aboutMe || '',
             expertise: profile.specialization || [],
             specialties: profile.specialization || profile.specialties || [],
-            specialty: profile.specialization?.[0] || (u.userType === 'athlete' ? profile.sport : (u.userType === 'advisor' ? 'Advisor' : 'Agent')),
-            title: profile.title || (u.userType === 'advisor' ? 'Advisor' : 'Agent'),
+            specialty: profile.specialization?.[0] || profile.sport || (u.userType.charAt(0).toUpperCase() + u.userType.slice(1)),
+            title: profile.title || (u.userType.charAt(0).toUpperCase() + u.userType.slice(1)),
             yearsExperience: parseInt(profile.experience) || 0,
             profileImg: (profile.profileImage && !profile.profileImage.includes('unsplash.com')) 
               ? getImageUrl(profile.profileImage) 

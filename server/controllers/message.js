@@ -326,3 +326,65 @@ export const blockUser = async (req, res, next) => {
     next(error)
   }
 }
+
+/**
+ * Search messages across all conversations
+ */
+export const searchMessages = async (req, res, next) => {
+  try {
+    const userId = req.user.id
+    const { q } = req.query
+
+    if (!q) {
+      return res.status(200).json({
+        status: 'success',
+        data: { messages: [] }
+      })
+    }
+
+    // Find conversations user is part of
+    const conversations = await Conversation.find({
+      $or: [{ participant1: userId }, { participant2: userId }]
+    })
+
+    const conversationIds = conversations.map(c => c._id)
+
+    // Search messages in these conversations
+    const messages = await Message.find({
+      conversation: { $in: conversationIds },
+      content: { $regex: q, $options: 'i' },
+      isDeleted: false
+    })
+    .populate('sender', 'name')
+    .sort({ createdAt: -1 })
+    .limit(20)
+
+    // Enrich messages with conversation details to help UI
+    const enrichedResults = await Promise.all(messages.map(async (msg) => {
+      const conv = conversations.find(c => c._id.toString() === msg.conversation.toString())
+      const otherUserId = conv.participant1.toString() === userId ? conv.participant2 : conv.participant1
+      const otherUser = await User.findById(otherUserId).select('name')
+      const profile = await Profile.findOne({ user: otherUserId }).select('profileImage')
+      
+      return {
+        ...msg.toObject(),
+        conversationInfo: {
+          _id: conv._id,
+          otherUser: {
+            _id: otherUserId,
+            name: otherUser?.name,
+            profileImage: profile?.profileImage
+          }
+        }
+      }
+    }))
+
+    res.status(200).json({
+      status: 'success',
+      data: { messages: enrichedResults },
+    })
+  } catch (error) {
+    console.error('Error in searchMessages:', error)
+    next(error)
+  }
+}

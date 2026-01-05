@@ -32,6 +32,14 @@ export const messageService = {
   archiveConversation: (conversationId) =>
     axiosInstance.delete(`${API_URL}/conversations/${conversationId}`),
 
+  /**
+   * Search messages across all conversations
+   * @param {string} query 
+   */
+  searchMessages: (query) => {
+    return axiosInstance.get(`/messages/search?q=${encodeURIComponent(query)}`)
+  },
+
   blockUser: (conversationId) =>
     axiosInstance.post(`${API_URL}/conversations/${conversationId}/block`),
 }

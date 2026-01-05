@@ -172,9 +172,9 @@ const DashboardPage = () => {
         const mappedAdvisors = response.data.data.recommendations.slice(0, 6).map(u => ({
           id: u.userId,
           name: u.name,
-          title: u.profile?.title || (u.userType === 'advisor' ? 'Advisor' : 'Agent'),
+          title: u.profile?.title || (u.userType.charAt(0).toUpperCase() + u.userType.slice(1)),
           location: u.profile?.location || 'Remote',
-          specialty: u.profile?.specialization?.[0] || (u.userType === 'advisor' ? 'Advisor' : 'Agent'),
+          specialty: u.profile?.specialization?.[0] || u.profile?.sport || (u.userType.charAt(0).toUpperCase() + u.userType.slice(1)),
           specialties: u.profile?.specialization || u.profile?.specialties || [],
           experience: parseInt(u.profile?.experience) || 0,
           connections: 0,

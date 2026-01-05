@@ -261,6 +261,16 @@ UserSchema.pre(/^find/, function (next) {
   next()
 })
 
+// Statics
+UserSchema.statics.getTargetTypes = function (userType) {
+  if (userType === 'athlete') {
+    return ['advisor', 'agent']
+  } else if (userType === 'advisor' || userType === 'agent') {
+    return ['athlete']
+  }
+  return []
+}
+
 // Methods
 UserSchema.methods.correctPassword = async function (
   candidatePassword,
