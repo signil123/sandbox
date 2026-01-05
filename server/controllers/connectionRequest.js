@@ -1,5 +1,6 @@
 // File: server/controllers/connectionRequest.js
 import { createError } from '../error.js'
+import { Conversation, Message } from '../models/Message.js'
 import Notification from '../models/Notification.js'
 import { Connection, ConnectionRequest } from '../models/Relationship.js'
 import User from '../models/User.js'
@@ -81,7 +82,43 @@ export const sendConnectionRequest = async (req, res, next) => {
       matchScore: matchScore,
     })
 
-    // Create notification for recipient
+    // If a message is provided, start a conversation and send the message
+    if (message) {
+      try {
+        // Find or create conversation
+        let conversation = await Conversation.findOne({
+          $or: [
+            { participant1: userId, participant2: targetUserId },
+            { participant1: targetUserId, participant2: userId },
+          ],
+        })
+
+        if (!conversation) {
+          conversation = await Conversation.create({
+            participant1: userId,
+            participant2: targetUserId,
+          })
+        }
+
+        // Create the initial message
+        const newMessage = await Message.create({
+          conversation: conversation._id,
+          sender: userId,
+          content: message,
+          type: 'text',
+        })
+
+        // Update conversation's last message
+        conversation.lastMessage = newMessage._id
+        conversation.lastMessageAt = new Date()
+        conversation.messageCount = (conversation.messageCount || 0) + 1
+        await conversation.save()
+      } catch (msgError) {
+        console.error('Error creating initial message for connection request:', msgError)
+        // We don't fail the whole request if message creation fails
+      }
+    }
+
     // Create notification for recipient
     await Notification.create({
       recipient: targetUserId,

@@ -160,8 +160,9 @@ const PublicProfilePage = () => {
       if (response.data.status === 'success') {
         toast.success(`Connected with ${profileData.user.name}`)
         setConnectionStatus('connected')
-        // Refresh profile to get updated data if needed
-        fetchProfile()
+        // Optimistically update other related connection states
+        setConnectionRequestId(null)
+        setConnectionRequestMessage(null)
       }
     } catch (error) {
       console.error('Error accepting request:', error)

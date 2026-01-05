@@ -12,9 +12,11 @@ import {
     Ban,
     Calendar,
     Check,
+    Clock,
     Download,
     FileText,
     Image as ImageIcon,
+    LayoutGrid,
     Menu,
     MessageSquare,
     MoreVertical,
@@ -31,7 +33,12 @@ import React, { useEffect, useRef, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useLocation } from 'react-router-dom'
 import { toast } from 'sonner'
-import { selectCurrentUser, setUser } from '../../redux/userSlice'
+import {
+    fetchUnreadMessages,
+    selectCurrentUser,
+    setActiveConversationId,
+    setUser
+} from '../../redux/userSlice'
 import { authService } from '../../services/authService'
 import { connectionService } from '../../services/connectionService'
 import { eventService } from '../../services/eventService'
@@ -51,6 +58,29 @@ const PresenceIndicator = ({ status }) => {
     <div className={`w-2.5 h-2.5 rounded-full border-2 border-white ${colors[status] || colors.offline}`} />
   )
 }
+
+const ConversationSkeleton = () => (
+  <div className='p-4 border-b border-gray-100 flex items-center gap-3 animate-pulse'>
+    <div className='w-12 h-12 rounded-full bg-gray-200 shadow-sm' />
+    <div className='flex-1'>
+      <div className='flex justify-between mb-2'>
+        <div className='h-4 w-24 bg-gray-200 rounded-md' />
+        <div className='h-3 w-12 bg-gray-100 rounded-md' />
+      </div>
+      <div className='h-3 w-full bg-gray-100 rounded-md' />
+    </div>
+  </div>
+)
+
+const MessageSkeleton = () => (
+  <div className='flex flex-col gap-6 p-6 overflow-hidden'>
+    {[1, 2, 3, 4].map((i) => (
+      <div key={i} className={`flex ${i % 2 === 0 ? 'justify-end' : 'justify-start'}`}>
+        <div className={`h-16 w-3/4 max-w-[320px] rounded-2xl ${i % 2 === 0 ? 'bg-amber-100/30' : 'bg-gray-100/50'} animate-pulse`} />
+      </div>
+    ))}
+  </div>
+)
 
 // Avatar initials helper
 const getInitials = (name) => {
@@ -480,6 +510,7 @@ function MessagePage() {
   const [messages, setMessages] = useState([])
   const [requests, setRequests] = useState([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isMessagesLoading, setIsMessagesLoading] = useState(false)
   const [isSending, setIsSending] = useState(false)
   const [isMobileOpen, setIsMobileOpen] = useState(false)
   const messageEndRef = useRef(null)
@@ -519,6 +550,7 @@ function MessagePage() {
     (c) => c._id === selectedConversationId
   )
   const selectedUser = currentConversation?.otherUser
+  const isConnected = currentConversation?.connectionStatus === 'connected'
   // Socket connection and events
   useEffect(() => {
     if (currentLoggedInUser) {
@@ -563,13 +595,18 @@ function MessagePage() {
     }
   }, [currentLoggedInUser, selectedConversationId])
 
-  // Join conversation room
+  // Join conversation room and sync active ID
   useEffect(() => {
     if (selectedConversationId) {
       socketService.joinConversation(selectedConversationId)
-      return () => socketService.leaveConversation(selectedConversationId)
+      dispatch(setActiveConversationId(selectedConversationId))
+      
+      return () => {
+        socketService.leaveConversation(selectedConversationId)
+        dispatch(setActiveConversationId(null))
+      }
     }
-  }, [selectedConversationId])
+  }, [selectedConversationId, dispatch])
 
   // Fetch conversations on mount
   useEffect(() => {
@@ -640,13 +677,18 @@ function MessagePage() {
   useEffect(() => {
     const loadMessages = async () => {
       if (!selectedConversationId) return
+      setIsMessagesLoading(true)
       try {
         const response = await messageService.getMessages(selectedConversationId)
         if (response.data.status === 'success') {
           setMessages(response.data.data.messages)
+          // Update global unread count
+          dispatch(fetchUnreadMessages())
         }
       } catch (error) {
         console.error('Failed to load messages:', error)
+      } finally {
+        setIsMessagesLoading(false)
       }
     }
     loadMessages()
@@ -875,7 +917,7 @@ function MessagePage() {
   }
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !selectedConversationId || isSending) return
+    if (!newMessage.trim() || !selectedConversationId || isSending || !isConnected) return
     
     const messageContent = newMessage.trim()
     setNewMessage('')
@@ -1316,15 +1358,15 @@ function MessagePage() {
           </div>
 
           {/* Tabs */}
-          <div className='flex gap-1 p-2 bg-gray-50/80 m-2 rounded-xl'>
+          <div className='p-1 bg-gray-100/80 m-2 rounded-xl flex'>
             {['network', 'requests'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
+                className={`flex-1 py-1.5 px-3 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all duration-200 ${
                   activeTab === tab
-                    ? 'text-white bg-[#163146] shadow-md'
-                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                    ? 'text-white bg-[#163146] shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
                 }`}
               >
                 {tab === 'network' ? 'Network' : `Requests ${requests.length > 0 ? `(${requests.length})` : ''}`}
@@ -1368,9 +1410,14 @@ function MessagePage() {
             </div>
           ) : (
           <div className='flex-1 overflow-y-auto'>
-            {filteredItems.length === 0 ? (
-              <div className='p-4 text-center text-gray-400 text-sm'>
-                {activeTab === 'network' ? 'No conversations' : 'No requests'}
+            {isLoading ? (
+              Array(6).fill(0).map((_, i) => <ConversationSkeleton key={i} />)
+            ) : filteredItems.length === 0 ? (
+              <div className='p-8 text-center flex flex-col items-center justify-center h-full opacity-50'>
+                <LayoutGrid size={40} className='mb-3 text-gray-300' />
+                <p className='text-xs text-gray-500 font-medium'>
+                  {activeTab === 'network' ? 'No conversations' : 'No requests yet'}
+                </p>
               </div>
             ) : activeTab === 'network' ? (
               <div>
@@ -1381,15 +1428,12 @@ function MessagePage() {
                       <div
                         key={conv._id}
                         onClick={() => setSelectedConversationId(conv._id)}
-                        className={`w-full p-3 border-b border-gray-100 text-left transition-all hover:bg-gray-50 cursor-pointer relative ${
+                        className={`w-full p-4 border-b border-gray-50 text-left transition-all hover:bg-white cursor-pointer relative group ${
                           selectedConversationId === conv._id
-                            ? 'bg-amber-50/50'
-                            : ''
+                            ? 'bg-white shadow-[inset_4px_0_0_0_#986a41]'
+                            : 'bg-transparent'
                         }`}
                       >
-                        {conv.showUnreadDot && (
-                          <div className='absolute right-3 top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-[#986a41] rounded-full shadow-sm' />
-                        )}
                         <div className='flex items-start gap-3'>
                           <button
                             onClick={(e) => {
@@ -1623,8 +1667,20 @@ function MessagePage() {
             </div>
 
             {/* Messages - Scrollable container */}
-            <div className='flex-1 overflow-y-auto p-2 space-y-2 min-h-0 chat-messages-area'>
-              {messages.map((msg) => (
+            <div className={`flex-1 overflow-y-auto p-4 md:p-6 space-y-4 min-h-0 chat-messages-area bg-[#faf9f6]/30 ${isMessagesLoading ? 'opacity-50 pointer-events-none' : 'opacity-100'} transition-opacity duration-300`}>
+              {isMessagesLoading ? (
+                <MessageSkeleton />
+              ) : messages.length === 0 ? (
+                <div className='flex flex-col items-center justify-center h-full opacity-60 px-8 text-center'>
+                  <div className='w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mb-4'>
+                    <MessageSquare size={32} className='text-gray-300' />
+                  </div>
+                  <h4 className='text-sm font-bold text-gray-900 mb-1'>No messages yet</h4>
+                  <p className='text-xs text-gray-500 max-w-[240px]'>
+                    Send a message to start the conversation with {selectedUser?.name}
+                  </p>
+                </div>
+              ) : messages.map((msg) => (
                 <div
                   key={msg._id}
                   className={`flex ${
@@ -1709,7 +1765,7 @@ function MessagePage() {
                     </div>
                   </div>
                 </div>
-              ))}
+              )) }
               {otherUserTyping && (
                 <div className="flex justify-start animate-fade-in">
                     <div className="bg-gray-100 border border-gray-200 rounded-2xl rounded-bl-none px-4 py-3 flex items-center gap-1">
@@ -1723,7 +1779,28 @@ function MessagePage() {
             </div>
 
             {/* Message Input */}
-            <div className='px-4 py-3 border-t border-gray-100 flex-shrink-0 bg-white chat-input-area'>
+            <div className='px-4 py-3 border-t border-gray-100 flex-shrink-0 bg-white chat-input-area relative'>
+              {!isConnected && selectedConversationId && (
+                <div className='absolute inset-x-0 bottom-full bg-amber-50/95 backdrop-blur-sm border-t border-amber-100 px-4 py-2.5 flex items-center justify-between z-20 animate-in slide-in-from-bottom-2 duration-300'>
+                  <div className='flex items-center gap-2 text-amber-800'>
+                    <Clock size={16} className='flex-shrink-0' />
+                    <p className='text-xs font-medium'>
+                      {currentConversation.connectionStatus === 'pending' 
+                        ? 'Waiting for connection request to be accepted' 
+                        : 'Accept the connection request to start messaging'}
+                    </p>
+                  </div>
+                  {currentConversation.connectionStatus === 'received' && (
+                    <button 
+                      onClick={() => handleAcceptRequest(currentConversation.connectionRequestId)}
+                      className='text-[10px] font-bold bg-[#163146] text-white px-3 py-1 rounded-lg shadow-sm hover:bg-[#0f1f27] transition-colors'
+                    >
+                      Accept Now
+                    </button>
+                  )}
+                </div>
+              )}
+
               {/* File Preview */}
               <AnimatePresence>
                 {selectedFile && (
@@ -1793,15 +1870,17 @@ function MessagePage() {
                   </button>
                   <button 
                     onClick={() => fileInputRef.current?.click()}
-                    className='p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-500'
-                    title="Attach file"
+                    disabled={!isConnected}
+                    className={`p-2 rounded-full transition-colors ${!isConnected ? 'text-gray-300 cursor-not-allowed' : 'hover:bg-gray-100 text-gray-500'}`}
+                    title={isConnected ? "Attach file" : "Connect to send files"}
                   >
                     <PaperclipIcon size={20} />
                   </button>
                   <button 
                     onClick={() => setShowEventModal(true)}
-                    className='p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-500'
-                    title="Schedule Event"
+                    disabled={!isConnected}
+                    className={`p-2 rounded-full transition-colors ${!isConnected ? 'text-gray-300 cursor-not-allowed' : 'hover:bg-gray-100 text-gray-500'}`}
+                    title={isConnected ? "Schedule Event" : "Connect to schedule events"}
                   >
                     <Calendar size={20} />
                   </button>
@@ -1815,8 +1894,9 @@ function MessagePage() {
                 <div className='flex-1 relative'>
                   <textarea
                     rows={1}
-                    placeholder='Type a message...'
+                    placeholder={isConnected ? 'Type a message...' : 'Messaging restricted'}
                     value={newMessage}
+                    disabled={!isConnected}
                     onChange={(e) => {
                       setNewMessage(e.target.value)
                       socketService.sendTyping(selectedConversationId, e.target.value.length > 0)
@@ -1827,7 +1907,11 @@ function MessagePage() {
                         handleSendMessage()
                       }
                     }}
-                    className='w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-[#986a41]/20 focus:border-[#986a41] transition-all resize-none max-h-32 shadow-inner'
+                    className={`w-full px-4 py-3 border rounded-2xl text-sm transition-all resize-none max-h-32 shadow-inner ${
+                      isConnected 
+                        ? 'bg-gray-50 border-gray-100 focus:outline-none focus:ring-2 focus:ring-[#986a41]/20 focus:border-[#986a41]' 
+                        : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
+                    }`}
                     style={{ height: 'auto' }}
                   />
                 </div>

@@ -26,16 +26,22 @@ import { useDispatch, useSelector } from 'react-redux'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
     clearNotifications,
+    fetchUnreadMessages,
+    incrementUnreadMessagesCount,
     logoutUser,
     markNotificationRead,
+    selectActiveConversationId,
     selectCurrentUser,
     selectNotifications,
     selectUnreadCount,
+    selectUnreadMessagesCount,
     setNotifications,
     updateProfileImage,
 } from '../../redux/userSlice'
+import { messageService } from '../../services/messageService'
 import { notificationService } from '../../services/notificationService'
 import { profileService } from '../../services/profileService'
+import { socketService } from '../../services/socketService'
 
 const DashboardLayout = ({ children }) => {
   const navigate = useNavigate()
@@ -48,6 +54,8 @@ const DashboardLayout = ({ children }) => {
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false)
   const notifications = useSelector(selectNotifications) || []
   const unreadCount = useSelector(selectUnreadCount) || 0
+  const unreadMessagesCount = useSelector(selectUnreadMessagesCount) || 0
+  const activeConversationId = useSelector(selectActiveConversationId)
   const [isScoutOpen, setIsScoutOpen] = useState(false)
   const [hoveredTooltip, setHoveredTooltip] = useState(null)
 
@@ -78,6 +86,31 @@ const DashboardLayout = ({ children }) => {
 
     fetchProfileImage()
   }, [currentUser, dispatch])
+
+  // Fetch unread messages and listen to socket
+  React.useEffect(() => {
+    if (currentUser) {
+        
+      // Fetch initial unread count
+      dispatch(fetchUnreadMessages())
+
+      const socket = socketService.connect(localStorage.getItem('token'))
+
+      const handleNewMessage = ({ message, conversationId }) => {
+        // If we are NOT in this conversation, increment the global unread count
+        // Note: The activeConversationId should be set by the MessagePage
+        if (activeConversationId !== conversationId) {
+            dispatch(incrementUnreadMessagesCount())
+        }
+      }
+
+      socket.on('new_message', handleNewMessage)
+
+      return () => {
+        socket.off('new_message', handleNewMessage)
+      }
+    }
+  }, [currentUser, dispatch, activeConversationId])
 
   React.useEffect(() => {
     const fetchNotifications = async () => {
@@ -353,6 +386,16 @@ const DashboardLayout = ({ children }) => {
                           />
                         )}
                       </motion.button>
+                      
+                      {/* Unread Message Bubble for Sidebar */}
+                      {item.id === 'messages' && unreadMessagesCount > 0 && (
+                        <div className="absolute top-0 right-0 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center border border-white pointer-events-none z-10">
+                            <span className="text-[9px] font-bold text-white">
+                                {unreadMessagesCount > 99 ? '99+' : unreadMessagesCount}
+                            </span>
+                        </div>
+                      )}
+
                       {/* Tooltip */}
                       <Tooltip
                         text={item.label}
@@ -816,6 +859,14 @@ const DashboardLayout = ({ children }) => {
                 transition={{ duration: 0.12 }}
               >
                 <MessageCircle size={20} />
+                {/* Unread Message Bubble for Mobile */}
+                {unreadMessagesCount > 0 && (
+                    <div className="absolute top-0.5 right-0.5 w-3.5 h-3.5 bg-red-500 rounded-full flex items-center justify-center border border-white">
+                    <span className="text-[8px] font-bold text-white leading-none">
+                        {unreadMessagesCount > 99 ? '99+' : unreadMessagesCount}
+                    </span>
+                    </div>
+                )}
               </motion.button>
               <span
                 className={`text-[9px] mt-1 font-bold transition-all ${

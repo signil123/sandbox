@@ -1,199 +1,213 @@
-// File: client/src/pages/News/NewsPage.jsx
-import { motion } from 'framer-motion'
-import { ChevronRight } from 'lucide-react'
-import React from 'react'
+import axios from 'axios'
+import React, { useEffect, useState } from 'react'
 import DashboardLayout from '../Layout/DashboardLayout'
 
 const NewsPage = () => {
-  const heroNews = {
-    id: 1,
-    title:
-      'Historic NIL Deal: Top Athlete Secures Multi-Million Dollar Partnership',
-    description:
-      'A groundbreaking NIL agreement sets new records in athlete endorsements and brand partnerships, reshaping the landscape for future deals.',
-    image:
-      'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=800&h=400&fit=crop',
-    source: 'NIL Daily',
-    date: '2h ago',
-    featured: true,
-  }
-  const breakingNews = [
-    {
-      id: 2,
-      title:
-        'NCAA Releases Major Overhaul to NIL Guidelines, Introducing New Compliance Rules That Could Reshape Athlete Sponsorship Deals Across All Divisions',
-      image:
-        'https://images.unsplash.com/photo-1552664730-d307ca884978?w=400&h=300&fit=crop',
-      source: 'Sports League Update',
-      date: '4h ago',
-    },
-    {
-      id: 3,
-      title:
-        'Emerging Brand Partnership Trends Reveal How Companies Are Leveraging Micro-Influencers, Data-Driven Campaigns, and Authentic Athlete Storytelling in 2025',
-      image:
-        'https://images.unsplash.com/photo-1552664730-d307ca884978?w=400&h=300&fit=crop',
-      source: 'Brand Insights',
-      date: '6h ago',
-    },
-    {
-      id: 4,
-      title:
-        'Top Athletes Secure Multi-Million Dollar Endorsement Deals as Agencies Report a Surge in Cross-Industry Collaborations Between Sports, Tech, and Lifestyle Brands',
-      image:
-        'https://images.unsplash.com/photo-1552664730-d307ca884978?w=400&h=300&fit=crop',
-      source: 'Athlete Network',
-      date: '8h ago',
-    },
-    {
-      id: 5,
-      title:
-        'Q4 Market Analysis Report Shows Massive Shifts in Consumer Spending, Sponsorship ROI, and Media Valuations as Brands Prepare for a Competitive 2026 Landscape',
-      image:
-        'https://images.unsplash.com/photo-1552664730-d307ca884978?w=400&h=300&fit=crop',
-      source: 'Market Research',
-      date: '1d ago',
-    },
-    {
-      id: 6,
-      title:
-        'Top Sports Agents Share Advanced Negotiation Strategies for 2025, Including Multi-Tier Contract Structuring, Performance-Linked Bonuses, and Brand-First Approaches',
-      image:
-        'https://images.unsplash.com/photo-1552664730-d307ca884978?w=400&h=300&fit=crop',
-      source: 'Pro Advisors',
-      date: '1d ago',
-    },
-  ]
+  const [news, setNews] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1,
-        delayChildren: 0.2,
-      },
-    },
-  }
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: { duration: 0.5 },
-    },
-  }
+  useEffect(() => {
+    const fetchNews = async () => {
+      try {
+        const apiKey = import.meta.env.VITE_NEWS_API
+        if (!apiKey) {
+          throw new Error('News API key is missing (VITE_NEWS_API)')
+        }
+
+        // Fetch news about NIL, athlete endorsements, sports business
+        const response = await axios.get('https://newsapi.org/v2/everything', {
+          params: {
+            q: '"NIL" OR "athlete endorsement" OR "sports business"',
+            language: 'en',
+            sortBy: 'publishedAt',
+            apiKey: apiKey,
+          },
+        })
+
+        if (response.data.status === 'ok') {
+          // Format the data
+          const formattedNews = response.data.articles
+            .filter((article) => article.urlToImage) // Filter out articles without images
+            .map((article, index) => ({
+              id: index,
+              title: article.title,
+              description: article.description,
+              image: article.urlToImage,
+              source: article.source.name,
+              date: new Date(article.publishedAt).toLocaleDateString(undefined, {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+              }),
+              url: article.url,
+            }))
+          setNews(formattedNews)
+        } else {
+          throw new Error('Failed to fetch news')
+        }
+      } catch (err) {
+        console.error('Error fetching news:', err)
+        setError(err.message || 'Failed to load news')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchNews()
+  }, [])
+
+  // Split news into hero and list
+  const heroNews = news.length > 0 ? news[0] : null
+  const breakingNews = news.length > 1 ? news.slice(1) : [] // Show all remaining items
 
   return (
     <DashboardLayout>
-      <div className='w-full min-h-screen bg-stone-50'>
-        <motion.div
-          className='mx-auto px-4 md:px-8 py-6 max-w-8xl'
-          variants={containerVariants}
-          initial='hidden'
-          animate='visible'
-        >
-          {/* Page Title */}
-          <motion.div variants={itemVariants} className='mb-6'>
-            <h1 className='text-lg font-bold text-gray-900 md:text-4xl'>
-              News
-            </h1>
-          </motion.div>
+      <div className='w-full h-[calc(100vh-64px)] bg-[#F9FAFB] overflow-hidden flex flex-col'>
+        <div className='mx-auto px-4 md:px-8 py-6 w-full max-w-7xl flex-1 flex flex-col min-h-0'>
+          
+          {/* Header */}
+          <div className='mb-6 flex-shrink-0 flex items-baseline justify-between'>
+            <div>
+              <h1 className='text-3xl font-bold text-gray-900 tracking-tight'>
+                News Feed
+              </h1>
+              <p className='text-gray-500 mt-1 text-sm'>
+                Latest updates on NIL, athlete endorsements, and sports business.
+              </p>
+            </div>
+           
+          </div>
 
-          {/* Featured Section with Breaking News List */}
-          <motion.div
-            variants={itemVariants}
-            className='mb-6 rounded-lg overflow-hidden bg-white border border-gray-200'
-          >
-            <div className='flex flex-col md:grid md:grid-cols-[1fr_1fr] gap-0'>
-              {/* Left Side - Featured Article */}
-              <div className='flex flex-col order-1 md:order-1'>
-                {/* Featured Image */}
-                <div className='relative overflow-hidden h-40 md:h-96'>
-                  <img
-                    src={heroNews.image}
-                    alt={heroNews.title}
-                    className='w-full h-full object-cover'
+          {loading ? (
+             <div className='grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8 flex-1 min-h-0 animate-pulse'>
+              <div className='lg:col-span-2 h-full bg-gray-200 rounded-xl'></div>
+              <div className='lg:col-span-1 h-full bg-gray-200 rounded-xl'></div>
+            </div>
+          ) : error ? (
+            <div className='flex flex-col items-center justify-center py-20 bg-white rounded-xl border border-red-100 shadow-sm'>
+              <div className='text-red-500 mb-2'>
+                <svg
+                  xmlns='http://www.w3.org/2000/svg'
+                  className='h-10 w-10'
+                  viewBox='0 0 20 20'
+                  fill='currentColor'
+                >
+                  <path
+                    fillRule='evenodd'
+                    d='M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z'
+                    clipRule='evenodd'
                   />
-                </div>
-
-                {/* Featured Article Content */}
-                <div className='p-4 md:p-6 flex flex-col'>
-                  <div className='mb-2 inline-flex items-center gap-2 w-fit'>
-                    <div className='w-2 h-2 rounded-full bg-[#163146]' />
-                    <span className='text-xs font-semibold text-[#163146]'>
-                      FEATURED
-                    </span>
-                  </div>
-                  <h2 className='text-lg md:text-3xl font-bold text-gray-900 mb-2 md:mb-4 leading-tight'>
-                    {heroNews.title}
-                  </h2>
-                  <p className='text-xs md:text-sm text-gray-600 mb-3 md:mb-6 leading-relaxed'>
-                    {heroNews.description}
-                  </p>
-                  <div className='flex flex-col gap-1 md:flex-row md:items-center md:gap-4 pt-2 md:pt-4 border-t border-gray-200'>
-                    <span className='text-xs text-gray-500'>
-                      {heroNews.source}
-                    </span>
-                    <span className='text-xs text-gray-500'>
-                      {heroNews.date}
-                    </span>
-                  </div>
-                </div>
+                </svg>
               </div>
+              <p className='text-gray-900 font-medium'>{error}</p>
+              <p className='text-sm text-gray-500 mt-1'>
+                Please check your API configuration.
+              </p>
+            </div>
+          ) : news.length === 0 ? (
+            <div className='text-center py-20 bg-white rounded-xl border border-gray-200 border-dashed'>
+              <p className='text-lg font-medium text-gray-900'>No news found</p>
+              <p className='text-sm text-gray-500 mt-1'>
+                Try adjusting your search criteria.
+              </p>
+            </div>
+          ) : (
+            <div className='grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8 flex-1 min-h-0'>
+              {/* Featured Article - Takes up 2 columns */}
+              {heroNews && (
+                <div 
+                  className='lg:col-span-2 h-full min-h-0 rounded-2xl overflow-hidden cursor-pointer'
+                  onClick={() => window.open(heroNews.url, '_blank')}
+                >
+                  <div
+                    className='group block relative h-full w-full'
+                  >
+                    {/* Image Background */}
+                    <div className='absolute inset-0'>
+                      <img
+                        src={heroNews.image}
+                        alt={heroNews.title}
+                        className='w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700'
+                      />
+                      {/* Gradient Overlay */}
+                      <div className='absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent' />
+                    </div>
 
-              {/* Right Side - Breaking News List */}
-              <div className='p-4 md:p-6 flex flex-col order-2 md:order-2'>
-                <div className='flex items-center justify-between gap-2 mb-4'>
-                  <h2 className='text-base md:text-xl font-bold text-gray-900'>
-                    Breaking News
+                    {/* Content Overlay */}
+                    <div className='absolute bottom-0 left-0 right-0 p-6 md:p-8 flex flex-col justify-end h-full text-white pointer-events-none'>
+                      <div className='mb-auto pointer-events-auto'>
+                        <span className='inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#163146] text-white border border-white/20 tracking-wide'>
+                           FEATURED
+                        </span>
+                      </div>
+                      
+                      <div className='transform translate-y-2 group-hover:translate-y-0 transition-transform duration-300 pointer-events-auto'>
+                        <div className='flex items-center gap-2 text-xs font-medium text-gray-300 mb-3'>
+                          <span className='text-[#cbbea8] uppercase tracking-wider'>{heroNews.source}</span>
+                          <span className='w-1 h-1 rounded-full bg-gray-500'></span>
+                          <span>{heroNews.date}</span>
+                        </div>
+                        
+                        <h2 className='text-2xl md:text-4xl font-bold leading-tight mb-3 text-white group-hover:text-gray-100 transition-colors'>
+                          {heroNews.title}
+                        </h2>
+                        
+                        <p className='text-sm md:text-base text-gray-300 line-clamp-2 max-w-2xl opacity-90 group-hover:opacity-100 transition-opacity'>
+                          {heroNews.description}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Breaking News List - Takes up 1 column */}
+              <div className='lg:col-span-1 flex flex-col h-full min-h-0 overflow-hidden'>
+                <div className='flex items-center justify-between mb-4 flex-shrink-0'>
+                  <h2 className='text-lg font-bold text-gray-900 flex items-center gap-2'>
+                    <span className='w-1.5 h-6 bg-[#163146] rounded-full'></span>
+                    Trending Stories
                   </h2>
                 </div>
 
-                {/* Breaking News List */}
-                <div className='flex flex-col'>
-                  {breakingNews.map((news, index) => (
-                    <div key={news.id}>
-                      <div className='flex gap-3 md:gap-4 cursor-pointer hover:opacity-80 transition-opacity py-4'>
-                        {/* Thumbnail */}
-                        <div className='relative overflow-hidden h-24 w-24 md:h-28 md:w-28 flex-shrink-0 rounded-lg'>
-                          <img
-                            src={news.image}
-                            alt={news.title}
-                            className='w-full h-full object-cover'
-                          />
-                        </div>
-
-                        {/* News Info */}
-                        <div className='flex-1 flex flex-col justify-between min-w-0'>
-                          <div>
-                            <h3 className='font-bold text-base md:text-lg text-gray-900 mb-2'>
-                              {news.title}
-                            </h3>
-                          </div>
-                          <div className='flex items-center gap-2 flex-wrap'>
-                            <span className='text-xs text-gray-500'>
-                              {news.source}
-                            </span>
-                            <span className='text-xs text-gray-400'>
-                              {news.date}
-                            </span>
-                          </div>
-                        </div>
+                <div className='flex-1 overflow-y-auto pr-2 space-y-4 custom-scrollbar'>
+                  {breakingNews.map((newsItem) => (
+                    <a
+                      key={newsItem.id}
+                      href={newsItem.url}
+                      target='_blank'
+                      rel='noopener noreferrer'
+                      className='group flex gap-4 p-3 rounded-xl hover:bg-white border border-transparent hover:border-gray-100 hover:shadow-sm transition-all duration-200'
+                    >
+                      <div className='relative w-24 h-24 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100'>
+                        <img
+                          src={newsItem.image}
+                          alt={newsItem.title}
+                          className='w-full h-full object-cover group-hover:scale-110 transition-transform duration-500'
+                        />
                       </div>
-                      {index < breakingNews.length - 1 && (
-                        <div className='border-t border-gray-200'></div>
-                      )}
-                    </div>
+                      
+                      <div className='flex flex-col justify-between py-0.5 min-w-0 flex-1'>
+                        <div>
+                          <span className='text-[10px] font-bold text-[#163146] uppercase tracking-wide mb-1 block'>
+                            {newsItem.source}
+                          </span>
+                          <h3 className='text-sm font-semibold text-gray-900 leading-snug line-clamp-2 group-hover:text-[#163146] transition-colors'>
+                            {newsItem.title}
+                          </h3>
+                        </div>
+                        <p className='text-xs text-gray-400 font-medium mt-2'>
+                          {newsItem.date}
+                        </p>
+                      </div>
+                    </a>
                   ))}
                 </div>
               </div>
             </div>
-          </motion.div>
-
-          {/* Footer Spacing */}
-          <div className='h-4'></div>
-        </motion.div>
+          )}
+        </div>
       </div>
     </DashboardLayout>
   )

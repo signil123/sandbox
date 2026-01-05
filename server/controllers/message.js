@@ -2,7 +2,7 @@ import { createError } from '../error.js'
 import { Conversation, Message } from '../models/Message.js'
 import Notification from '../models/Notification.js'
 import Profile from '../models/Profile.js'
-import { Connection } from '../models/Relationship.js'
+import { Connection, ConnectionRequest } from '../models/Relationship.js'
 import User from '../models/User.js'
 import { getIO } from '../socket.js'
 
@@ -21,9 +21,19 @@ export const startConversation = async (req, res, next) => {
     // Check if they are connected
     const areConnected = await Connection.areConnected(senderId, recipientId)
     if (!areConnected) {
-      return next(
-        createError(403, 'You must be connected to start a conversation')
-      )
+      // Check if there's a pending request
+      const pendingRequest = await ConnectionRequest.findOne({
+        $or: [
+          { from: senderId, to: recipientId, status: 'pending' },
+          { from: recipientId, to: senderId, status: 'pending' },
+        ],
+      })
+
+      if (!pendingRequest) {
+        return next(
+          createError(403, 'You must be connected to start a conversation')
+        )
+      }
     }
 
     // Check if conversation already exists
@@ -79,7 +89,7 @@ export const sendMessage = async (req, res, next) => {
     const areConnected = await Connection.areConnected(senderId, recipientId)
     if (!areConnected) {
       return next(
-        createError(403, 'You can only message users in your network')
+        createError(403, 'You can only message users in your network once your connection request is accepted')
       )
     }
 
@@ -154,6 +164,9 @@ export const getConversations = async (req, res, next) => {
         
         const unreadCount = await conv.unreadMessageCount(userId)
         
+        // Get connection status for the participants
+        const connectionInfo = await Connection.getConnectionInfo(userId, otherUser._id)
+
         // Snippet: first 40 characters
         const lastMessageSnippet = conv.lastMessage?.content
           ? conv.lastMessage.content.substring(0, 40) + (conv.lastMessage.content.length > 40 ? '...' : '')
@@ -170,6 +183,8 @@ export const getConversations = async (req, res, next) => {
           },
           unreadCount,
           lastMessageSnippet,
+          connectionStatus: connectionInfo.status,
+          connectionRequestId: connectionInfo.requestId,
           showUnreadDot: unreadCount > 0 && conv.lastMessage?.sender.toString() !== userId.toString(),
         }
       })

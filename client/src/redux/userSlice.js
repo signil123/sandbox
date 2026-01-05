@@ -2,6 +2,7 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit'
 import { authService } from '../services/authService'
 import { connectionService } from '../services/connectionService'
+import { messageService } from '../services/messageService'
 
 const initialState = {
   currentUser: null,
@@ -9,7 +10,9 @@ const initialState = {
   error: null,
   isAuthenticated: false,
   notifications: [],
-  unreadCount: 0,
+  unreadCount: 0, // Notification unread count
+  unreadMessagesCount: 0, // Message unread count
+  activeConversationId: null,
   network: {
     advisors: [],
     roster: [],
@@ -86,6 +89,24 @@ export const fetchUserNetwork = createAsyncThunk(
   }
 )
 
+export const fetchUnreadMessages = createAsyncThunk(
+  'user/fetchUnreadMessages',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await messageService.getConversations()
+      if (response.data.status === 'success') {
+        const conversations = response.data.data.conversations
+        // Sum all unread counts from conversations
+        const totalUnread = conversations.reduce((sum, conv) => sum + (conv.unreadCount || 0), 0)
+        return totalUnread
+      }
+      return 0
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch unread messages')
+    }
+  }
+)
+
 export const userSlice = createSlice({
   name: 'user',
   initialState,
@@ -122,6 +143,12 @@ export const userSlice = createSlice({
       state.notifications = []
       state.unreadCount = 0
     },
+    setActiveConversationId: (state, action) => {
+        state.activeConversationId = action.payload
+    },
+    incrementUnreadMessagesCount: (state) => {
+        state.unreadMessagesCount += 1
+    }
   },
   extraReducers: (builder) => {
     // Signup
@@ -183,6 +210,8 @@ export const userSlice = createSlice({
         loading: false,
         error: null
       }
+      state.unreadMessagesCount = 0
+      state.activeConversationId = null
     })
 
     // Fetch Network
@@ -203,6 +232,11 @@ export const userSlice = createSlice({
         state.network.loading = false
         state.network.error = action.payload
       })
+
+    // Fetch Unread Messages
+    builder.addCase(fetchUnreadMessages.fulfilled, (state, action) => {
+        state.unreadMessagesCount = action.payload
+    })
   },
 })
 
@@ -215,6 +249,8 @@ export const {
   setNotifications,
   markNotificationRead,
   clearNotifications,
+  setActiveConversationId,
+  incrementUnreadMessagesCount
 } = userSlice.actions
 
 // Selectors
@@ -226,6 +262,8 @@ export const selectUserRole = (state) => state.user.currentUser?.role
 export const selectUserType = (state) => state.user.currentUser?.userType
 export const selectNotifications = (state) => state.user.notifications
 export const selectUnreadCount = (state) => state.user.unreadCount
+export const selectUnreadMessagesCount = (state) => state.user.unreadMessagesCount
+export const selectActiveConversationId = (state) => state.user.activeConversationId
 
 // Helper selectors
 export const selectIsAdmin = (state) => state.user.currentUser?.role === 'admin'
