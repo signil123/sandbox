@@ -4,6 +4,7 @@ import { Provider } from 'react-redux'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { PersistGate } from 'redux-persist/integration/react'
 import { PrivateRoute, PublicRoute } from './components/Auth/ProtectedRoutes'
+import ScrollToTop from './components/Common/ScrollToTop'
 import AuthPage from './pages/Auth/AuthPage'
 import CalendarPage from './pages/Calendar/CalendarPage'
 import DashboardPage from './pages/Dashboard/DashboardPage'
@@ -20,6 +21,7 @@ const App = () => {
     <Provider store={store}>
       <PersistGate loading={null} persistor={persistor}>
         <BrowserRouter>
+          <ScrollToTop />
           <Routes>
             <Route path='/'>
               <Route

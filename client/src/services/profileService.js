@@ -325,4 +325,16 @@ export const profileService = {
       handleError(error)
     }
   },
+
+  /**
+   * Update user settings
+   */
+  updateSettings: async (settings) => {
+    try {
+      const response = await axiosInstance.put('/messages/settings', { settings })
+      return response.data
+    } catch (error) {
+      handleError(error)
+    }
+  },
 }

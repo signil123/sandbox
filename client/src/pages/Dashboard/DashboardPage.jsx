@@ -31,6 +31,7 @@ import {
 } from 'recharts'
 import { toast } from 'sonner'
 
+import { AdvisorRecommendationCard } from '../../components/Dashboard/AdvisorRecommendationCard'
 import { AdvisorRoster, CurrentAdvisors } from '../../components/Dashboard/NetworkWidgets'
 import ProfilePopup from '../../components/Dashboard/ProfilePopup'
 import { Button } from '../../components/ui/button'
@@ -168,7 +169,7 @@ const DashboardPage = () => {
     try {
       const response = await exploreService.getRecommendations(currentUser._id)
       if (response.data.status === 'success') {
-        const mappedAdvisors = response.data.data.recommendations.map(u => ({
+        const mappedAdvisors = response.data.data.recommendations.slice(0, 6).map(u => ({
           id: u.userId,
           name: u.name,
           title: u.profile?.title || (u.userType === 'advisor' ? 'Advisor' : 'Agent'),
@@ -177,7 +178,7 @@ const DashboardPage = () => {
           specialties: u.profile?.specialization || u.profile?.specialties || [],
           experience: parseInt(u.profile?.experience) || 0,
           connections: 0,
-          initials: u.name.split(' ').map(n => n[0]).join(''),
+          initials: (u.name || 'A').split(' ').map(n => n[0]).join(''),
           verified: u.profile?.verified || false,
           bestMatch: u.matchScore > 80,
           matchPercentage: u.matchScore,
@@ -186,7 +187,7 @@ const DashboardPage = () => {
             ? getImageUrl(u.profile.profileImage) 
             : (u.profile?.photo && !u.profile.photo.includes('unsplash.com'))
               ? getImageUrl(u.profile.photo)
-              : `https://ui-avatars.com/api/?name=${u.name}&background=random`,
+              : `https://ui-avatars.com/api/?name=${u.name || 'Advisor'}&background=random`,
           type: u.userType,
           rating: u.ratings?.averageRating || 0,
           reviewCount: u.ratings?.totalReviews || 0,
@@ -341,15 +342,8 @@ const DashboardPage = () => {
     }
   }
   const visibleAdvisors = useMemo(() => {
-    if (advisors.length === 0) return []
-    if (advisors.length === 1) return [advisors[0]]
-    if (advisors.length === 2) return [advisors[0], advisors[1]]
-    return [
-      advisors[advisorCarouselIndex],
-      advisors[(advisorCarouselIndex + 1) % advisors.length],
-      advisors[(advisorCarouselIndex + 2) % advisors.length],
-    ]
-  }, [advisors, advisorCarouselIndex])
+    return advisors.slice(0, 3)
+  }, [advisors])
 
   return (
     <DashboardLayout>
@@ -404,36 +398,41 @@ const DashboardPage = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: 0.1 }}
-            className='grid grid-cols-2 md:grid-cols-4 gap-4'
+            className='grid grid-cols-2 lg:grid-cols-4 gap-6'
           >
             {keyInsights.map((insight, index) => {
               const Icon = insight.icon
+              const isPrimary = index % 2 === 0
               return (
                 <motion.div
                   key={insight.label}
-                  initial={{ opacity: 0, y: 20 }}
+                  initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: 0.1 + index * 0.05 }}
+                  transition={{ duration: 0.3, delay: index * 0.05 }}
                   onClick={() => navigate(insightRoutes[insight.label])}
-                  className='bg-white rounded-lg p-3 border border-gray-200 cursor-pointer transition-all hover:shadow-md'
-                  whileHover={{ y: -1 }}
+                  className='bg-white rounded-2xl p-3 md:p-4 border border-gray-50 cursor-pointer transition-all hover:border-[#163146]/10 hover:shadow-sm flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 group min-w-0'
                 >
-                  <div className='flex items-center justify-between mb-2'>
-                    <div className='p-1.5 bg-gray-100 rounded'>
-                      <Icon size={16} className='text-gray-700' />
-                    </div>
-                    <span className='text-xs font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full'>
-                      {insight.trend}
-                    </span>
+                  <div className={`p-2 md:p-2.5 rounded-xl transition-colors shrink-0 ${
+                    isPrimary 
+                      ? 'bg-[#163146]/5 text-[#163146] group-hover:bg-[#163146] group-hover:text-white' 
+                      : 'bg-[#986a41]/5 text-[#986a41] group-hover:bg-[#986a41] group-hover:text-white'
+                  }`}>
+                    <Icon size={16} className='md:hidden' />
+                    <Icon size={18} className='hidden md:block' />
                   </div>
-
-                  <p className='text-xs font-medium text-gray-500 mb-1 uppercase tracking-wide'>
-                    {insight.label}
-                  </p>
-
-                  <p className='text-xl font-bold text-gray-900'>
-                    {insight.value}
-                  </p>
+                  <div className='flex-1 min-w-0 w-full'>
+                    <p className='text-[8px] md:text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none mb-1 md:mb-1.5 truncate'>
+                      {insight.label}
+                    </p>
+                    <div className='flex items-end justify-between md:justify-start md:gap-2'>
+                      <h4 className='text-lg md:text-xl font-black text-gray-900 leading-none truncate'>
+                        {insight.value}
+                      </h4>
+                      <span className='text-[8px] md:text-[9px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md'>
+                        {insight.trend}
+                      </span>
+                    </div>
+                  </div>
                 </motion.div>
               )
             })}
@@ -447,33 +446,24 @@ const DashboardPage = () => {
               transition={{ duration: 0.3, delay: 0.2 }}
               className='bg-white rounded-2xl p-6 border border-gray-200'
             >
-              <div className='flex items-center justify-between mb-6'>
-                <div>
-                  <h2 className='text-2xl font-bold text-gray-900'>
-                    Recommended Advisors
-                  </h2>
-                  <p className='text-sm text-gray-500 mt-1'>
-                    Curated for your profile
+              <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 pb-4 border-b border-gray-50'>
+                <div className='min-w-0'>
+                  <div className='flex items-center gap-2 mb-1.5'>
+                    <div className='w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0' />
+                    <h2 className='text-xl md:text-2xl font-black text-gray-900 leading-tight truncate'>
+                      Recommended For You
+                    </h2>
+                  </div>
+                  <p className='text-[10px] md:text-xs text-gray-400 font-bold uppercase tracking-widest truncate'>
+                    Based on your profile & goals
                   </p>
                 </div>
-                <div className='flex gap-2'>
-                  <motion.button
-                    onClick={prevAdvisor}
-                    className='p-2 hover:bg-gray-100 rounded-lg transition-colors'
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    <ChevronLeft size={20} className='text-gray-600' />
-                  </motion.button>
-                  <motion.button
-                    onClick={nextAdvisor}
-                    className='p-2 hover:bg-gray-100 rounded-lg transition-colors'
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    <ChevronRight size={20} className='text-gray-600' />
-                  </motion.button>
-                </div>
+                <button 
+                  onClick={() => navigate('/explore')}
+                  className='w-full sm:w-auto px-5 py-2.5 bg-gray-50 text-[#163146] text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-[#163146] hover:text-white transition-all border border-gray-100 shrink-0'
+                >
+                  Explore All
+                </button>
               </div>
               <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
                 <AnimatePresence mode='wait'>
@@ -491,205 +481,28 @@ const DashboardPage = () => {
                     </div>
                   ) : (
                     visibleAdvisors.map((advisor, index) => (
-                      <motion.div
+                      <AdvisorRecommendationCard 
                         key={advisor.id}
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -20 }}
-                        transition={{ duration: 0.3 }}
-                        className='border border-gray-200 rounded-2xl overflow-hidden hover:shadow-lg transition-shadow flex flex-col bg-white h-full'
-                      >
-                      {/* Banner */}
-                      <div
-                        className='h-32 relative'
-                        style={advisor.banner}
-                      >
-                        {/* Match Percentage Badge */}
-                        {advisor.matchPercentage > 0 && (
-                          <motion.div
-                            className={`absolute top-3 left-3 bg-white/95 backdrop-blur px-3 py-1.5 rounded-full text-[10px] font-bold flex items-center gap-1.5 shadow-sm overflow-hidden border ${
-                              advisor.matchPercentage >= 80 
-                                ? 'text-emerald-700 border-emerald-100' 
-                                : advisor.matchPercentage >= 50 
-                                  ? 'text-amber-700 border-amber-100' 
-                                  : 'text-slate-700 border-slate-100'
-                            }`}
-                            initial={{ opacity: 0, x: -10 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ duration: 0.3 }}
-                          >
-                            <motion.div
-                              className={`absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent opacity-60`}
-                              animate={{ x: advisor.matchPercentage >= 90 ? ['-100%', '100%'] : '0%' }}
-                              transition={{
-                                duration: 2,
-                                repeat: Infinity,
-                                ease: 'linear',
-                              }}
-                            />
-                            <div className='flex items-center gap-1 relative'>
-                              <TrendingUp size={12} className={
-                                advisor.matchPercentage >= 80 ? 'text-emerald-500' :
-                                advisor.matchPercentage >= 50 ? 'text-amber-500' :
-                                'text-slate-400'
-                              } />
-                              <span>{advisor.matchPercentage >= 90 ? 'Best Match' : `${advisor.matchPercentage}% Match`}</span>
-                            </div>
-                          </motion.div>
-                        )}
-                      </div>
-                       {/* Profile Section */}
-                      <div className='px-4 py-4 flex-1 flex flex-col relative'>
-                        {/* Profile Image - overlaps banner */}
-                        <div className='-mt-12 mb-3 flex-shrink-0 w-fit'>
-                          <img
-                            src={advisor.profileImg}
-                            alt={advisor.name}
-                            className='w-16 h-16 rounded-full border-2 border-white object-cover shadow-md'
-                          />
-                        </div>
-
-                        {/* Location - Top Right */}
-                        <div className='absolute top-2 right-2 text-right'>
-                          <p className='text-[11px] font-semibold text-gray-900'>
-                            {advisor.location}
-                          </p>
-                        </div>
-
-                        {/* Name and Title */}
-                        <div className='min-h-[4rem]'>
-                          <div className='flex items-center gap-2 mb-1'>
-                            <p className='font-bold text-gray-900 text-sm line-clamp-1'>
-                              {advisor.name}
-                            </p>
-                          </div>
-                          <p className='text-xs text-gray-500 mb-2 line-clamp-2'>
-                            {advisor.title}
-                          </p>
-                        </div>
-
-                        {/* Specialty Bubbles */}
-                        <div className='flex flex-wrap gap-1.5 mb-3 min-h-[2.5rem]'>
-                          {advisor.specialties.slice(0, 2).map((spec, idx) => (
-                            <span
-                              key={idx}
-                              className='text-[10px] px-2.5 py-0.5 bg-slate-50 text-slate-700 rounded-full font-bold border border-slate-200 truncate flex items-center justify-center tracking-wide'
-                            >
-                              {spec}
-                            </span>
-                          ))}
-                          {advisor.specialties.length > 2 && (
-                            <div className='relative group'>
-                              <span className='text-[10px] px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full font-bold border border-slate-200 flex items-center justify-center cursor-help transition-colors hover:bg-slate-200'>
-                                +{advisor.specialties.length - 2}
-                              </span>
-                              
-                              {/* Tooltip */}
-                              <div className='absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max max-w-[150px] p-2 bg-slate-800 text-white text-[10px] rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 shadow-xl z-50 text-center leading-relaxed font-medium pointer-events-none'>
-                                {advisor.specialties.slice(2).join(', ')}
-                                <div className='absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800'></div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                        {/* Stats */}
-                        <div className='grid grid-cols-3 gap-1 mb-4 py-2 bg-gray-50 rounded-lg'>
-                          <div className='text-center px-1 min-h-[50px] flex flex-col justify-center text-ellipsis overflow-hidden'>
-                            <p className='text-[10px] text-gray-500 font-medium leading-tight truncate'>
-                              Experience
-                            </p>
-                            <p className='text-xs font-bold text-gray-900 leading-tight'>
-                              {advisor.experience}y
-                            </p>
-                          </div>
-                          <div className='text-center px-1 border-l border-r border-gray-200 min-h-[50px] flex flex-col justify-center overflow-hidden'>
-                            <p className='text-[10px] text-gray-500 font-medium leading-tight truncate px-1'>
-                              {advisor.specialty}
-                            </p>
-                            <p className='text-xs font-bold text-gray-900 leading-tight'>
-                              Pro
-                            </p>
-                          </div>
-                          <div className='text-center px-1 min-h-[50px] flex flex-col justify-center'>
-                            <p className='text-[10px] text-gray-500 font-medium leading-tight truncate'>
-                              Connections
-                            </p>
-                            <p className='text-xs font-bold text-gray-900 leading-tight'>
-                              {advisor.connections}
-                            </p>
-                          </div>
-                        </div>
-                        {/* Buttons */}
-                        <div className='flex gap-2 mt-auto'>
-                          <motion.button
-                            onClick={() => {
-                              setSelectedProfile(advisor)
-                              setProfilePopupOpen(true)
-                            }}
-                            className='flex-1 py-2 px-2 border border-gray-200 text-gray-900 rounded-lg font-medium text-xs hover:bg-gray-50 transition-colors flex items-center justify-center gap-1'
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
-                          >
-                            <ExternalLink size={14} />
-                            View
-                          </motion.button>
-                           <motion.button
-                            onClick={() => handleConnect(advisor)}
-                            disabled={advisor.connectionStatus !== 'not_connected'}
-                            className={`flex-1 py-2 px-2 rounded-lg font-medium text-xs transition-colors flex items-center justify-center gap-1 ${
-                              advisor.connectionStatus === 'connected' 
-                                ? 'bg-emerald-100 text-emerald-700' 
-                                : advisor.connectionStatus === 'pending' || advisor.connectionStatus === 'received'
-                                  ? 'bg-amber-100 text-amber-700'
-                                  : 'bg-[#163146] text-white hover:bg-[#0f2a36]'
-                            }`}
-                            whileHover={advisor.connectionStatus === 'not_connected' ? { scale: 1.02 } : {}}
-                            whileTap={advisor.connectionStatus === 'not_connected' ? { scale: 0.98 } : {}}
-                          >
-                            {advisor.connectionStatus === 'connected' ? (
-                              <>
-                                <Users size={14} />
-                                Connected
-                              </>
-                            ) : advisor.connectionStatus === 'pending' ? (
-                              <>
-                                <Send size={14} />
-                                Sent
-                              </>
-                            ) : advisor.connectionStatus === 'received' ? (
-                                <>
-                                  <UserPlus size={14} />
-                                  Review
-                                </>
-                            ) : (
-                              <>
-                                <UserPlus size={14} />
-                                Connect
-                              </>
-                            )}
-                          </motion.button>
-                        </div>
-                      </div>
-                    </motion.div>
+                        advisor={advisor}
+                        onConnect={handleConnect}
+                        onView={(a) => {
+                          setSelectedProfile(a)
+                          setProfilePopupOpen(true)
+                        }}
+                      />
                     ))
                   )}
                 </AnimatePresence>
               </div>
-              {/* Carousel Indicators */}
-              <div className='flex items-center justify-center gap-2 mt-6'>
-                {Array.from({ length: Math.ceil(advisors.length / 3) }).map((_, index) => (
-                  <motion.div
-                    key={index}
-                    onClick={() => setAdvisorCarouselIndex(index * 3)}
-                    className={`h-2 rounded-full transition-colors cursor-pointer ${
-                      Math.floor(advisorCarouselIndex / 3) === index
-                        ? 'bg-[#163146] w-6'
-                        : 'bg-gray-200 w-2'
-                    }`}
-                    whileHover={{ scale: 1.2 }}
-                    whileTap={{ scale: 0.9 }}
-                  />
-                ))}
+              {/* Navigation CTA */}
+              <div className='mt-10 pt-6 border-t border-gray-50 text-center'>
+                 <p className='text-xs text-gray-400 mb-4 font-medium'>Want to see expert matches with different specialties?</p>
+                 <button 
+                    onClick={() => navigate('/explore')}
+                    className='text-xs font-black text-[#163146] hover:text-[#986a41] transition-colors flex items-center gap-2 mx-auto uppercase tracking-widest'
+                 >
+                    Search full expert directory <ChevronRight size={14} />
+                 </button>
               </div>
             </motion.div>
 
@@ -713,199 +526,232 @@ const DashboardPage = () => {
             </motion.div>
           </div>
           {/* Bottom Grid - Events, News/Stats */}
-          <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
+          <div className='grid grid-cols-1 lg:grid-cols-2 gap-8'>
             {/* Upcoming Events */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: 0.3 }}
-              className='bg-white rounded-2xl p-6 border border-gray-200'
+              className='bg-white rounded-[2rem] p-8 border border-gray-50 shadow-sm relative overflow-hidden'
             >
-              <h2 className='text-lg font-bold text-gray-900 mb-4'>
-                Upcoming Events
-              </h2>
-              <div className='space-y-3'>
+              <div className='flex items-center justify-between mb-8'>
+                <div className='flex items-center gap-3'>
+                  <div className='p-2 bg-[#163146]/5 rounded-xl text-[#163146]'>
+                    <Calendar size={20} />
+                  </div>
+                  <h2 className='text-xl font-bold text-gray-900'>
+                    Upcoming Events
+                  </h2>
+                </div>
+                <button className='text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-[#163146] transition-colors'>
+                  See All
+                </button>
+              </div>
+
+              <div className='space-y-4'>
                 {upcomingEvents.map((event, index) => (
                   <motion.div
                     key={event.id}
-                    initial={{ opacity: 0, x: -20 }}
+                    initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.2, delay: 0.3 + index * 0.05 }}
-                    className='border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors'
+                    transition={{ duration: 0.3, delay: 0.4 + index * 0.1 }}
+                    className='group flex items-start gap-4 p-4 rounded-3xl border border-transparent hover:border-gray-100 hover:bg-gray-50/50 transition-all cursor-pointer'
                   >
-                    <div className='flex items-start gap-3'>
-                      <div className='flex-shrink-0'>
-                        <Calendar size={18} className='text-[#163146]' />
-                      </div>
-                      <div className='flex-1'>
-                        <p className='font-semibold text-gray-900 text-sm'>
+                    <div className='flex flex-col items-center justify-center w-12 h-14 bg-[#163146] text-white rounded-2xl transition-all duration-300'>
+                      <span className='text-[10px] font-black uppercase tracking-tighter opacity-70 leading-none mb-1'>JAN</span>
+                      <span className='text-lg font-black leading-none'>{25 + index}</span>
+                    </div>
+
+                    <div className='flex-1 min-w-0'>
+                      <div className='flex items-center gap-2 mb-1'>
+                        <span className={`w-1.5 h-1.5 rounded-full ${index === 0 ? 'bg-amber-400' : 'bg-[#163146]'}`} />
+                        <h4 className='font-bold text-gray-900 text-sm truncate group-hover:text-[#163146] transition-colors'>
                           {event.title}
-                        </p>
-                        <p className='text-xs text-gray-500 mt-1'>
-                          {event.date} at {event.time}
-                        </p>
-                        <span className='inline-block text-xs font-medium text-white bg-[#163146] px-2 py-1 rounded mt-2'>
-                          {event.type}
-                        </span>
+                        </h4>
                       </div>
+                      <p className='text-[11px] text-gray-400 font-medium flex items-center gap-2'>
+                        <span>{event.time}</span>
+                        <span className='w-1 h-1 rounded-full bg-gray-200' />
+                        <span className='font-bold text-[#986a41]'>{event.type}</span>
+                      </p>
+                    </div>
+
+                    <div className='w-8 h-8 rounded-full border border-gray-100 flex items-center justify-center text-gray-300 group-hover:text-[#163146] group-hover:border-[#163146]/20 group-hover:bg-white transition-all'>
+                      <ChevronRight size={14} />
                     </div>
                   </motion.div>
                 ))}
               </div>
+
               <motion.button
-                className='w-full mt-4 py-2 text-sm font-medium text-[#163146] hover:bg-gray-50 rounded-lg transition-colors'
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+                className='w-full mt-6 py-4 bg-gray-50 text-gray-900 rounded-2xl text-xs font-bold hover:bg-[#163146] hover:text-white transition-all active:scale-[0.98]'
+                whileHover={{ y: -2 }}
               >
-                View Calendar →
+                Launch Calendar
               </motion.button>
             </motion.div>
+
             {/* Toggle between News and Stats */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: 0.35 }}
-              className='bg-white rounded-2xl p-6 border border-gray-200'
+              className='bg-white rounded-[2rem] p-8 border border-gray-50 shadow-sm'
             >
               {/* Header with Toggle */}
-              <div className='flex items-center justify-between mb-4'>
-                <h2 className='text-lg font-bold text-gray-900'>
-                  {showStats ? 'Connection Growth' : 'Latest News'}
-                </h2>
-                <div className='flex gap-2'>
-                  <motion.button
+              <div className='flex items-center justify-between mb-8'>
+                <div className='flex items-center gap-3'>
+                  <div className={`p-2 rounded-xl transition-all ${showStats ? 'bg-[#163146]/5 text-[#163146]' : 'bg-[#986a41]/5 text-[#986a41]'}`}>
+                    {showStats ? <LineChart size={20} /> : <Newspaper size={20} />}
+                  </div>
+                  <h2 className='text-xl font-bold text-gray-900'>
+                    {showStats ? 'Network Analytics' : 'Latest News'}
+                  </h2>
+                </div>
+                
+                <div className='bg-gray-50 p-1 rounded-xl flex gap-1'>
+                  <button
                     onClick={() => setShowStats(true)}
-                    className={`p-2 rounded-lg transition-colors ${
-                      showStats
-                        ? 'bg-[#163146] bg-opacity-10 text-[#163146]'
-                        : 'text-gray-500 hover:bg-gray-100'
+                    className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                      showStats ? 'bg-white shadow-sm text-[#163146]' : 'text-gray-400 hover:text-gray-600'
                     }`}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
                   >
-                    <LineChart size={20} />
-                  </motion.button>
-                  <motion.button
+                    Analytics
+                  </button>
+                  <button
                     onClick={() => setShowStats(false)}
-                    className={`p-2 rounded-lg transition-colors ${
-                      !showStats
-                        ? 'bg-[#163146] bg-opacity-10 text-[#163146]'
-                        : 'text-gray-500 hover:bg-gray-100'
+                    className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                      !showStats ? 'bg-white shadow-sm text-[#986a41]' : 'text-gray-400 hover:text-gray-600'
                     }`}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
                   >
-                    <Newspaper size={20} />
-                  </motion.button>
+                    News
+                  </button>
                 </div>
               </div>
+
               <AnimatePresence mode='wait'>
                 {showStats ? (
                   <motion.div
                     key='stats'
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 1.02 }}
                     transition={{ duration: 0.2 }}
                   >
                     {/* Time Range Selector */}
-                    <div className='flex gap-2 mb-6'>
+                    <div className='flex gap-2 mb-8'>
                       {['1W', '1M', '1Y', 'ALL'].map((range) => (
-                        <motion.button
+                        <button
                           key={range}
                           onClick={() => setTimeRange(range)}
-                          className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+                          className={`px-4 py-2 text-[10px] font-black rounded-xl transition-all ${
                             timeRange === range
-                              ? 'bg-[#163146] text-white'
-                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                              ? 'bg-[#163146] text-white shadow-lg shadow-[#163146]/20'
+                              : 'bg-white border border-gray-100 text-gray-400 hover:bg-gray-50'
                           }`}
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
                         >
                           {range}
-                        </motion.button>
+                        </button>
                       ))}
                     </div>
                     {/* Chart */}
-                    <div className='h-64'>
+                    <div className='h-64 -ml-4'>
                       <ResponsiveContainer width='100%' height='100%'>
                         <RechartsLineChart data={currentStatsData}>
+                          <defs>
+                            <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#163146" stopOpacity={0.1}/>
+                              <stop offset="95%" stopColor="#163146" stopOpacity={0}/>
+                            </linearGradient>
+                          </defs>
                           <CartesianGrid
                             strokeDasharray='3 3'
-                            stroke='#e5e7eb'
+                            vertical={false}
+                            stroke='#f1f5f9'
                           />
                           <XAxis
                             dataKey={
-                              timeRange === '1W'
-                                ? 'day'
-                                : timeRange === '1M'
-                                ? 'week'
-                                : timeRange === '1Y'
-                                ? 'month'
-                                : 'year'
+                              timeRange === '1W' ? 'day' :
+                              timeRange === '1M' ? 'week' :
+                              timeRange === '1Y' ? 'month' : 'year'
                             }
-                            stroke='#9ca3af'
-                            style={{ fontSize: '12px' }}
+                            stroke='#94a3b8'
+                            axisLine={false}
+                            tickLine={false}
+                            style={{ fontSize: '10px', fontWeight: '700' }}
+                            dy={10}
                           />
                           <YAxis
-                            stroke='#9ca3af'
-                            style={{ fontSize: '12px' }}
+                            stroke='#94a3b8'
+                            axisLine={false}
+                            tickLine={false}
+                            style={{ fontSize: '10px', fontWeight: '700' }}
+                            dx={-10}
                           />
                           <Tooltip
                             contentStyle={{
-                              backgroundColor: '#fff',
-                              border: '1px solid #e5e7eb',
-                              borderRadius: '8px',
+                              backgroundColor: '#163146',
+                              border: 'none',
+                              borderRadius: '16px',
+                              color: 'white',
+                              boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)',
+                              padding: '12px'
                             }}
+                            itemStyle={{ color: 'white', fontSize: '12px', fontWeight: 'bold' }}
+                            labelStyle={{ color: 'rgba(255,255,255,0.5)', fontSize: '10px', marginBottom: '4px' }}
                           />
                           <Line
                             type='monotone'
                             dataKey='value'
                             stroke='#163146'
-                            strokeWidth={3}
-                            dot={{ fill: '#163146', r: 4 }}
-                            activeDot={{ r: 6 }}
+                            strokeWidth={4}
+                            dot={false}
+                            activeDot={{ r: 6, fill: '#163146', stroke: '#fff', strokeWidth: 2 }}
                           />
                         </RechartsLineChart>
                       </ResponsiveContainer>
                     </div>
-                    <div className='mt-4 p-3 bg-blue-50 rounded-lg'>
-                      <p className='text-xs text-blue-600 font-medium'>
-                        You gained 480 new connections this period
-                      </p>
+                    <div className='mt-8 p-5 bg-gray-50 rounded-3xl border border-gray-100 flex items-center justify-between'>
+                      <div>
+                        <p className='text-[10px] text-gray-400 font-bold uppercase tracking-widest leading-none mb-1.5'>Connection Growth</p>
+                        <p className='text-sm text-gray-900 font-black'>+480 New Connections</p>
+                      </div>
+                      <div className='flex items-center gap-1 text-emerald-500 font-black text-xs'>
+                        <TrendingUp size={14} />
+                        12%
+                      </div>
                     </div>
                   </motion.div>
                 ) : (
                   <motion.div
                     key='news'
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
+                    initial={{ opacity: 0, x: 10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -10 }}
                     transition={{ duration: 0.2 }}
-                    className='space-y-3'
+                    className='space-y-4'
                   >
                     {latestNews.map((news, index) => (
                       <motion.div
                         key={news.id}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.2, delay: index * 0.05 }}
-                        className='border border-gray-200 rounded-lg p-3 hover:bg-gray-50 transition-colors cursor-pointer'
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3, delay: index * 0.1 }}
+                        className='group p-4 rounded-3xl border border-gray-50 hover:bg-gray-50 transition-all cursor-pointer'
                       >
-                        <p className='text-sm font-semibold text-gray-900 line-clamp-2'>
+                        <div className='flex items-center gap-2 mb-2'>
+                          <span className='px-2 py-0.5 bg-[#986a41]/10 text-[#986a41] text-[9px] font-black uppercase tracking-tighter rounded-md'>
+                            {news.category}
+                          </span>
+                          <span className='text-[10px] text-gray-400 font-bold'>{news.timestamp}</span>
+                        </div>
+                        <p className='text-sm font-bold text-gray-900 line-clamp-2 group-hover:text-[#163146] transition-colors'>
                           {news.title}
                         </p>
-                        <div className='flex items-center justify-between mt-2'>
-                          <span className='text-xs text-gray-500'>
-                            {news.source}
-                          </span>
-                          <span className='text-xs text-gray-400'>
-                            {news.timestamp}
-                          </span>
+                        <div className='flex items-center gap-2 mt-3'>
+                           <div className='w-5 h-5 rounded-full bg-gray-200' />
+                           <span className='text-[10px] text-gray-500 font-bold'>{news.source}</span>
                         </div>
-                        <span className='inline-block text-xs font-medium text-[#163146] bg-[#163146] bg-opacity-10 px-2 py-1 rounded mt-2'>
-                          {news.category}
-                        </span>
                       </motion.div>
                     ))}
                   </motion.div>

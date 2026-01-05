@@ -19,10 +19,41 @@ import {
 import React, { useEffect, useState } from 'react'
 import { useDispatch } from 'react-redux'
 import { Toaster, toast } from 'sonner'
+import { AdvisorRecommendationCard } from '../../components/Dashboard/AdvisorRecommendationCard'
+import ProfilePopup from '../../components/Dashboard/ProfilePopup'
 import UserPreviewCard from '../../components/Profile/UserPreviewCard'
 import { updateProfileImage } from '../../redux/userSlice'
 import { profileService } from '../../services/profileService'
 import DashboardLayout from '../Layout/DashboardLayout'
+
+const getImageUrl = (path) => {
+  if (!path) return null
+  if (path.startsWith('http')) return path
+  const baseUrl = import.meta.env.VITE_API_URL.replace('/api', '')
+  return `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`
+}
+
+const getBannerStyle = (profile) => {
+  if (profile?.bannerImage) {
+    if (profile.bannerImage.startsWith('linear-gradient') || 
+        profile.bannerImage.startsWith('radial-gradient') ||
+        profile.bannerImage.startsWith('url')) {
+      return { background: profile.bannerImage }
+    }
+    if (profile.bannerImage.startsWith('/') || profile.bannerImage.includes('uploads')) {
+      const url = getImageUrl(profile.bannerImage)
+      return { backgroundImage: `url(${url})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+    }
+    const theme = getThemeById(profile.bannerImage)
+    if (theme?.style) return theme.style
+    return { background: profile.bannerImage }
+  }
+  if (profile?.themeId) {
+    const theme = getThemeById(profile.themeId)
+    if (theme?.style) return theme.style
+  }
+  return { background: 'linear-gradient(135deg, #163146 0%, #986a41 100%)' }
+}
 
 import { getThemeById, themes } from '../../constants/themes'
 
@@ -111,6 +142,8 @@ const ProfilePage = () => {
   const [previewModalOpen, setPreviewModalOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [savingProfile, setSavingProfile] = useState(false)
+  const [selectedProfile, setSelectedProfile] = useState(null)
+  const [profilePopupOpen, setProfilePopupOpen] = useState(false)
 
 const ProfileSkeleton = () => (
   <div className='mx-auto px-4 py-6 max-w-7xl w-full animate-pulse'>
@@ -304,7 +337,35 @@ const ProfileSkeleton = () => (
       try {
         const advisorsResponse = await profileService.getRecommendedAdvisors(10)
         if (advisorsResponse.status === 'success') {
-          setRecommendedAdvisors(advisorsResponse.data.advisors || [])
+          const mappedAdvisors = (advisorsResponse.data.advisors || []).map(u => {
+            const userName = u.user?.name || 'Advisor';
+            return {
+              id: u.user?._id || u.user?.id || u._id,
+              name: userName,
+              title: u.title || (u.user?.userType === 'advisor' ? 'Advisor' : 'Agent'),
+              location: u.location || 'Remote',
+              specialty: u.specialization?.[0] || (u.user?.userType === 'advisor' ? 'Advisor' : 'Agent'),
+              specialties: u.specialization || u.specialties || [],
+              experience: parseInt(u.experience) || 0,
+              connections: 0,
+              initials: userName.split(' ').map(n => n[0]).join(''),
+              verified: u.verified || false,
+              bestMatch: (u.matchScore || u.matchPercentage) > 80,
+              matchPercentage: u.matchScore || u.matchPercentage || 0,
+              banner: getBannerStyle(u),
+              profileImg: (u.profileImage && !u.profileImage.includes('unsplash.com')) 
+                ? getImageUrl(u.profileImage) 
+                : (u.photo && !u.photo.includes('unsplash.com'))
+                  ? getImageUrl(u.photo)
+                  : `https://ui-avatars.com/api/?name=${userName}&background=random`,
+              type: u.user?.userType || u.profileType,
+              rating: u.ratings?.averageRating || 0,
+              reviewCount: u.ratings?.totalReviews || 0,
+              about: u.aboutMe || '',
+              connectionStatus: u.connectionStatus || 'not_connected',
+            };
+          })
+          setRecommendedAdvisors(mappedAdvisors)
         }
       } catch (err) {
         console.warn('Error fetching advisors:', err)
@@ -476,6 +537,12 @@ const ProfileSkeleton = () => (
       console.error('Error saving theme:', err)
       toast.error('Failed to save theme preference')
     }
+  }
+
+  const handleConnect = (user) => {
+    setSelectedProfile(user)
+    // For now just open the popup, or you could add full connection modal logic
+    setProfilePopupOpen(true)
   }
 
   const handleConnectAdvisor = (advisorId) => {
@@ -826,159 +893,19 @@ const ProfileSkeleton = () => (
                     </p>
                   </div>
                 ) : (
-                  <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+                  <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
                     {(advisors.length > 0 ? advisors : recommendedAdvisors)
-                      .slice(0, 6)
+                      .slice(0, 3)
                       .map((advisor) => (
-                        <motion.div
-                          key={advisor._id || advisor.id}
-                          variants={itemVariants}
-                          whileHover={{ y: -2 }}
-                          className='border border-slate-200 rounded-2xl overflow-hidden hover:shadow-lg transition-shadow flex flex-col bg-white h-full'
-                        >
-                          <div
-                            className='h-32 relative'
-                            style={{
-                              background: `linear-gradient(135deg, #163146 0%, #1e90ff 100%)`,
-                            }}
-                          >
-                            {advisor.matchScore > 0 && (
-                              <motion.div
-                                className={`absolute top-3 left-3 bg-white/95 backdrop-blur px-3 py-1.5 rounded-full text-[10px] font-bold flex items-center gap-1.5 shadow-sm overflow-hidden border ${
-                                  advisor.matchScore >= 80 ? 'text-emerald-700 border-emerald-100' :
-                                  advisor.matchScore >= 50 ? 'text-amber-700 border-amber-100' :
-                                  'text-slate-700 border-slate-100'
-                                }`}
-                                initial={{ opacity: 0, x: -10 }}
-                                animate={{ opacity: 1, x: 0 }}
-                              >
-                                <TrendingUp size={12} className={
-                                  advisor.matchScore >= 80 ? 'text-emerald-500' :
-                                  advisor.matchScore >= 50 ? 'text-amber-500' :
-                                  'text-slate-400'
-                                } />
-                                <span>{advisor.matchScore >= 90 ? 'Best Match' : `${advisor.matchScore}% Match`}</span>
-                              </motion.div>
-                            )}
-                          </div>
-
-                          <div className='px-4 py-4 flex-1 flex flex-col relative'>
-                            <div className='-mt-12 mb-3 flex-shrink-0 w-fit relative z-10'>
-                              {advisor.photo || advisor.profileImage ? (
-                                <img
-                                  src={
-                                    (advisor.photo || advisor.profileImage).startsWith('http') 
-                                      ? (advisor.photo || advisor.profileImage) 
-                                      : `${import.meta.env.VITE_API_URL.replace('/api', '')}${advisor.photo || advisor.profileImage}`
-                                  }
-                                  alt={advisor.user?.name || 'Advisor'}
-                                  className='w-16 h-16 rounded-full border-2 border-white object-cover shadow-md bg-white'
-                                />
-                              ) : (
-                                <div 
-                                  className='w-16 h-16 rounded-full border-2 border-white flex items-center justify-center text-white font-bold text-xl shadow-md'
-                                  style={{ background: `linear-gradient(135deg, #163146 0%, #1e90ff 100%)` }}
-                                >
-                                  {getInitials(advisor.user?.name)}
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Name and Title Container (Standardized Height) */}
-                            <div className='min-h-[3.5rem]'>
-                              <p className='font-bold text-gray-900 text-sm line-clamp-1'>
-                                {advisor.user?.name || 'Advisor Name'}
-                              </p>
-                              <p className='text-xs text-gray-500 mb-2 line-clamp-2'>
-                                {advisor.title || 'Professional'}
-                              </p>
-                            </div>
-
-                            {/* Specialty Bubbles (Standardized Height) */}
-                            <div className='flex flex-wrap gap-1.5 mb-3 min-h-[2.5rem]'>
-                              {(advisor.specialties || [])
-                                .slice(0, 2)
-                                .map((spec, idx) => (
-                                  <span
-                                    key={idx}
-                                    className='text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded-full font-medium truncate'
-                                  >
-                                    {spec}
-                                  </span>
-                                ))}
-                              {(advisor.specialties || []).length > 2 && (
-                                <span className='text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded-full font-medium'>
-                                  +{(advisor.specialties || []).length - 2}
-                                </span>
-                              )}
-                            </div>
-
-                            {/* Stats Grid */}
-                            <div className='grid grid-cols-3 gap-1 mb-4 py-2 bg-gray-50 rounded-lg'>
-                              <div className='text-center px-1 flex flex-col justify-center overflow-hidden'>
-                                <p className='text-[10px] text-gray-500 font-medium leading-tight truncate px-1'>
-                                  Experience
-                                </p>
-                                <p className='text-xs font-bold text-gray-900'>
-                                  {advisor.experience || 0}y
-                                </p>
-                              </div>
-                              <div className='text-center px-1 border-l border-r border-gray-200 flex flex-col justify-center overflow-hidden'>
-                                <p className='text-[10px] text-gray-500 font-medium leading-tight truncate px-1'>
-                                  {advisor.specialization?.[0] || 'Advisor'}
-                                </p>
-                                <p className='text-xs font-bold text-gray-900'>
-                                  Pro
-                                </p>
-                              </div>
-                              <div className='text-center px-1 flex flex-col justify-center'>
-                                <p className='text-[10px] text-gray-500 font-medium leading-tight truncate px-1'>
-                                  Connections
-                                </p>
-                                <p className='text-xs font-bold text-gray-900'>
-                                  {advisor.connections || 0}
-                                </p>
-                              </div>
-                            </div>
-
-                            {/* Buttons */}
-                            <div className='flex gap-2 mt-auto'>
-                              <motion.button
-                                onClick={() => {
-                                  setSelectedProfile(advisor)
-                                  setProfilePopupOpen(true)
-                                }}
-                                className='flex-1 py-2 px-2 border border-gray-200 text-gray-900 rounded-lg font-medium text-xs hover:bg-gray-50 transition-colors flex items-center justify-center gap-1'
-                                whileHover={{ scale: 1.02 }}
-                                whileTap={{ scale: 0.98 }}
-                              >
-                                <ExternalLink size={14} />
-                                View
-                              </motion.button>
-                              
-                              {!(advisors || []).find((a) => a._id === (advisor._id || advisor.userId)) ? (
-                                <motion.button
-                                  onClick={() => handleConnectAdvisor(advisor._id || advisor.userId)}
-                                  className='flex-1 py-2 px-2 bg-[#163146] text-white rounded-lg font-medium text-xs hover:bg-[#0f2a36] transition-colors flex items-center justify-center gap-1'
-                                  whileHover={{ scale: 1.02 }}
-                                  whileTap={{ scale: 0.98 }}
-                                >
-                                  <UserPlus size={14} />
-                                  Connect
-                                </motion.button>
-                              ) : (
-                                <motion.button
-                                  className='flex-1 py-2 px-2 bg-[#986a41] text-white rounded-lg font-medium text-xs hover:bg-[#855c36] transition-colors flex items-center justify-center gap-1'
-                                  whileHover={{ scale: 1.02 }}
-                                  whileTap={{ scale: 0.98 }}
-                                >
-                                  <MessageSquare size={14} />
-                                  Chat
-                                </motion.button>
-                              )}
-                            </div>
-                          </div>
-                        </motion.div>
+                        <AdvisorRecommendationCard 
+                          key={advisor.id}
+                          advisor={advisor}
+                          onConnect={handleConnect}
+                          onView={(a) => {
+                            setSelectedProfile(a)
+                            setProfilePopupOpen(true)
+                          }}
+                        />
                       ))}
                   </div>
                 )}
@@ -1712,6 +1639,15 @@ const ProfileSkeleton = () => (
           </motion.div>
         )}
       </AnimatePresence>
+
+      <ProfilePopup
+        profile={selectedProfile}
+        isOpen={profilePopupOpen}
+        onClose={() => setProfilePopupOpen(false)}
+        currentUserType='athlete'
+        onConnect={() => toast.info('Sending connection request from profile...')}
+        onMessage={(u) => navigate('/inbox', { state: { recipientId: u.id || u._id } })}
+      />
     </DashboardLayout>
   )
 }

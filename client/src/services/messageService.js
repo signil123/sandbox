@@ -14,6 +14,24 @@ export const messageService = {
   getMessages: (conversationId, page = 1, limit = 50) => 
     axiosInstance.get(`${API_URL}/conversations/${conversationId}/messages?page=${page}&limit=${limit}`),
   
-  sendMessage: (conversationId, content, type = 'text', attachments = [], eventInfo = null) => 
-    axiosInstance.post(`${API_URL}/conversations/${conversationId}/messages`, { content, type, attachments, eventInfo }),
+  sendMessage: (conversationId, content, options = {}) => {
+    const { type = 'text', attachments = [], eventInfo = null } = options
+    return axiosInstance.post(`${API_URL}/conversations/${conversationId}/messages`, { 
+        content, 
+        type, 
+        attachments, 
+        eventInfo 
+    })
+  },
+
+  uploadFile: (formData) => 
+    axiosInstance.post('/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    }),
+
+  archiveConversation: (conversationId) =>
+    axiosInstance.delete(`${API_URL}/conversations/${conversationId}`),
+
+  blockUser: (conversationId) =>
+    axiosInstance.post(`${API_URL}/conversations/${conversationId}/block`),
 }

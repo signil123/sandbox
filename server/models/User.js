@@ -210,6 +210,16 @@ const UserSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    settings: {
+      showLastSeen: {
+        type: Boolean,
+        default: true,
+      },
+      notificationsEnabled: {
+        type: Boolean,
+        default: true,
+      },
+    },
   },
   {
     timestamps: true,

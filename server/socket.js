@@ -34,13 +34,13 @@ export const initSocket = (server) => {
   })
 
   io.on('connection', (socket) => {
-    // Update user status
     socket.user.status = 'online'
     socket.user.lastSeen = new Date()
     socket.user.save().then(() => {
       io.emit('presence_update', {
         userId: socket.user._id,
         status: 'online',
+        lastSeen: socket.user.settings?.showLastSeen ? socket.user.lastSeen : null,
       })
     })
 
@@ -61,13 +61,16 @@ export const initSocket = (server) => {
 
     socket.on('disconnect', async () => {
       if (socket.user) {
-        socket.user.status = 'offline'
-        socket.user.lastSeen = new Date()
-        await socket.user.save()
+        // Use findByIdAndUpdate to avoid version error (ParallelSaveError)
+        const updatedUser = await User.findByIdAndUpdate(
+          socket.user._id,
+          { status: 'offline', lastSeen: new Date() },
+          { new: true }
+        )
         io.emit('presence_update', {
           userId: socket.user._id,
           status: 'offline',
-          lastSeen: socket.user.lastSeen,
+          lastSeen: socket.user.settings?.showLastSeen ? socket.user.lastSeen : null,
         })
       }
     })

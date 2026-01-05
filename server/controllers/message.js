@@ -166,7 +166,7 @@ export const getConversations = async (req, res, next) => {
             profileImage: profile?.profileImage,
             title: profile?.title,
             status: otherUser.status,
-            lastSeen: otherUser.lastSeen,
+            lastSeen: otherUser.settings?.showLastSeen ? otherUser.lastSeen : null,
           },
           unreadCount,
           lastMessageSnippet,
@@ -230,6 +230,99 @@ export const getMessages = async (req, res, next) => {
     })
   } catch (error) {
     console.error('Error in getMessages:', error)
+    next(error)
+  }
+}
+/**
+ * Update user settings
+ */
+export const updateSettings = async (req, res, next) => {
+  try {
+    const userId = req.user.id
+    const { settings } = req.body
+
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { $set: { settings: { ...req.user.settings, ...settings } } },
+      { new: true, runValidators: true }
+    )
+
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: { user },
+    })
+  } catch (error) {
+    console.error('Error in updateSettings:', error)
+    next(error)
+  }
+}
+/**
+ * Archive/Delete a conversation
+ */
+export const archiveConversation = async (req, res, next) => {
+  try {
+    const { conversationId } = req.params
+    const userId = req.user.id
+
+    const conversation = await Conversation.findById(conversationId)
+    if (!conversation) {
+      return next(createError(404, 'Conversation not found'))
+    }
+
+    if (conversation.participant1.toString() !== userId && conversation.participant2.toString() !== userId) {
+      return next(createError(403, 'You are not a participant in this conversation'))
+    }
+
+    // Instead of deleting, we archive it for this user
+    // We can add a field 'archivedBy' to the Conversation model if we want it per-user
+    // But for now let's just use the existing isArchived or simply mark as deleted for this user
+    // The current schema has isArchived. Let's use it.
+    conversation.isArchived = true
+    await conversation.save()
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Conversation archived successfully',
+    })
+  } catch (error) {
+    console.error('Error in archiveConversation:', error)
+    next(error)
+  }
+}
+
+/**
+ * Block a user from messaging
+ */
+export const blockUser = async (req, res, next) => {
+  try {
+    const { conversationId } = req.params
+    const userId = req.user.id
+
+    const conversation = await Conversation.findById(conversationId)
+    if (!conversation) {
+      return next(createError(404, 'Conversation not found'))
+    }
+
+    if (conversation.participant1.toString() !== userId && conversation.participant2.toString() !== userId) {
+      return next(createError(403, 'You are not a participant in this conversation'))
+    }
+
+    const otherUserId = conversation.getOtherParticipant(userId)
+
+    conversation.isBlocked = true
+    conversation.blockedBy = userId
+    await conversation.save()
+
+    res.status(200).json({
+      status: 'success',
+      message: 'User blocked successfully',
+    })
+  } catch (error) {
+    console.error('Error in blockUser:', error)
     next(error)
   }
 }

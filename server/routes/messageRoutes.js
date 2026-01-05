@@ -1,10 +1,13 @@
 // File: server/routes/messageRoutes.js
 import express from 'express'
 import {
+    archiveConversation,
+    blockUser,
     getConversations,
     getMessages,
     sendMessage,
     startConversation,
+    updateSettings
 } from '../controllers/message.js'
 import { verifyToken } from '../middleware/authMiddleware.js'
 
@@ -24,5 +27,14 @@ router.get('/conversations/:conversationId/messages', getMessages)
 
 // Send a message
 router.post('/conversations/:conversationId/messages', sendMessage)
+
+// Update user settings (privacy, etc)
+router.put('/settings', updateSettings)
+
+// Archive/Delete conversation
+router.delete('/conversations/:conversationId', archiveConversation)
+
+// Block user
+router.post('/conversations/:conversationId/block', blockUser)
 
 export default router

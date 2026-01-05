@@ -5,23 +5,36 @@
 // - Swipe Left: Close conversation drawer (when open)
 // - Desktop: Use menu button or navigation as normal
 //
+import imageCompression from 'browser-image-compression'
+import EmojiPicker from 'emoji-picker-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
+    Ban,
     Check,
+    Download,
+    FileText,
+    Image as ImageIcon,
     Menu,
     MessageSquare,
+    MoreVertical,
     Paperclip,
+    Paperclip as PaperclipIcon,
     Search,
     Send,
+    Settings,
+    Smile,
+    Trash2,
     X,
 } from 'lucide-react'
 import React, { useEffect, useRef, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useLocation } from 'react-router-dom'
 import { toast } from 'sonner'
-import { selectCurrentUser } from '../../redux/userSlice'
+import { selectCurrentUser, setUser } from '../../redux/userSlice'
+import { authService } from '../../services/authService'
 import { connectionService } from '../../services/connectionService'
 import { messageService } from '../../services/messageService'
+import { profileService } from '../../services/profileService'
 import { socketService } from '../../services/socketService'
 import DashboardLayout from '../Layout/DashboardLayout'
 
@@ -347,6 +360,21 @@ function MessagePage() {
   const [isMobileOpen, setIsMobileOpen] = useState(false)
   const messageEndRef = useRef(null)
   const [dragStart, setDragStart] = useState(0)
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
+  const [selectedFile, setSelectedFile] = useState(null)
+  const [previewUrl, setPreviewUrl] = useState(null)
+  const [isTyping, setIsTyping] = useState(false)
+  const [otherUserTyping, setOtherUserTyping] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
+  const [showChatMenu, setShowChatMenu] = useState(false)
+  const [userSettings, setUserSettings] = useState(currentLoggedInUser?.settings || { showLastSeen: true })
+  const fileInputRef = useRef(null)
+  const emojiPickerRef = useRef(null)
+  const chatMenuRef = useRef(null)
+  const settingsMenuRef = useRef(null)
+  
+  const dispatch = useDispatch()
 
   // Current conversation details
   const currentConversation = conversations.find(
@@ -371,13 +399,19 @@ function MessagePage() {
         )
       })
 
+      socket.on('typing_update', ({ userId, isTyping }) => {
+        if (selectedUser?._id === userId) {
+          setOtherUserTyping(isTyping)
+        }
+      })
+
       socket.on('presence_update', ({ userId, status, lastSeen }) => {
         setConversations((prev) =>
           prev.map((c) => {
             if (c.otherUser._id === userId) {
               return {
                 ...c,
-                otherUser: { ...c.otherUser, status, lastSeen },
+                otherUser: { ...c.otherUser, status, lastSeen: lastSeen || null },
               }
             }
             return c
@@ -491,6 +525,23 @@ function MessagePage() {
     loadRequests()
   }, [activeTab, currentLoggedInUser])
 
+  // Close emoji picker when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target)) {
+        setShowEmojiPicker(false)
+      }
+      if (chatMenuRef.current && !chatMenuRef.current.contains(event.target)) {
+        setShowChatMenu(false)
+      }
+      if (settingsMenuRef.current && !settingsMenuRef.current.contains(event.target)) {
+        setShowSettings(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
   // Auto scroll to bottom
   useEffect(() => {
     messageEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -513,6 +564,138 @@ function MessagePage() {
     // Swipe left (close drawer)
     else if (dragDistance > minSwipeDistance && isMobileOpen) {
       setIsMobileOpen(false)
+    }
+  }
+
+  const handleEmojiClick = (emojiData) => {
+    setNewMessage((prev) => prev + emojiData.emoji)
+  }
+
+  const handleFileSelect = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+
+    // Limit size to 10MB
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('File size too large. Max 10MB.')
+      return
+    }
+
+    setSelectedFile(file)
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader()
+      reader.onload = (e) => setPreviewUrl(e.target.result)
+      reader.readAsDataURL(file)
+    } else {
+      setPreviewUrl(null)
+    }
+  }
+
+  const handleFileUpload = async () => {
+    if (!selectedFile || !selectedConversationId || isUploading) return
+
+    setIsUploading(true)
+    try {
+      let fileToUpload = selectedFile
+
+      // Compress if it's an image
+      if (selectedFile.type.startsWith('image/')) {
+        const options = {
+          maxSizeMB: 1,
+          maxWidthOrHeight: 1920,
+          useWebWorker: true
+        }
+        try {
+          fileToUpload = await imageCompression(selectedFile, options)
+        } catch (error) {
+          console.error('Compression failed:', error)
+          // Fallback to original file
+        }
+      }
+
+      const formData = new FormData()
+      formData.append('file', fileToUpload)
+
+      const response = await messageService.uploadFile(formData)
+      if (response.data.status === 'success') {
+        const fileUrl = response.data.url
+        
+        // Send as a message with attachment
+        const messageResponse = await messageService.sendMessage(selectedConversationId, '', {
+            type: selectedFile.type.startsWith('image/') ? 'image' : 'document',
+            attachments: [{
+                url: fileUrl,
+                name: selectedFile.name,
+                mimeType: selectedFile.type,
+                size: selectedFile.size
+            }]
+        })
+
+        if (messageResponse.data.status === 'success') {
+          const sentMsg = messageResponse.data.data.message
+          setMessages(prev => [...prev, sentMsg])
+          setConversations(prev => prev.map(c => 
+            c._id === selectedConversationId ? { ...c, lastMessage: sentMsg } : c
+          ))
+          
+          setSelectedFile(null)
+          setPreviewUrl(null)
+          toast.success('File sent successfully')
+        }
+      }
+    } catch (error) {
+      console.error('Upload failed:', error)
+      toast.error('Failed to upload file')
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  const handleToggleLastSeen = async () => {
+    try {
+        const updatedSettings = { ...userSettings, showLastSeen: !userSettings.showLastSeen }
+        // Optimistic update
+        setUserSettings(updatedSettings)
+        
+        const res = await profileService.updateSettings(updatedSettings)
+        if (res.data.status === 'success') {
+            // Sync with Redux to ensure persistence
+            dispatch(setUser({ ...currentLoggedInUser, settings: updatedSettings }))
+            toast.success('Visibility settings updated')
+        }
+    } catch (err) {
+        // Revert on failure
+        setUserSettings(currentLoggedInUser?.settings || { showLastSeen: true })
+        toast.error('Failed to update settings')
+    }
+  }
+
+  const handleBlockUser = async () => {
+    if (!selectedConversationId) return
+    if (!window.confirm('Are you sure you want to block this user? They will not be able to message you.')) return
+
+    try {
+        await messageService.blockUser(selectedConversationId)
+        toast.success('User blocked')
+        setShowChatMenu(false)
+        // Optionally refresh conversation or redirect
+    } catch (error) {
+        toast.error('Failed to block user')
+    }
+  }
+
+  const handleArchiveConversation = async () => {
+    if (!selectedConversationId) return
+    if (!window.confirm('Are you sure you want to delete this conversation?')) return
+
+    try {
+        await messageService.archiveConversation(selectedConversationId)
+        toast.success('Conversation deleted')
+        setShowChatMenu(false)
+        setConversations(prev => prev.filter(c => c._id !== selectedConversationId))
+        setSelectedConversationId(null)
+    } catch (error) {
+        toast.error('Failed to delete conversation')
     }
   }
 
@@ -605,11 +788,14 @@ function MessagePage() {
           .message-page-container {
             height: calc(100dvh - 70px - 70px);
             padding-bottom: 0;
+            margin-top: 0;
           }
           .chat-panel {
             height: 100%;
             display: flex;
             flex-direction: column;
+            border-radius: 0;
+            border: none;
           }
           .chat-messages-area {
             flex: 1;
@@ -618,13 +804,26 @@ function MessagePage() {
           }
           .chat-input-area {
             flex-shrink: 0;
-            padding-bottom: max(env(safe-area-inset-bottom), 8px);
+            padding-bottom: max(env(safe-area-inset-bottom), 12px);
           }
         }
         @media (min-width: 1024px) {
           .message-page-container {
-            height: calc(100vh - 70px);
+            height: calc(100vh - 80px);
           }
+        }
+        .bg-brand-primary { background-color: #163146; }
+        .text-brand-primary { color: #163146; }
+        .bg-brand-accent { background-color: #986a41; }
+        .text-brand-accent { color: #986a41; }
+        .message-sent { background-color: #163146; color: white; }
+        .message-received { background-color: #f3f4f6; color: #1f2937; }
+        .emoji-picker-container {
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            z-index: 50;
+            margin-bottom: 10px;
         }
       `}</style>
       <div
@@ -894,7 +1093,7 @@ function MessagePage() {
                         }`}
                       >
                         {conv.showUnreadDot && (
-                          <div className='absolute right-3 top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-amber-500 rounded-full shadow-sm' />
+                          <div className='absolute right-3 top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-[#986a41] rounded-full shadow-sm' />
                         )}
                         <div className='flex items-start gap-3'>
                           <button
@@ -930,7 +1129,7 @@ function MessagePage() {
                                   {conv.lastMessageAt ? new Date(conv.lastMessageAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                                 </span>
                                 {conv.showUnreadDot && (
-                                  <div className='w-2.5 h-2.5 bg-amber-500 rounded-full shadow-sm' />
+                                  <div className='w-2.5 h-2.5 bg-[#986a41] rounded-full shadow-sm' />
                                 )}
                               </div>
                             </div>
@@ -1021,7 +1220,7 @@ function MessagePage() {
                     <div
                       className={`w-10 h-10 rounded-full bg-gradient-to-br ${getAvatarColor(
                         selectedUser?._id
-                      )} flex items-center justify-center text-white font-semibold text-sm shadow-sm group-hover:ring-2 group-hover:ring-amber-500 transition-all`}
+                      )} flex items-center justify-center text-white font-semibold text-sm shadow-sm group-hover:ring-2 group-hover:ring-[#986a41] transition-all`}
                     >
                       {selectedUser?.profileImage ? (
                         <img src={getImageUrl(selectedUser.profileImage)} alt="" className="w-full h-full rounded-full object-cover" />
@@ -1034,7 +1233,7 @@ function MessagePage() {
                     </div>
                   </div>
                   <div className='min-w-0'>
-                    <h2 className='font-bold text-gray-900 text-sm sm:text-base truncate group-hover:text-amber-600 transition-colors'>
+                    <h2 className='font-bold text-gray-900 text-sm sm:text-base truncate group-hover:text-[#986a41] transition-colors'>
                       {selectedUser.name}
                     </h2>
                     <p className='text-[10px] sm:text-xs text-gray-500 flex items-center gap-1'>
@@ -1042,12 +1241,88 @@ function MessagePage() {
                         <span className='text-green-600 font-medium'>Online</span>
                       ) : (
                         <span>
-                          Last seen {selectedUser?.lastSeen ? new Date(selectedUser.lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'recently'}
+                          {selectedUser?.lastSeen ? `Last seen ${new Date(selectedUser.lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Offline'}
                         </span>
+                      )}
+                      {otherUserTyping && (
+                        <span className='ml-2 text-[#986a41] font-medium animate-pulse'>typing...</span>
                       )}
                     </p>
                   </div>
                 </div>
+              </div>
+              
+              <div className='flex items-center gap-1'>
+                 <div className='relative' ref={settingsMenuRef}>
+                    <motion.button
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setShowSettings(!showSettings)}
+                        className='p-2 hover:bg-gray-100 rounded-full text-gray-400'
+                    >
+                        <Settings size={18} />
+                    </motion.button>
+                    
+                    <AnimatePresence>
+                        {showSettings && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                className='absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-50'
+                            >
+                                <div className='px-4 py-2 border-b border-gray-50 mb-1'>
+                                    <h3 className='text-xs font-bold text-gray-900 uppercase tracking-wider'>Privacy Settings</h3>
+                                </div>
+                                <label className='flex items-center justify-between px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors'>
+                                    <div>
+                                        <span className='text-sm text-gray-700 font-medium block'>Show Last Seen</span>
+                                        <span className='text-[10px] text-gray-400 block'>Allow others to see when you're online</span>
+                                    </div>
+                                    <input 
+                                        type="checkbox" 
+                                        checked={userSettings.showLastSeen}
+                                        onChange={handleToggleLastSeen}
+                                        className='w-4 h-4 rounded text-[#163146] focus:ring-[#163146]'
+                                    />
+                                </label>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                 </div>
+
+                 <div className='relative' ref={chatMenuRef}>
+                    <button
+                        onClick={() => setShowChatMenu(!showChatMenu)}
+                        className='p-2 hover:bg-gray-100 rounded-full text-gray-400'
+                    >
+                        <MoreVertical size={20} />
+                    </button>
+                    <AnimatePresence>
+                        {showChatMenu && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                className='absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-1 z-50'
+                            >
+                                <button
+                                    onClick={handleBlockUser}
+                                    className='w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2'
+                                >
+                                    <Ban size={16} />
+                                    Block User
+                                </button>
+                                <button
+                                    onClick={handleArchiveConversation}
+                                    className='w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2'
+                                >
+                                    <Trash2 size={16} />
+                                    Delete Conversation
+                                </button>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                 </div>
               </div>
             </div>
 
@@ -1061,51 +1336,157 @@ function MessagePage() {
                   }`}
                 >
                   <div
-                    className={`max-w-xs px-3 py-2 rounded-2xl text-xs ${
+                    className={`max-w-[85%] sm:max-w-md px-4 py-3 rounded-2xl shadow-sm ${
                       msg.sender === currentLoggedInUser._id
-                        ? 'text-white bg-[#163146]'
-                        : 'bg-gray-100 text-gray-900'
+                        ? 'text-white bg-[#163146] rounded-br-none'
+                        : 'bg-white border border-gray-100 text-gray-900 rounded-bl-none'
                     }`}
                   >
-                    <p className='break-words'>{msg.content}</p>
-                    <p
-                      className={`text-[10px] mt-0.5 ${
+                    {msg.type === 'image' && msg.attachments?.[0] && (
+                        <div className='mb-2 rounded-lg overflow-hidden border border-gray-100 bg-gray-50'>
+                            <img 
+                                src={getImageUrl(msg.attachments[0].url)} 
+                                alt="Attachment" 
+                                className='max-h-60 w-full object-cover'
+                                onClick={() => window.open(getImageUrl(msg.attachments[0].url), '_blank')}
+                            />
+                        </div>
+                    )}
+                    {msg.type === 'document' && msg.attachments?.[0] && (
+                        <div className={`mb-2 p-2 rounded-lg flex items-center gap-2 ${msg.sender === currentLoggedInUser._id ? 'bg-white/10' : 'bg-gray-100'}`}>
+                            <FileText size={20} className={msg.sender === currentLoggedInUser._id ? 'text-white' : 'text-gray-500'} />
+                            <div className='flex-1 min-w-0'>
+                                <p className='text-[10px] font-bold truncate'>{msg.attachments[0].name}</p>
+                                <p className='text-[8px] opacity-70'>{(msg.attachments[0].size / 1024).toFixed(1)} KB</p>
+                            </div>
+                            <a 
+                                href={getImageUrl(msg.attachments[0].url)} 
+                                download 
+                                target='_blank'
+                                rel='noreferrer'
+                                className={`p-1 rounded-full hover:bg-black/10 transition-colors`}
+                            >
+                                <Download size={14} />
+                            </a>
+                        </div>
+                    )}
+                    {msg.content && <p className='text-sm sm:text-base break-words leading-relaxed'>{msg.content}</p>}
+                    <div
+                      className={`flex items-center justify-end gap-1 mt-1 ${
                         msg.sender === currentLoggedInUser._id
-                          ? 'text-amber-100'
-                          : 'text-gray-500'
+                          ? 'text-gray-300'
+                          : 'text-gray-400'
                       }`}
                     >
-                      {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </p>
+                      <span className='text-[9px]'>
+                        {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                      {msg.sender === currentLoggedInUser._id && (
+                        <Check size={10} className={msg.isRead ? 'text-[#986a41]' : 'text-gray-400'} />
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
+              {otherUserTyping && (
+                <div className="flex justify-start animate-fade-in">
+                    <div className="bg-gray-100 border border-gray-200 rounded-2xl rounded-bl-none px-4 py-3 flex items-center gap-1">
+                        <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                        <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                        <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                    </div>
+                </div>
+              )}
               <div ref={messageEndRef} />
             </div>
 
             {/* Message Input */}
-            <div className='px-4 py-4 border-t border-gray-100 flex-shrink-0 bg-white chat-input-area'>
-              <div className='flex gap-2 items-end max-w-4xl mx-auto'>
+            <div className='px-4 py-3 border-t border-gray-100 flex-shrink-0 bg-white chat-input-area'>
+              {/* File Preview */}
+              <AnimatePresence>
+                {selectedFile && (
+                    <motion.div 
+                        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                        className='mb-3 p-3 bg-gray-50 border border-gray-100 rounded-2xl flex items-center justify-between max-w-4xl mx-auto shadow-sm select-none'
+                    >
+                        <div className='flex items-center gap-3 overflow-hidden'>
+                            {previewUrl ? (
+                                <div className='w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200'>
+                                    <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
+                                </div>
+                            ) : (
+                                <div className='w-12 h-12 rounded-lg bg-white flex items-center justify-center flex-shrink-0 border border-gray-200'>
+                                    <FileText size={24} className='text-[#163146]' />
+                                </div>
+                            )}
+                            <div className='min-w-0'>
+                                <p className='text-xs font-bold text-gray-900 truncate'>{selectedFile.name}</p>
+                                <p className='text-[10px] text-gray-500'>{(selectedFile.size / 1024).toFixed(1)} KB • Ready to send</p>
+                            </div>
+                        </div>
+                        <div className='flex items-center gap-2'>
+                            <motion.button
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={handleFileUpload}
+                                disabled={isUploading}
+                                className='px-3 py-1.5 bg-[#163146] text-white text-[10px] font-bold rounded-lg shadow-sm disabled:opacity-50'
+                            >
+                                {isUploading ? 'Uploading...' : 'Upload'}
+                            </motion.button>
+                            <button 
+                                onClick={() => { setSelectedFile(null); setPreviewUrl(null); }}
+                                className='p-1.5 hover:bg-gray-200 rounded-full text-gray-500 transition-colors'
+                            >
+                                <X size={16} />
+                            </button>
+                        </div>
+                    </motion.div>
+                )}
+              </AnimatePresence>
+
+              <div className='flex gap-2 items-center max-w-4xl mx-auto relative'>
+                {/* Emoji Picker */}
+                {showEmojiPicker && (
+                    <div className="emoji-picker-container" ref={emojiPickerRef}>
+                        <EmojiPicker 
+                            onEmojiClick={handleEmojiClick}
+                            width={320}
+                            height={400}
+                            skinTonesDisabled
+                            searchDisabled
+                        />
+                    </div>
+                )}
+
                 <div className='flex gap-1 pb-1'>
                   <button 
+                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                    className={`p-2 rounded-full transition-colors ${showEmojiPicker ? 'bg-[#986a41] text-white' : 'hover:bg-gray-100 text-gray-500'}`}
+                    title="Add Emoji"
+                  >
+                    <Smile size={20} />
+                  </button>
+                  <button 
+                    onClick={() => fileInputRef.current?.click()}
                     className='p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-500'
                     title="Attach file"
                   >
-                    <Paperclip size={20} />
+                    <PaperclipIcon size={20} />
                   </button>
-                  <button 
-                    className='p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-500'
-                    title="Schedule event"
-                  >
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                  </button>
+                  <input 
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileSelect}
+                    className='hidden'
+                  />
                 </div>
                 <div className='flex-1 relative'>
                   <textarea
                     rows={1}
-                    placeholder='Write a message...'
+                    placeholder='Type a message...'
                     value={newMessage}
                     onChange={(e) => {
                       setNewMessage(e.target.value)
@@ -1117,21 +1498,22 @@ function MessagePage() {
                         handleSendMessage()
                       }
                     }}
-                    className='w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all resize-none max-h-32'
+                    className='w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-[#986a41]/20 focus:border-[#986a41] transition-all resize-none max-h-32 shadow-inner'
                     style={{ height: 'auto' }}
                   />
                 </div>
-                <button
+                <motion.button
+                  whileTap={{ scale: 0.9 }}
                   onClick={handleSendMessage}
                   disabled={!newMessage.trim() || isSending}
-                  className={`p-3 rounded-full transition-all flex-shrink-0 flex items-center justify-center shadow-lg ${
+                  className={`p-3 rounded-full transition-all flex-shrink-0 flex items-center justify-center shadow-md ${
                     newMessage.trim() && !isSending 
-                      ? 'bg-[#163146] text-white hover:bg-opacity-90 hover:-translate-y-0.5' 
-                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      ? 'bg-[#163146] text-white hover:shadow-lg hover:-translate-y-0.5' 
+                      : 'bg-gray-100 text-gray-300 cursor-not-allowed'
                   }`}
                 >
-                  <Send size={20} className={isSending ? 'animate-pulse' : ''} />
-                </button>
+                  <Send size={18} className={isSending ? 'animate-pulse' : ''} />
+                </motion.button>
               </div>
             </div>
           </div>
