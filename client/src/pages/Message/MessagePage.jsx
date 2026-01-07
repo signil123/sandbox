@@ -1134,6 +1134,23 @@ function MessagePage() {
     }
   }
 
+  const handleEventResponse = async (eventId, status) => {
+    try {
+      const response = await api.patch(`/events/${eventId}/respond`, { status });
+      if (response.data.status === 'success') {
+        toast.success(`Event ${status}`);
+        // Refresh messages to show updated status or just show toast
+        const msgRes = await messageService.getMessages(selectedConversationId);
+        if (msgRes.data.status === 'success') {
+          setMessages(msgRes.data.data.messages);
+        }
+      }
+    } catch (error) {
+      console.error('Error responding to event:', error);
+      toast.error('Failed to respond to event');
+    }
+  }
+
   const filteredItems =
     activeTab === 'network'
       ? conversations.filter((conv) => {
@@ -1880,12 +1897,30 @@ function MessagePage() {
                                     </p>
                                 )}
                             </div>
-                            <button 
-                                onClick={() => window.open('/calendar', '_blank')}
-                                className={`mt-2 py-1.5 px-3 rounded-lg text-[10px] font-bold transition-all ${msg.sender === currentLoggedInUser._id ? 'bg-white text-[#163146]' : 'bg-[#163146] text-white'}`}
-                            >
-                                View Details
-                            </button>
+                             <div className="flex gap-2 mt-2">
+                                <button 
+                                    onClick={() => window.open('/calendar', '_blank')}
+                                    className={`flex-1 py-1.5 px-3 rounded-lg text-[10px] font-bold transition-all ${msg.sender === currentLoggedInUser._id ? 'bg-white text-[#163146]' : 'bg-[#163146] text-white'}`}
+                                >
+                                    Details
+                                </button>
+                                {msg.sender !== currentLoggedInUser._id && (
+                                    <>
+                                        <button 
+                                            onClick={() => handleEventResponse(msg.eventInfo.eventId, 'accepted')}
+                                            className="flex-1 py-1.5 px-3 rounded-lg text-[10px] font-bold bg-green-500 text-white hover:bg-green-600 transition-all shadow-sm"
+                                        >
+                                            Accept
+                                        </button>
+                                        <button 
+                                            onClick={() => handleEventResponse(msg.eventInfo.eventId, 'declined')}
+                                            className="flex-1 py-1.5 px-3 rounded-lg text-[10px] font-bold bg-red-500 text-white hover:bg-red-600 transition-all shadow-sm"
+                                        >
+                                            Decline
+                                        </button>
+                                    </>
+                                )}
+                             </div>
                         </div>
                     )}
                     {msg.content && <p className='text-sm sm:text-base break-words leading-relaxed'>{msg.content}</p>}

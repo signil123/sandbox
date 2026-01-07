@@ -2,6 +2,7 @@
 import { createError } from '../error.js'
 import { Conversation, Message } from '../models/Message.js'
 import Notification from '../models/Notification.js'
+import Profile from '../models/Profile.js'
 import { Connection, ConnectionRequest } from '../models/Relationship.js'
 import User from '../models/User.js'
 import { calculateMatchScore } from './matching.js'
@@ -439,7 +440,7 @@ export const getRequestsSummary = async (req, res, next) => {
 export const getUserConnections = async (req, res, next) => {
   try {
     const { userId } = req.params
-    const { page = 1, limit = 10 } = req.query
+    const { page = 1, limit = 50 } = req.query
 
     const skip = (parseInt(page) - 1) * parseInt(limit)
 

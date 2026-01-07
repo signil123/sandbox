@@ -46,11 +46,18 @@ const EventSchema = new mongoose.Schema(
     },
     eventType: {
       type: String,
-      enum: ['networking', 'workshop', 'seminar', 'meetup', 'conference', 'other'],
+      enum: ['networking', 'workshop', 'seminar', 'meetup', 'conference', 'meeting', 'other'],
       required: true,
+    },
+    locationType: {
+      type: String,
+      enum: ['In-Person', 'Phone Call', 'Video Call'],
+      required: true,
+      default: 'In-Person',
     },
     location: {
       address: String,
+      phone: String,
       city: String,
       state: String,
       country: String,
@@ -58,9 +65,13 @@ const EventSchema = new mongoose.Schema(
       longitude: Number,
     },
     virtualLocation: {
-      platform: String, // zoom, teams, etc
+      platform: {
+        type: String,
+        enum: ['Zoom', 'Google Meet', 'Microsoft Teams', 'Other'],
+      },
       link: String,
     },
+    attachments: [String],
     startDate: {
       type: Date,
       required: true,
