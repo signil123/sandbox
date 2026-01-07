@@ -22,6 +22,7 @@ import {
     MoreVertical,
     Paperclip,
     Paperclip as PaperclipIcon,
+    PenLine,
     Search,
     Send,
     Settings,
@@ -29,10 +30,19 @@ import {
     Trash2,
     X,
 } from 'lucide-react'
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
+import ProfilePopup from '../../components/Dashboard/ProfilePopup'
+import { Button } from '../../components/ui/button'
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from '../../components/ui/dialog'
+import { Textarea } from '../../components/ui/textarea'
 import {
     fetchUnreadMessages,
     selectCurrentUser,
@@ -111,6 +121,13 @@ const getImageUrl = (path) => {
   return `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`
 }
 
+const getProfileImage = (user) => {
+  if (!user) return null
+  const path = user.profileImage || user.photo || user.profileImg
+  if (path) return getImageUrl(path)
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}&background=random`
+}
+
 // Expanded Profile View Component - Matches ProfilePopup styling
 function ExpandedProfileView({
   user,
@@ -174,7 +191,7 @@ function ExpandedProfileView({
 
             {/* Profile Info */}
             <div className='flex flex-col items-center -mt-14 relative z-10'>
-              <motion.div
+                <motion.div
                 className={`w-28 h-28 md:w-32 md:h-32 rounded-full bg-gradient-to-br ${getAvatarColor(
                   user?.id || user?._id
                 )} flex items-center justify-center text-white font-bold text-3xl border-4 border-white shadow-lg overflow-hidden`}
@@ -182,11 +199,17 @@ function ExpandedProfileView({
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ delay: 0.1, type: 'spring' }}
               >
-                {user?.profileImage ? (
-                  <img src={getImageUrl(user.profileImage)} alt={user.name} className="w-full h-full object-cover" />
-                ) : (
-                  getInitials(user?.name || '')
-                )}
+                <img 
+                  src={getProfileImage(user)} 
+                  alt={user.name} 
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.target.onerror = null
+                    e.target.style.display = 'none'
+                    e.target.nextSibling.style.display = 'flex'
+                  }}
+                />
+                <span style={{ display: 'none' }}>{getInitials(user?.name || '')}</span>
               </motion.div>
               <h2 className='mt-3 md:mt-4 text-base md:text-lg font-bold text-gray-900 text-center truncate max-w-xs'>
                 {user?.name}
@@ -498,6 +521,7 @@ function EventModal({ isOpen, onClose, onSubmit, eventData, setEventData, isSubm
 // Main Component
 
 function MessagePage() {
+  const navigate = useNavigate()
   const location = useLocation()
   const currentLoggedInUser = useSelector(selectCurrentUser)
   const [activeTab, setActiveTab] = useState(location.state?.tab || 'network')
@@ -527,6 +551,9 @@ function MessagePage() {
   const [searchResults, setSearchResults] = useState([])
   const [isSearching, setIsSearching] = useState(false)
   const [showEventModal, setShowEventModal] = useState(false)
+  const [showConnectionModal, setShowConnectionModal] = useState(false)
+  const [connectionMessage, setConnectionMessage] = useState('')
+  const [addNoteMode, setAddNoteMode] = useState(false)
   const [eventData, setEventData] = useState({
     title: '',
     description: '',
@@ -578,7 +605,7 @@ function MessagePage() {
       socket.on('presence_update', ({ userId, status, lastSeen }) => {
         setConversations((prev) =>
           prev.map((c) => {
-            if (c.otherUser._id === userId) {
+            if (c.otherUser?._id === userId) {
               return {
                 ...c,
                 otherUser: { ...c.otherUser, status, lastSeen: lastSeen || null },
@@ -608,70 +635,83 @@ function MessagePage() {
     }
   }, [selectedConversationId, dispatch])
 
-  // Fetch conversations on mount
-  useEffect(() => {
-    let isMounted = true
-    const loadConversations = async () => {
-      try {
-        setIsLoading(true)
-        const response = await messageService.getConversations()
-        if (response.data.status === 'success' && isMounted) {
-          const convs = response.data.data.conversations
-          setConversations(convs)
-          
-          // Handle navigation from profile "Message" button or Dashboard
-          const recipientId = location.state?.recipientId
-          if (recipientId) {
-            const existing = convs.find(
-              c => c.otherUser._id === recipientId || c.otherUser.userId === recipientId
-            )
-            if (existing) {
-              setSelectedConversationId(existing._id)
-            } else {
-              // Start new conversation if they are connected
-              try {
-                const startRes = await messageService.startConversation(recipientId)
-                if (startRes.data.status === 'success' && isMounted) {
-                  const newConv = startRes.data.data.conversation
-                  // Refresh conversations to get enriched data
-                  const refreshed = await messageService.getConversations()
-                  if (isMounted) {
-                    setConversations(refreshed.data.data.conversations)
-                    setSelectedConversationId(newConv._id)
+  const loadConversations = React.useCallback(async (isInitial = false) => {
+    try {
+      if (isInitial) setIsLoading(true)
+      const response = await messageService.getConversations()
+      if (response.data.status === 'success') {
+        const convs = response.data.data.conversations
+        setConversations(convs)
+        
+        // Handle navigation from profile "Message" button or Dashboard
+        const recipientId = location.state?.recipientId
+        if (isInitial && recipientId) {
+          const existing = convs.find(
+            c => c.otherUser._id === recipientId || c.otherUser.userId === recipientId
+          )
+          if (existing) {
+            setSelectedConversationId(existing._id)
+          } else {
+            // Start new conversation if they are connected
+            try {
+              const startRes = await messageService.startConversation(recipientId)
+              if (startRes.data.status === 'success') {
+                const newConv = startRes.data.data.conversation
+                // Refresh conversations to get enriched data
+                const refreshed = await messageService.getConversations()
+                const refreshedConvs = refreshed.data.data.conversations
+                
+                const inList = refreshedConvs.find(c => c._id === newConv._id)
+                if (!inList) {
+                  if (!newConv.otherUser || !newConv.otherUser.name) {
+                      const p1 = newConv.participant1
+                      const p2 = newConv.participant2
+                      let other = (p1?._id || p1) === currentLoggedInUser._id ? p2 : p1
+                      
+                      if (typeof other === 'string' || (other._id && !other.name)) {
+                          const otherId = typeof other === 'string' ? other : other._id
+                          try {
+                              const userRes = await profileService.getProfileByUserId(otherId)
+                              if (userRes.data.status === 'success') {
+                                  other = userRes.data.data.user
+                              }
+                          } catch (e) {
+                              console.error('Failed to fetch missing profile for chat', e)
+                              other = { _id: otherId, name: 'User', profileImage: null } 
+                          }
+                      }
+                      newConv.otherUser = other
                   }
+                  refreshedConvs.unshift(newConv)
                 }
-              } catch (err) {
-                if (isMounted) {
-                  toast.error(err.response?.data?.message || 'Could not start conversation')
-                }
+
+                setConversations(refreshedConvs)
+                setSelectedConversationId(newConv._id)
               }
+            } catch (err) {
+              toast.error(err.response?.data?.message || 'Could not start conversation')
             }
-          } else if (convs.length > 0 && !selectedConversationId) {
-            setSelectedConversationId(convs[0]._id)
-          } else if (convs.length === 0) {
-            setActiveTab('requests')
           }
-        }
-      } catch (error) {
-        if (isMounted) {
-          console.error('Failed to load conversations:', error)
-          toast.error('Failed to load conversations')
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoading(false)
+        } else if (isInitial && convs.length > 0 && !selectedConversationId) {
+          setSelectedConversationId(convs[0]._id)
+        } else if (isInitial && convs.length === 0) {
+          setActiveTab('requests')
         }
       }
+    } catch (error) {
+      console.error('Failed to load conversations:', error)
+      toast.error('Failed to load conversations')
+    } finally {
+      if (isInitial) setIsLoading(false)
     }
+  }, [currentLoggedInUser, location.state?.recipientId, selectedConversationId, dispatch])
 
+  // Fetch conversations on mount
+  useEffect(() => {
     if (currentLoggedInUser) {
-      loadConversations()
+      loadConversations(true)
     }
-
-    return () => {
-      isMounted = false
-    }
-  }, [currentLoggedInUser, location.state?.recipientId])
+  }, [currentLoggedInUser])
 
   // Fetch messages when selectedConversationId changes
   useEffect(() => {
@@ -706,6 +746,10 @@ function MessagePage() {
             id: req._id,
             userId: req.from._id,
             name: req.from.name,
+            profileImage: req.from.profileImage,
+            title: req.from.title,
+            location: req.from.location,
+            about: req.from.about,
             message: req.message,
             timestamp: new Date(req.createdAt).toLocaleDateString(),
             from: req.from
@@ -895,9 +939,27 @@ function MessagePage() {
         await messageService.blockUser(selectedConversationId)
         toast.success('User blocked')
         setShowChatMenu(false)
-        // Optionally refresh conversation or redirect
+        
+        // Refresh conversations to sync all status fields
+        await loadConversations()
     } catch (error) {
         toast.error('Failed to block user')
+    }
+  }
+
+  const handleUnblockUser = async () => {
+    if (!selectedConversationId) return
+    if (!window.confirm('Are you sure you want to unblock this user?')) return
+
+    try {
+        await messageService.unblockUser(selectedConversationId)
+        toast.success('User unblocked')
+        setShowChatMenu(false)
+        
+        // Refresh conversations to sync all status fields
+        await loadConversations()
+    } catch (error) {
+        toast.error('Failed to unblock user')
     }
   }
 
@@ -919,6 +981,12 @@ function MessagePage() {
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedConversationId || isSending || !isConnected) return
     
+    // Safety check for blocked
+    if (currentConversation?.isBlocked) {
+        toast.error('You cannot send messages in a blocked conversation')
+        return
+    }
+    
     const messageContent = newMessage.trim()
     setNewMessage('')
     setIsSending(true)
@@ -939,6 +1007,36 @@ function MessagePage() {
       toast.error(error.response?.data?.message || 'Failed to send message')
       // If it failed, we could put the message back, but clearing is often preferred 
       // to avoid double-sends. Let's at least not overwrite if they started typing again.
+    } finally {
+      setIsSending(false)
+    }
+  }
+
+  const handleConnect = (user) => {
+    setExpandedProfile(user)
+    setAddNoteMode(false)
+    setConnectionMessage('')
+    setShowConnectionModal(true)
+  }
+
+  const handleSendConnection = async () => {
+    if (!expandedProfile || !currentLoggedInUser) return
+    try {
+      setIsSending(true)
+      const response = await connectionService.sendRequest(
+        currentLoggedInUser._id,
+        expandedProfile.id || expandedProfile._id,
+        connectionMessage
+      )
+      if (response.data.status === 'success') {
+        toast.success(`Connection request sent to ${expandedProfile.name}`)
+        setShowConnectionModal(false)
+        setConnectionMessage('')
+        setExpandedProfile(null)
+      }
+    } catch (error) {
+      console.error('Error sending connection request:', error)
+      toast.error(error.response?.data?.message || 'Failed to send connection request')
     } finally {
       setIsSending(false)
     }
@@ -1042,8 +1140,8 @@ function MessagePage() {
           const user = conv.otherUser
           const searchLower = searchQuery.toLowerCase()
           return (
-            user?.name.toLowerCase().includes(searchLower) ||
-            conv.lastMessage?.content.toLowerCase().includes(searchLower)
+            user?.name?.toLowerCase().includes(searchLower) ||
+            conv.lastMessage?.content?.toLowerCase().includes(searchLower)
           )
         })
       : requests.filter(
@@ -1250,13 +1348,19 @@ function MessagePage() {
                             <div
                               className={`w-8 h-8 rounded-full bg-gradient-to-br ${getAvatarColor(
                                 user?._id
-                              )} flex items-center justify-center text-white font-semibold text-xs`}
+                              )} flex items-center justify-center text-white font-semibold text-xs overflow-hidden`}
                             >
-                              {user?.profileImage ? (
-                                <img src={getImageUrl(user.profileImage)} alt="" className="w-full h-full rounded-full object-cover" />
-                              ) : (
-                                getInitials(user?.name || '')
-                              )}
+                              <img 
+                                src={getProfileImage(user)} 
+                                alt="" 
+                                className="w-full h-full rounded-full object-cover" 
+                                onError={(e) => {
+                                  e.target.onerror = null
+                                  e.target.style.display = 'none'
+                                  e.target.nextSibling.style.display = 'flex'
+                                }}
+                              />
+                              <span style={{ display: 'none' }}>{getInitials(user?.name || '')}</span>
                             </div>
                             {user?.status === 'online' && (
                               <div className='absolute bottom-0 right-0 w-2 h-2 bg-green-500 rounded-full border border-white' />
@@ -1295,9 +1399,19 @@ function MessagePage() {
                         <div
                           className={`w-8 h-8 rounded-full bg-gradient-to-br ${getAvatarColor(
                             req.userId
-                          )} flex items-center justify-center text-white font-semibold text-xs flex-shrink-0`}
+                          )} flex items-center justify-center text-white font-semibold text-xs flex-shrink-0 overflow-hidden`}
                         >
-                          {getInitials(req.name)}
+                          <img 
+                            src={getProfileImage(req)} 
+                            alt="" 
+                            className="w-full h-full object-cover" 
+                            onError={(e) => {
+                              e.target.onerror = null
+                              e.target.style.display = 'none'
+                              e.target.nextSibling.style.display = 'flex'
+                            }}
+                          />
+                          <span style={{ display: 'none' }}>{getInitials(req.name)}</span>
                         </div>
                         <div className='flex-1 min-w-0'>
                           <h3 className='font-semibold text-gray-900 text-xs'>
@@ -1496,9 +1610,19 @@ function MessagePage() {
                       <div
                         className={`w-10 h-10 rounded-full bg-gradient-to-br ${getAvatarColor(
                           req.userId
-                        )} flex items-center justify-center text-white font-semibold text-sm flex-shrink-0`}
+                        )} flex items-center justify-center text-white font-semibold text-sm flex-shrink-0 overflow-hidden`}
                       >
-                        {getInitials(req.name)}
+                        <img 
+                          src={getProfileImage(req)} 
+                          alt="" 
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.target.onerror = null
+                            e.target.style.display = 'none'
+                            e.target.nextSibling.style.display = 'flex'
+                          }}
+                        />
+                        <span style={{ display: 'none' }}>{getInitials(req.name)}</span>
                       </div>
                       <div className='flex-1 min-w-0'>
                         <h3 className='font-semibold text-gray-900 text-sm'>
@@ -1560,13 +1684,19 @@ function MessagePage() {
                     <div
                       className={`w-10 h-10 rounded-full bg-gradient-to-br ${getAvatarColor(
                         selectedUser?._id
-                      )} flex items-center justify-center text-white font-semibold text-sm shadow-sm group-hover:ring-2 group-hover:ring-[#986a41] transition-all`}
+                      )} flex items-center justify-center text-white font-semibold text-sm shadow-sm group-hover:ring-2 group-hover:ring-[#986a41] transition-all overflow-hidden`}
                     >
-                      {selectedUser?.profileImage ? (
-                        <img src={getImageUrl(selectedUser.profileImage)} alt="" className="w-full h-full rounded-full object-cover" />
-                      ) : (
-                        getInitials(selectedUser?.name || '')
-                      )}
+                      <img 
+                        src={getProfileImage(selectedUser)} 
+                        alt="" 
+                        className="w-full h-full rounded-full object-cover"
+                        onError={(e) => {
+                          e.target.onerror = null
+                          e.target.style.display = 'none'
+                          e.target.nextSibling.style.display = 'flex'
+                        }}
+                      />
+                      <span style={{ display: 'none' }}>{getInitials(selectedUser?.name || '')}</span>
                     </div>
                     <div className='absolute bottom-0 right-0 border-2 border-white rounded-full'>
                       <PresenceIndicator status={selectedUser?.status} />
@@ -1645,13 +1775,23 @@ function MessagePage() {
                                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
                                 className='absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-1 z-50'
                             >
-                                <button
-                                    onClick={handleBlockUser}
-                                    className='w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2'
-                                >
-                                    <Ban size={16} />
-                                    Block User
-                                </button>
+                                {currentConversation?.isBlocked && currentConversation?.blockedBy === currentLoggedInUser._id ? (
+                                    <button
+                                        onClick={handleUnblockUser}
+                                        className='w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2'
+                                    >
+                                        <Ban size={16} className="text-gray-500" />
+                                        Unblock User
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={handleBlockUser}
+                                        className='w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2'
+                                    >
+                                        <Ban size={16} />
+                                        Block User
+                                    </button>
+                                )}
                                 <button
                                     onClick={handleArchiveConversation}
                                     className='w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2'
@@ -1780,7 +1920,7 @@ function MessagePage() {
 
             {/* Message Input */}
             <div className='px-4 py-3 border-t border-gray-100 flex-shrink-0 bg-white chat-input-area relative'>
-              {!isConnected && selectedConversationId && (
+              {!isConnected && selectedConversationId && currentConversation.connectionStatus !== 'blocked' && (
                 <div className='absolute inset-x-0 bottom-full bg-amber-50/95 backdrop-blur-sm border-t border-amber-100 px-4 py-2.5 flex items-center justify-between z-20 animate-in slide-in-from-bottom-2 duration-300'>
                   <div className='flex items-center gap-2 text-amber-800'>
                     <Clock size={16} className='flex-shrink-0' />
@@ -1894,7 +2034,13 @@ function MessagePage() {
                 <div className='flex-1 relative'>
                   <textarea
                     rows={1}
-                    placeholder={isConnected ? 'Type a message...' : 'Messaging restricted'}
+                    placeholder={
+                      currentConversation?.connectionStatus === 'blocked'
+                        ? 'you do not have no longer access to that chat'
+                        : isConnected 
+                          ? 'Type a message...' 
+                          : 'Messaging restricted'
+                    }
                     value={newMessage}
                     disabled={!isConnected}
                     onChange={(e) => {
@@ -1938,15 +2084,33 @@ function MessagePage() {
         )}
       </div>
 
-      {/* Expanded Profile View */}
+      {/* Profile Popup for Users */}
+      <ProfilePopup
+        profile={expandedProfile ? {
+            ...expandedProfile,
+            id: expandedProfile._id || expandedProfile.id,
+            profileImg: getProfileImage(expandedProfile),
+            type: expandedProfile.userType || 'advisor',
+            connections: expandedProfile.connections || 0,
+            experience: expandedProfile.experience || 0,
+            rating: expandedProfile.rating || 0,
+            reviewCount: expandedProfile.reviewCount || 0
+        } : null}
+        isOpen={!!expandedProfile && expandedProfileType === 'user'}
+        onClose={() => setExpandedProfile(null)}
+        currentUserType={currentLoggedInUser?.userType || 'athlete'}
+        onConnect={handleConnect}
+        onMessage={(u) => {
+            setExpandedProfile(null)
+            const recipientId = u.id || u._id
+            if (recipientId) {
+                navigate('/inbox', { state: { recipientId } })
+            }
+        }}
+      />
+
+      {/* Expanded Profile View for Requests */}
       <AnimatePresence>
-        {expandedProfile && expandedProfileType === 'user' && (
-          <ExpandedProfileView
-            user={expandedProfile}
-            onClose={() => setExpandedProfile(null)}
-            isRequest={false}
-          />
-        )}
         {expandedProfile && expandedProfileType === 'request' && (
           <ExpandedProfileView
             user={expandedProfile}
@@ -1967,6 +2131,107 @@ function MessagePage() {
         setEventData={setEventData}
         isSubmitting={isSending}
       />
+
+      {/* Connection Modal */}
+      <Dialog open={showConnectionModal} onOpenChange={setShowConnectionModal}>
+        <DialogContent className='max-w-md rounded-3xl p-0 overflow-hidden border-0'>
+          {/* Header */}
+          <div className='bg-white p-6 pb-2'>
+            <DialogHeader>
+              <DialogTitle className='text-2xl font-bold text-slate-900'>Connect with {expandedProfile?.name}</DialogTitle>
+              <p className='text-slate-500 text-sm mt-1'>
+                {addNoteMode 
+                  ? 'Add a personal message to your invitation.' 
+                  : 'Grow your network by connecting with this profile.'
+                }
+              </p>
+            </DialogHeader>
+          </div>
+
+          <div className='px-6 pb-6'>
+            <AnimatePresence mode='wait'>
+              {addNoteMode ? (
+                <motion.div 
+                  key="message-input"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className='space-y-4'
+                >
+                  <div className='space-y-2 mt-2'>
+                    <Textarea
+                      autoFocus
+                      placeholder={`Hi ${expandedProfile?.name?.split(' ')[0]}, I'd like to connect...`}
+                      value={connectionMessage}
+                      onChange={(e) => setConnectionMessage(e.target.value.slice(0, 150))}
+                      rows={4}
+                      className="resize-none border-slate-200 bg-slate-50 rounded-xl focus:bg-white transition-all text-base"
+                    />
+                    <div className='flex justify-between items-center px-1'>
+                      <p className='text-[10px] text-slate-400'>150 characters max</p>
+                      <p className='text-[10px] text-slate-400 font-mono'>
+                      {connectionMessage.length}/150
+                      </p>
+                    </div>
+                  </div>
+                  <div className='flex gap-3 pt-2'>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setAddNoteMode(false)}
+                      className="flex-1 rounded-xl h-12 border-slate-200 hover:bg-slate-50 text-slate-600"
+                    >
+                      Cancel
+                    </Button>
+                    <Button 
+                      className="flex-1 rounded-xl h-12 text-white shadow-lg shadow-blue-500/20 bg-[#163146] hover:bg-[#0f2a36]"
+                      onClick={handleSendConnection}
+                      disabled={isSending}
+                    >
+                      {isSending ? 'Sending...' : 'Send Request'}
+                    </Button>
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div 
+                  key="action-buttons"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className='space-y-3 pt-2'
+                >
+                  <Button 
+                    className="w-full rounded-xl h-14 text-white shadow-lg shadow-blue-500/20 text-base font-semibold justify-between px-6 group bg-[#163146] hover:bg-[#0f2a36]"
+                    onClick={handleSendConnection}
+                    disabled={isSending}
+                  >
+                    <div className='flex items-center gap-3'>
+                      <Send size={20} />
+                      <span>Send Request Now</span>
+                    </div>
+                    <div className='bg-white/20 px-2 py-0.5 rounded text-[10px] font-bold uppercase'>Fast</div>
+                  </Button>
+                  
+                  <Button 
+                    variant="outline"
+                    className="w-full rounded-xl h-14 border-slate-200 hover:bg-slate-50 text-slate-700 text-base font-medium justify-between px-6 group"
+                    onClick={() => setAddNoteMode(true)}
+                  >
+                    <div className='flex items-center gap-3'>
+                      <PenLine size={20} className='text-slate-400 group-hover:text-slate-600' />
+                      <span>Add a Note</span>
+                    </div>
+                    <span className='text-slate-400 group-hover:text-slate-600'>Optional</span>
+                  </Button>
+
+                  <p className='text-xs text-center text-slate-400 pt-2'>
+                    {expandedProfile?.name} will receive a notification immediately.
+                  </p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   )
 }

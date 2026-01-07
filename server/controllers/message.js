@@ -403,3 +403,39 @@ export const searchMessages = async (req, res, next) => {
     next(error)
   }
 }
+
+/**
+ * Unblock a user
+ */
+export const unblockUser = async (req, res, next) => {
+  try {
+    const { conversationId } = req.params
+    const userId = req.user.id
+
+    const conversation = await Conversation.findById(conversationId)
+    if (!conversation) {
+      return next(createError(404, 'Conversation not found'))
+    }
+
+    if (conversation.participant1.toString() !== userId && conversation.participant2.toString() !== userId) {
+      return next(createError(403, 'You are not a participant in this conversation'))
+    }
+
+    // Only the blocker can unblock
+    if (conversation.blockedBy && conversation.blockedBy.toString() !== userId) {
+       return next(createError(403, 'You cannot unblock this conversation'))
+    }
+
+    conversation.isBlocked = false
+    conversation.blockedBy = null
+    await conversation.save()
+
+    res.status(200).json({
+      status: 'success',
+      message: 'User unblocked successfully',
+    })
+  } catch (error) {
+    console.error('Error in unblockUser:', error)
+    next(error)
+  }
+}

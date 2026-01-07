@@ -8,6 +8,7 @@ import {
     searchMessages,
     sendMessage,
     startConversation,
+    unblockUser,
     updateSettings
 } from '../controllers/message.js'
 import { verifyToken } from '../middleware/authMiddleware.js'
@@ -40,5 +41,8 @@ router.delete('/conversations/:conversationId', archiveConversation)
 
 // Block user
 router.post('/conversations/:conversationId/block', blockUser)
+
+// Unblock user
+router.post('/conversations/:conversationId/unblock', unblockUser)
 
 export default router

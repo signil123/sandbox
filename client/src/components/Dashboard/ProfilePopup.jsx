@@ -224,7 +224,7 @@ const ProfilePopup = ({
                     <div className='flex items-center justify-between'>
                       <h2 
                         className='text-2xl md:text-3xl font-bold text-gray-900 leading-tight hover:text-[#163146] cursor-pointer transition-colors flex items-center gap-2'
-                        onClick={() => navigate(`/profile/${profile.userId || profile.id || profile._id}`)}
+                        onClick={() => navigate(`/profile/public/${profile.userId || profile.id || profile._id}`)}
                       >
                           {profile.name}
                           <ExternalLink size={18} className="opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -263,7 +263,7 @@ const ProfilePopup = ({
                     
                     <motion.button
                       whileHover={{ x: 5 }}
-                      onClick={() => navigate(`/profile/${profile.userId || profile.id || profile._id}`)}
+                      onClick={() => navigate(`/profile/public/${profile.userId || profile.id || profile._id}`)}
                       className='text-[#163146] text-xs font-bold uppercase tracking-widest mt-4 flex items-center gap-1.5 hover:underline'
                     >
                       View Full Profile

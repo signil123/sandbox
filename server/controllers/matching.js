@@ -7,6 +7,7 @@ import { Connection } from '../models/Relationship.js'
 import User from '../models/User.js'
 
 // ═══════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
 // MATCHING ALGORITHM
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -18,25 +19,39 @@ import User from '../models/User.js'
  * - Sport/expertise match (25%)
  * - Verification status (20%)
  */
-export const calculateMatchScore = async (userId1, userId2) => {
+export const calculateMatchScore = async (
+  userId1,
+  userId2,
+  currentUserData = null
+) => {
   try {
+    let user1, profile1, interests1, nil1
+    
+    // Use pre-fetched data if available (userId1 is assumed to be current user)
+    if (currentUserData && currentUserData.user._id.toString() === userId1.toString()) {
+        user1 = currentUserData.user
+        profile1 = currentUserData.profile
+        interests1 = currentUserData.interests
+        nil1 = currentUserData.nil
+    } else {
+        // Fallback to fetch if not provided
+        ;[user1, profile1, interests1, nil1] = await Promise.all([
+            User.findById(userId1),
+            Profile.findOne({ user: userId1 }),
+            Interest.find({ user: userId1 }),
+            NILPreference.findOne({ user: userId1 }),
+        ])
+    }
+
     const [
-      user1,
       user2,
-      profile1,
       profile2,
-      interests1,
       interests2,
-      nil1,
       nil2,
     ] = await Promise.all([
-      User.findById(userId1),
       User.findById(userId2),
-      Profile.findOne({ user: userId1 }),
       Profile.findOne({ user: userId2 }),
-      Interest.find({ user: userId1 }),
       Interest.find({ user: userId2 }),
-      NILPreference.findOne({ user: userId1 }),
       NILPreference.findOne({ user: userId2 }),
     ])
 
@@ -202,11 +217,11 @@ const calculateVerificationScore = (profile1, profile2) => {
 /**
  * Calculate match scores between user and array of potential matches
  */
-export const calculateBatchMatches = async (userId, potentialMatches) => {
+export const calculateBatchMatches = async (userId, potentialMatches, currentUserData = null) => {
   try {
     const matches = await Promise.all(
       potentialMatches.map(async (potentialUser) => {
-        const score = await calculateMatchScore(userId, potentialUser._id)
+        const score = await calculateMatchScore(userId, potentialUser._id, currentUserData)
         return {
           user: potentialUser,
           matchScore: score,
@@ -233,18 +248,26 @@ export const calculateBatchMatches = async (userId, potentialMatches) => {
 export const getRecommendations = async (req, res, next) => {
   try {
     const { userId } = req.params
-    const { limit = 10 } = req.query
+    const { limit = 6 } = req.query // Default to 6
 
-    // Get user and profile
-    const user = await User.findById(userId)
+    // Get user and profile - FETCH ONCE
+    const [user, profile, interests, nil] = await Promise.all([
+        User.findById(userId),
+        Profile.findOne({ user: userId }),
+        Interest.find({ user: userId }),
+        NILPreference.findOne({ user: userId }),
+    ])
+
     if (!user) {
       return next(createError(404, 'User not found'))
     }
 
-    const profile = await Profile.findOne({ user: userId })
     if (!profile) {
       return next(createError(404, 'Profile not found'))
     }
+    
+    // Bundle current user data
+    const currentUserData = { user, profile, interests, nil }
 
     // Determine target user types
     const targetUserTypes = User.getTargetTypes(user.userType)
@@ -253,17 +276,18 @@ export const getRecommendations = async (req, res, next) => {
     const potentialMatches = await User.find({
       _id: { $ne: userId },
       userType: { $in: targetUserTypes }
-    }).limit(parseInt(limit) * 2) // Get more to filter
+    }).limit(parseInt(limit) * 4) // Get enough to filter but not too many
 
     // Calculate match scores
     const recommendations = await calculateBatchMatches(
       userId,
-      potentialMatches
+      potentialMatches,
+      currentUserData
     )
 
     // Fetch full profile data for top matches
     const topMatches = await Promise.all(
-      recommendations.slice(0, limit).map(async (match) => {
+      recommendations.slice(0, parseInt(limit)).map(async (match) => {
         const matchProfile = await Profile.findOne({ user: match.user._id })
         const interests = await Interest.find({ user: match.user._id })
         const nil = await NILPreference.findOne({ user: match.user._id })

@@ -42,4 +42,7 @@ export const messageService = {
 
   blockUser: (conversationId) =>
     axiosInstance.post(`${API_URL}/conversations/${conversationId}/block`),
+
+  unblockUser: (conversationId) =>
+    axiosInstance.post(`${API_URL}/conversations/${conversationId}/unblock`),
 }

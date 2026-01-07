@@ -167,9 +167,9 @@ const DashboardPage = () => {
     if (!currentUser?._id) return
     setLoadingAdvisors(true)
     try {
-      const response = await exploreService.getRecommendations(currentUser._id)
+      const response = await exploreService.getRecommendations(currentUser._id, 6)
       if (response.data.status === 'success') {
-        const mappedAdvisors = response.data.data.recommendations.slice(0, 6).map(u => ({
+        const mappedAdvisors = response.data.data.recommendations.map(u => ({
           id: u.userId,
           name: u.name,
           title: u.profile?.title || (u.userType.charAt(0).toUpperCase() + u.userType.slice(1)),
@@ -342,8 +342,14 @@ const DashboardPage = () => {
     }
   }
   const visibleAdvisors = useMemo(() => {
-    return advisors.slice(0, 3)
-  }, [advisors])
+    // Show 3 advisors starting from the current index, wrapping around if needed
+    const result = [];
+    for (let i = 0; i < 3; i++) {
+        result.push(advisors[(advisorCarouselIndex + i) % advisors.length]);
+    }
+    // Filter out undefined if advisors array is smaller than 3 initially (though memo ensures valid array)
+    return result.filter(Boolean);
+  }, [advisors, advisorCarouselIndex])
 
   return (
     <DashboardLayout>
@@ -458,12 +464,30 @@ const DashboardPage = () => {
                     Based on your profile & goals
                   </p>
                 </div>
-                <button 
-                  onClick={() => navigate('/explore')}
-                  className='w-full sm:w-auto px-5 py-2.5 bg-gray-50 text-[#163146] text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-[#163146] hover:text-white transition-all border border-gray-100 shrink-0'
-                >
-                  Explore All
-                </button>
+                <div className="flex items-center gap-2">
+                    {advisors.length > 3 && (
+                        <div className="flex items-center gap-1 mr-2">
+                             <button 
+                                onClick={prevAdvisor}
+                                className='p-2 rounded-lg bg-gray-50 text-gray-400 hover:text-[#163146] hover:bg-gray-100 transition-colors'
+                             >
+                                <ChevronLeft size={16} />
+                             </button>
+                             <button 
+                                onClick={nextAdvisor}
+                                className='p-2 rounded-lg bg-gray-50 text-gray-400 hover:text-[#163146] hover:bg-gray-100 transition-colors'
+                             >
+                                <ChevronRight size={16} />
+                             </button>
+                        </div>
+                    )}
+                    <button 
+                    onClick={() => navigate('/explore')}
+                    className='w-full sm:w-auto px-5 py-2.5 bg-gray-50 text-[#163146] text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-[#163146] hover:text-white transition-all border border-gray-100 shrink-0'
+                    >
+                    Explore All
+                    </button>
+                </div>
               </div>
               <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
                 <AnimatePresence mode='wait'>
@@ -482,7 +506,7 @@ const DashboardPage = () => {
                   ) : (
                     visibleAdvisors.map((advisor, index) => (
                       <AdvisorRecommendationCard 
-                        key={advisor.id}
+                        key={`${advisor.id}-${index}`}
                         advisor={advisor}
                         onConnect={handleConnect}
                         onView={(a) => {
