@@ -56,32 +56,6 @@ export const themes = [
     accent: '#71B280',
     textColor: 'text-white',
   },
-  
-  // Mesh Gradients (using CSS radial/conic blends if possible, or complex linear)
-  {
-    id: 'aurora',
-    label: 'Aurora',
-    type: 'mesh',
-    style: {
-      background: 'radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%), radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%)',
-      backgroundColor: '#0f0f1a',
-    },
-    primary: '#1a1a2e',
-    accent: '#e94560',
-    textColor: 'text-white',
-  },
-  {
-    id: 'candy',
-    label: 'Cotton Candy',
-    type: 'mesh',
-    style: {
-      background: 'radial-gradient(at 40% 20%, hsla(28,100%,74%,1) 0, transparent 50%), radial-gradient(at 80% 0%, hsla(189,100%,56%,1) 0, transparent 50%), radial-gradient(at 0% 50%, hsla(355,100%,93%,1) 0, transparent 50%)',
-      backgroundColor: '#ffdee9',
-    },
-    primary: '#ff9a9e',
-    accent: '#fad0c4',
-    textColor: 'text-slate-800',
-  },
 
   // Abstract Patterns (CSS only for now)
   {
@@ -109,6 +83,65 @@ export const themes = [
     },
     primary: '#444cf7',
     accent: '#e5e5f7',
+    textColor: 'text-slate-800',
+  },
+  {
+    id: 'rose',
+    label: 'Rose Quartz',
+    type: 'gradient',
+    style: {
+      background: 'linear-gradient(135deg, #e55d87 0%, #5fc3e4 100%)',
+    },
+    primary: '#e55d87',
+    accent: '#5fc3e4',
+    textColor: 'text-white',
+  },
+  {
+    id: 'indigo',
+    label: 'Electric Indigo',
+    type: 'gradient',
+    style: {
+      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    },
+    primary: '#667eea',
+    accent: '#764ba2',
+    textColor: 'text-white',
+  },
+  {
+    id: 'sand',
+    label: 'Desert Sand',
+    type: 'gradient',
+    style: {
+      background: 'linear-gradient(135deg, #3e5151 0%, #decba4 100%)',
+    },
+    primary: '#3e5151',
+    accent: '#decba4',
+    textColor: 'text-white',
+  },
+  
+  // Mesh Gradients
+  {
+    id: 'aurora',
+    label: 'Aurora',
+    type: 'mesh',
+    style: {
+      background: 'radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%), radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%)',
+      backgroundColor: '#0f0f1a',
+    },
+    primary: '#1a1a2e',
+    accent: '#e94560',
+    textColor: 'text-white',
+  },
+  {
+    id: 'candy',
+    label: 'Cotton Candy',
+    type: 'mesh',
+    style: {
+      background: 'radial-gradient(at 40% 20%, hsla(28,100%,74%,1) 0, transparent 50%), radial-gradient(at 80% 0%, hsla(189,100%,56%,1) 0, transparent 50%), radial-gradient(at 0% 50%, hsla(355,100%,93%,1) 0, transparent 50%)',
+      backgroundColor: '#ffdee9',
+    },
+    primary: '#ff9a9e',
+    accent: '#fad0c4',
     textColor: 'text-slate-800',
   },
 ]

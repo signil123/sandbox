@@ -75,6 +75,7 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [preferencesModalOpen, setPreferencesModalOpen] = useState(false)
   const [documentManagerOpen, setDocumentManagerOpen] = useState(false)
+  const [themeModalOpen, setThemeModalOpen] = useState(false)
   const [previewModalOpen, setPreviewModalOpen] = useState(false)
   const [completeProfileModalOpen, setCompleteProfileModalOpen] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -463,7 +464,7 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
           animate='visible'
         >
           {/* Header */}
-          <motion.div variants={itemVariants} className='mb-6 flex justify-between items-end'>
+          <motion.div variants={itemVariants} className='mb-6 flex flex-col md:flex-row md:items-end md:justify-between gap-4'>
             <div>
               <h1 className='text-3xl font-bold text-slate-900 tracking-tight'>
                 {type === 'advisor' ? 'Advisor Profile' : 'Agent Profile'}
@@ -473,12 +474,12 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
               </p>
             </div>
             
-            <div className='flex items-center gap-3'>
+            <div className='flex items-center gap-3 w-full md:w-auto overflow-x-auto pb-1 md:pb-0'>
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => setPreviewModalOpen(true)}
-                className='flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-all shadow-sm'
+                className='flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-all shadow-sm whitespace-nowrap'
               >
                 <Eye size={16} />
                 <span>View As</span>
@@ -486,10 +487,10 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
               
               <button
                 onClick={() => setDocumentManagerOpen(true)}
-                className='flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl text-sm font-medium hover:bg-slate-800 transition-colors shadow-sm'
+                className='flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl text-sm font-medium hover:bg-slate-800 transition-colors shadow-sm whitespace-nowrap'
               >
                 <FileBadge size={16} />
-                Document Center
+                <span>Document Center</span>
               </button>
             </div>
           </motion.div>
@@ -508,23 +509,18 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
                       : currentTheme.style
                     }
                   >
-                    {/* Banner Upload Overlay */}
-                    <label className='absolute inset-0 bg-black/20 opacity-0 group-hover/banner:opacity-100 transition-opacity flex items-center justify-center cursor-pointer z-10'>
-                      <div className='flex items-center gap-2 bg-white/20 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/30 text-white'>
-                        <Upload size={14} />
-                        <span className='text-[10px] font-bold uppercase tracking-wider'>Change Cover</span>
-                      </div>
-                      <input 
-                        type="file" 
-                        className="hidden" 
-                        accept="image/*"
-                        onChange={handleBannerUpload}
-                        disabled={savingProfile}
-                      />
-                    </label>
+                    {/* Banner Edit Button */}
+                    <motion.button 
+                      onClick={() => setThemeModalOpen(true)}
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      className='absolute top-4 right-4 z-10 flex items-center justify-center w-8 h-8 bg-white/20 backdrop-blur-md rounded-full border border-white/30 text-white shadow-lg cursor-pointer hover:bg-white/30 transition-all'
+                    >
+                      <Edit3 size={14} />
+                    </motion.button>
 
                     {profileData.verified && (
-                      <div className='absolute top-4 right-4 bg-white/90 backdrop-blur px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm border border-emerald-100 z-10'>
+                      <div className='absolute top-4 left-4 bg-white/90 backdrop-blur px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm border border-emerald-100 z-10'>
                         <ShieldCheck size={14} className='text-emerald-500' />
                         <span className='text-xs font-bold text-emerald-700'>Verified Professional</span>
                       </div>
@@ -557,7 +553,6 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
                         {/* Upload Overlay */}
                         <label className='absolute inset-0 bg-black/40 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer'>
                           <Upload size={24} className='text-white mb-1' />
-                          <span className='text-[10px] font-bold text-white uppercase tracking-wider'>Change</span>
                           <input 
                             type="file" 
                             className="hidden" 
@@ -752,43 +747,7 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
                  </button>
                </motion.div>
 
-              {/* Theme Selector */}
-              <motion.div
-                variants={itemVariants}
-                className='bg-white rounded-2xl border border-slate-200 p-5 shadow-sm'
-              >
-                <div className='flex items-center justify-between mb-4'>
-                  <div>
-                    <h3 className='font-bold text-slate-900'>Theme Selection</h3>
-                    <p className='text-[10px] text-slate-500 font-medium'>
-                      Customize your profile cover
-                    </p>
-                  </div>
-                </div>
-                <div className='grid grid-cols-2 gap-2'>
-                  {themes.map((theme) => (
-                    <motion.button
-                      key={theme.id}
-                      onClick={() => handleThemeChange(theme.id)}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      className='flex items-center gap-2.5 px-3 py-2.5 rounded-xl border transition-all text-left'
-                      style={{
-                        borderColor: selectedThemeId === theme.id ? '#163146' : '#f1f5f9',
-                        backgroundColor: selectedThemeId === theme.id ? '#f8fafc' : 'transparent',
-                      }}
-                    >
-                      <div
-                        className='w-4 h-4 rounded-full shadow-sm shrink-0'
-                        style={{ background: theme.style.background || theme.primary }}
-                      />
-                      <span className={`text-[11px] font-bold truncate ${selectedThemeId === theme.id ? 'text-[#163146]' : 'text-slate-600'}`}>
-                        {theme.label}
-                      </span>
-                    </motion.button>
-                  ))}
-                </div>
-              </motion.div>
+
 
               {/* NIL Preferences / Services */}
               <motion.div variants={itemVariants}>
@@ -1322,6 +1281,90 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
               >
                 Done
               </motion.button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {themeModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className='fixed inset-0 bg-black/30 z-[60] flex items-center justify-center p-4 backdrop-blur-sm'
+            onClick={() => setThemeModalOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className='bg-white rounded-[32px] max-w-md w-full p-8 shadow-2xl relative overflow-hidden'
+            >
+              <div className='flex items-center justify-between mb-6'>
+                <div>
+                  <h2 className='text-xl font-bold text-slate-900'>Choose Your Theme</h2>
+                  <p className='text-xs text-slate-500 mt-1'>Personalize your profile aesthetics</p>
+                </div>
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => setThemeModalOpen(false)}
+                  className='p-2 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors'
+                >
+                  <X size={20} />
+                </motion.button>
+              </div>
+
+              <div className='grid grid-cols-4 gap-4 mb-8'>
+                {themes.map((theme) => (
+                  <div key={theme.id} className='relative group'>
+                    <motion.button
+                      key={theme.id}
+                      onClick={() => handleThemeChange(theme.id)}
+                      whileHover={{ y: -4, scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      className={`w-full aspect-square rounded-2xl transition-all relative overflow-hidden flex items-center justify-center shadow-sm ${
+                        selectedThemeId === theme.id 
+                          ? 'ring-4 ring-[#986a41] ring-offset-2' 
+                          : 'ring-1 ring-slate-100 hover:ring-slate-300'
+                      }`}
+                    >
+                      <div
+                        className='absolute inset-0 w-full h-full'
+                        style={{ background: theme.style.background || theme.primary }}
+                      />
+                      {selectedThemeId === theme.id && (
+                        <div className='relative z-10 bg-white p-1 rounded-full shadow-lg'>
+                          <Check size={14} className='text-[#986a41]' />
+                        </div>
+                      )}
+                    </motion.button>
+                    <p className='text-[10px] text-center mt-2 font-medium text-slate-500 line-clamp-1'>
+                      {theme.label}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              <div className='bg-slate-50 rounded-2xl p-4 border border-slate-100 flex items-center gap-4'>
+                <div 
+                  className='w-12 h-12 rounded-xl shadow-lg shrink-0'
+                  style={{ background: currentTheme.style.background || currentTheme.primary }}
+                />
+                <div className='flex-1'>
+                  <p className='text-[10px] text-slate-400 font-bold uppercase tracking-widest'>Current Selection</p>
+                  <h4 className='text-sm font-bold text-slate-900'>{currentTheme.label}</h4>
+                </div>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setThemeModalOpen(false)}
+                  className='px-6 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors'
+                >
+                  Done
+                </motion.button>
+              </div>
             </motion.div>
           </motion.div>
         )}

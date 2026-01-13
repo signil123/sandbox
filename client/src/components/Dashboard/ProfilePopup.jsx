@@ -150,6 +150,14 @@ const ProfilePopup = ({
   const navigate = useNavigate()
   const [showReviewModal, setShowReviewModal] = useState(false)
 
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden'
@@ -179,10 +187,11 @@ const ProfilePopup = ({
             />
 
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className='fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full md:w-[600px] max-w-[95vw] bg-white rounded-[32px] shadow-2xl z-50 overflow-hidden flex flex-col max-h-[85vh]'
+              initial={isMobile ? { y: '100%' } : { opacity: 0, scale: 0.95, y: 20 }}
+              animate={isMobile ? { y: 0 } : { opacity: 1, scale: 1, y: 0 }}
+              exit={isMobile ? { y: '100%' } : { opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ type: isMobile ? 'spring' : 'tween', damping: 25, stiffness: 300 }}
+              className='fixed left-0 md:left-1/2 bottom-0 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 w-full md:w-[600px] max-w-full md:max-w-[95vw] bg-white rounded-t-[32px] md:rounded-[32px] shadow-2xl z-50 overflow-hidden flex flex-col h-[85vh] md:max-h-[85vh]'
             >
               <button
                   onClick={onClose}

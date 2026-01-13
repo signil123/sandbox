@@ -152,15 +152,35 @@ const DocumentManager = ({ isOpen, onClose, currentUser }) => {
 
   const progress = Math.round(((requiredDocs.length - missingDocs.length) / requiredDocs.length) * 100)
 
+  // Mobile & Scroll Lock
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
+
+  React.useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  React.useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = 'unset'
+    }
+    return () => { document.body.style.overflow = 'unset' }
+  }, [isOpen])
+
   if (!isOpen) return null
 
   return (
-    <div className='fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm'>
+    <div className='fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4 bg-slate-900/50 backdrop-blur-sm' onClick={onClose}>
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        className='bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]'
+        initial={isMobile ? { y: '100%' } : { opacity: 0, scale: 0.95 }}
+        animate={isMobile ? { y: 0 } : { opacity: 1, scale: 1 }}
+        exit={isMobile ? { y: '100%' } : { opacity: 0, scale: 0.95 }}
+        transition={{ type: isMobile ? 'spring' : 'tween', damping: 25, stiffness: 300 }}
+        onClick={(e) => e.stopPropagation()}
+        className='bg-white rounded-t-[32px] md:rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]'
       >
         {/* Header */}
         <div className='p-6 border-b border-slate-100 flex items-center justify-between bg-white sticky top-0 z-10'>
@@ -218,7 +238,7 @@ const DocumentManager = ({ isOpen, onClose, currentUser }) => {
               Supported files: PDF, PNG, JPG (Max 10MB)
             </p>
 
-            <div className='flex gap-2 justify-center max-w-md mx-auto'>
+            <div className='flex flex-col sm:flex-row gap-2 justify-center max-w-md mx-auto'>
               <select
                 value={selectedType}
                 onChange={(e) => setSelectedType(e.target.value)}
@@ -239,7 +259,7 @@ const DocumentManager = ({ isOpen, onClose, currentUser }) => {
                   disabled={uploading}
                 />
                 <span
-                  className={`px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg cursor-pointer hover:bg-emerald-700 transition-colors inline-block ${
+                  className={`w-full sm:w-auto px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg cursor-pointer hover:bg-emerald-700 transition-colors inline-block ${
                     uploading ? 'opacity-70 cursor-not-allowed' : ''
                   }`}
                 >
@@ -267,14 +287,14 @@ const DocumentManager = ({ isOpen, onClose, currentUser }) => {
                 return (
                   <div
                     key={doc._id}
-                    className='flex items-center justify-between p-4 bg-white border border-slate-200 rounded-xl hover:shadow-md transition-shadow'
+                    className='flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-white border border-slate-200 rounded-xl hover:shadow-md transition-shadow gap-3'
                   >
-                    <div className='flex items-center gap-4'>
-                      <div className='w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center text-slate-500'>
+                    <div className='flex items-center gap-4 w-full sm:w-auto'>
+                      <div className='w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center text-slate-500 flex-shrink-0'>
                         <FileText size={20} />
                       </div>
-                      <div>
-                        <p className='text-sm font-semibold text-slate-900'>
+                      <div className='overflow-hidden'>
+                        <p className='text-sm font-semibold text-slate-900 truncate'>
                           {documentTypes.find(t => t.id === doc.documentType)?.label || doc.documentType}
                         </p>
                         <p className='text-xs text-slate-500'>
@@ -283,7 +303,7 @@ const DocumentManager = ({ isOpen, onClose, currentUser }) => {
                       </div>
                     </div>
 
-                    <div className='flex items-center gap-4'>
+                    <div className='flex items-center justify-between w-full sm:w-auto gap-4'>
                       <div
                         className={`px-2.5 py-1 rounded-full text-xs font-medium flex items-center gap-1.5 ${status.color}`}
                       >

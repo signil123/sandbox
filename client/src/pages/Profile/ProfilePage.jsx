@@ -1,20 +1,22 @@
 // File: client/src/pages/Profile/ProfilePage.jsx
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-    Check,
-    Edit3,
-    ExternalLink,
-    Eye,
-    Lock,
-    Mail,
-    MapPin,
-    MessageSquare,
-    Phone,
-    Plus,
-    TrendingUp,
-    Upload,
-    UserPlus,
-    X,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Edit3,
+  ExternalLink,
+  Eye,
+  Lock,
+  Mail,
+  MapPin,
+  MessageSquare,
+  Phone,
+  Plus,
+  TrendingUp,
+  Upload,
+  UserPlus,
+  X,
 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { useDispatch } from 'react-redux'
@@ -139,11 +141,32 @@ const ProfilePage = () => {
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [preferencesModalOpen, setPreferencesModalOpen] = useState(false)
   const [interestsModalOpen, setInterestsModalOpen] = useState(false)
+  const [themeModalOpen, setThemeModalOpen] = useState(false)
   const [previewModalOpen, setPreviewModalOpen] = useState(false)
+  
   const [loading, setLoading] = useState(true)
   const [savingProfile, setSavingProfile] = useState(false)
   const [selectedProfile, setSelectedProfile] = useState(null)
   const [profilePopupOpen, setProfilePopupOpen] = useState(false)
+
+  // Mobile & Scroll Lock Logic
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  useEffect(() => {
+    const isAnyModalOpen = editModalOpen || preferencesModalOpen || interestsModalOpen || themeModalOpen || previewModalOpen || profilePopupOpen
+    if (isAnyModalOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = 'unset'
+    }
+    return () => { document.body.style.overflow = 'unset' }
+  }, [editModalOpen, preferencesModalOpen, interestsModalOpen, themeModalOpen, previewModalOpen, profilePopupOpen])
 
 const ProfileSkeleton = () => (
   <div className='mx-auto px-4 py-6 max-w-7xl w-full animate-pulse'>
@@ -246,6 +269,8 @@ const ProfileSkeleton = () => (
   const [recommendedAdvisors, setRecommendedAdvisors] = useState([])
   const [profileCompletion, setProfileCompletion] = useState(0)
   const [missingFields, setMissingFields] = useState([])
+  const [advisorPage, setAdvisorPage] = useState(0)
+  const advisorsPerPage = 3
 
   // Fetch profile on mount
   useEffect(() => {
@@ -592,7 +617,7 @@ const ProfileSkeleton = () => (
           animate='visible'
         >
           <motion.div variants={itemVariants} className='mb-6'>
-            <div className='flex items-center justify-between gap-4'>
+            <div className='flex flex-col md:flex-row md:items-center md:justify-between gap-4'>
               <div>
                 <h1 className='text-3xl font-bold text-slate-900 tracking-tight'>
                   Your Profile
@@ -605,7 +630,7 @@ const ProfileSkeleton = () => (
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => setPreviewModalOpen(true)}
-                className='flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-all shadow-sm'
+                className='w-full md:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-all shadow-sm'
               >
                 <Eye size={16} />
                 <span>View As</span>
@@ -629,19 +654,14 @@ const ProfileSkeleton = () => (
                     }
                   >
                     {/* Banner Upload Overlay */}
-                    <label className='absolute inset-0 bg-black/20 opacity-0 group-hover/banner:opacity-100 transition-opacity flex items-center justify-center cursor-pointer z-10'>
-                      <div className='flex items-center gap-2 bg-white/20 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/30 text-white'>
-                        <Upload size={14} />
-                        <span className='text-[10px] font-bold uppercase tracking-wider'>Change Cover</span>
-                      </div>
-                      <input 
-                        type="file" 
-                        className="hidden" 
-                        accept="image/*"
-                        onChange={handleBannerUpload}
-                        disabled={savingProfile}
-                      />
-                    </label>
+                    <motion.button 
+                      onClick={() => setThemeModalOpen(true)}
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      className='absolute top-4 right-4 z-10 flex items-center justify-center w-8 h-8 bg-white/20 backdrop-blur-md rounded-full border border-white/30 text-white shadow-lg cursor-pointer hover:bg-white/30 transition-all'
+                    >
+                      <Edit3 size={14} />
+                    </motion.button>
                     <div className='absolute inset-0 opacity-10'>
                        {/* Optional overlay texture if needed */}
                     </div>
@@ -672,8 +692,7 @@ const ProfileSkeleton = () => (
                         
                         {/* Upload Overlay */}
                         <label className='absolute inset-0 bg-black/40 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer'>
-                          <Upload size={24} className='text-white mb-1' />
-                          <span className='text-[10px] font-bold text-white uppercase tracking-wider'>Change</span>
+                          <Upload size={20} className='text-white' />
                           <input 
                             type="file" 
                             className="hidden" 
@@ -893,20 +912,70 @@ const ProfileSkeleton = () => (
                     </p>
                   </div>
                 ) : (
-                  <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
-                    {(advisors.length > 0 ? advisors : recommendedAdvisors)
-                      .slice(0, 3)
-                      .map((advisor) => (
-                        <AdvisorRecommendationCard 
-                          key={advisor.id}
-                          advisor={advisor}
-                          onConnect={handleConnect}
-                          onView={(a) => {
-                            setSelectedProfile(a)
-                            setProfilePopupOpen(true)
-                          }}
-                        />
-                      ))}
+                  <div className='relative group'>
+                    <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 transition-all duration-300'>
+                      <AnimatePresence mode='wait'>
+                        {(advisors.length > 0 ? advisors : recommendedAdvisors)
+                          .slice(advisorPage * advisorsPerPage, (advisorPage + 1) * advisorsPerPage)
+                          .map((advisor) => (
+                            <motion.div
+                              key={advisor.id}
+                              initial={{ opacity: 0, x: 20 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              exit={{ opacity: 0, x: -20 }}
+                              transition={{ duration: 0.3 }}
+                            >
+                              <AdvisorRecommendationCard 
+                                advisor={advisor}
+                                onConnect={handleConnect}
+                                onView={(a) => {
+                                  setSelectedProfile(a)
+                                  setProfilePopupOpen(true)
+                                }}
+                              />
+                            </motion.div>
+                          ))}
+                      </AnimatePresence>
+                    </div>
+
+                    {(advisors.length > 0 ? advisors : recommendedAdvisors).length > advisorsPerPage && (
+                      <div className='flex justify-center items-center gap-4 mt-8'>
+                        <button
+                          onClick={() => setAdvisorPage(prev => Math.max(0, prev - 1))}
+                          disabled={advisorPage === 0}
+                          className={`p-2 rounded-full border transition-all ${
+                            advisorPage === 0 
+                              ? 'border-slate-100 text-slate-300 cursor-not-allowed' 
+                              : 'border-slate-200 text-slate-600 hover:bg-white hover:shadow-md'
+                          }`}
+                        >
+                          <ChevronLeft size={20} />
+                        </button>
+                        
+                        <div className='flex gap-1.5'>
+                          {Array.from({ length: Math.ceil((advisors.length > 0 ? advisors : recommendedAdvisors).length / advisorsPerPage) }).map((_, i) => (
+                            <div 
+                              key={i}
+                              className={`h-1.5 rounded-full transition-all duration-300 ${
+                                i === advisorPage ? 'w-6 bg-[#986a41]' : 'w-1.5 bg-slate-200'
+                              }`}
+                            />
+                          ))}
+                        </div>
+
+                        <button
+                          onClick={() => setAdvisorPage(prev => Math.min(Math.ceil((advisors.length > 0 ? advisors : recommendedAdvisors).length / advisorsPerPage) - 1, prev + 1))}
+                          disabled={advisorPage >= Math.ceil((advisors.length > 0 ? advisors : recommendedAdvisors).length / advisorsPerPage) - 1}
+                          className={`p-2 rounded-full border transition-all ${
+                            advisorPage >= Math.ceil((advisors.length > 0 ? advisors : recommendedAdvisors).length / advisorsPerPage) - 1
+                              ? 'border-slate-100 text-slate-300 cursor-not-allowed' 
+                              : 'border-slate-200 text-slate-600 hover:bg-white hover:shadow-md'
+                          }`}
+                        >
+                          <ChevronRight size={20} />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </motion.div>
@@ -914,44 +983,6 @@ const ProfileSkeleton = () => (
 
             {/* Right Sidebar */}
             <div className='space-y-4'>
-              {/* Theme Selector */}
-              <motion.div
-                variants={itemVariants}
-                className='bg-white rounded-2xl border border-slate-200 p-4'
-              >
-                <h3 className='text-sm font-semibold text-slate-900 mb-3'>
-                  Theme
-                </h3>
-                <div className='space-y-2'>
-                  {themes.map((theme) => (
-                    <motion.button
-                      key={theme.id}
-                      onClick={() => handleThemeChange(theme.id)}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      className='w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all'
-                      style={{
-                        border: `0.5px solid ${
-                          selectedThemeId === theme.id ? '#0f172a' : '#cbd5e1'
-                        }`,
-                        backgroundColor:
-                          selectedThemeId === theme.id
-                            ? '#f1f5f9'
-                            : 'transparent',
-                      }}
-                    >
-                      <div
-                        className='w-4 h-4 rounded-full shadow-sm'
-                        style={{ background: theme.style.background || theme.primary }}
-                      ></div>
-                      <span className='text-xs font-medium text-slate-900'>
-                        {theme.label}
-                      </span>
-                    </motion.button>
-                  ))}
-                </div>
-              </motion.div>
-
               {/* NIL Preferences */}
               <motion.div
                 variants={itemVariants}
@@ -1127,15 +1158,16 @@ const ProfileSkeleton = () => (
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className='fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4 backdrop-blur-sm'
+            className='fixed inset-0 bg-black/30 z-50 flex items-end md:items-center justify-center md:p-4 backdrop-blur-sm'
             onClick={() => setEditModalOpen(false)}
           >
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
+              initial={isMobile ? { y: '100%' } : { scale: 0.95, opacity: 0 }}
+              animate={isMobile ? { y: 0 } : { scale: 1, opacity: 1 }}
+              exit={isMobile ? { y: '100%' } : { scale: 0.95, opacity: 0 }}
+              transition={{ type: isMobile ? 'spring' : 'tween', damping: 25, stiffness: 300 }}
               onClick={(e) => e.stopPropagation()}
-              className='bg-white rounded-2xl max-w-sm w-full p-6 max-h-[90vh] overflow-y-auto'
+              className='bg-white rounded-t-[32px] md:rounded-2xl w-full md:max-w-sm md:w-full p-6 max-h-[90vh] overflow-y-auto'
             >
               <div className='flex items-center justify-between mb-4'>
                 <h2 className='text-lg font-bold text-slate-900'>
@@ -1348,15 +1380,16 @@ const ProfileSkeleton = () => (
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className='fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4 backdrop-blur-sm'
+            className='fixed inset-0 bg-black/30 z-50 flex items-end md:items-center justify-center md:p-4 backdrop-blur-sm'
             onClick={() => setPreferencesModalOpen(false)}
           >
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
+              initial={isMobile ? { y: '100%' } : { scale: 0.95, opacity: 0 }}
+              animate={isMobile ? { y: 0 } : { scale: 1, opacity: 1 }}
+              exit={isMobile ? { y: '100%' } : { scale: 0.95, opacity: 0 }}
+              transition={{ type: isMobile ? 'spring' : 'tween', damping: 25, stiffness: 300 }}
               onClick={(e) => e.stopPropagation()}
-              className='bg-white rounded-2xl max-w-sm w-full p-6'
+              className='bg-white rounded-t-[32px] md:rounded-2xl w-full md:max-w-sm md:w-full p-6'
             >
               <div className='flex items-center justify-between mb-5'>
                 <h2 className='text-lg font-bold text-slate-900'>
@@ -1488,15 +1521,16 @@ const ProfileSkeleton = () => (
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className='fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4 backdrop-blur-sm'
+            className='fixed inset-0 bg-black/30 z-50 flex items-end md:items-center justify-center md:p-4 backdrop-blur-sm'
             onClick={() => setInterestsModalOpen(false)}
           >
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
+              initial={isMobile ? { y: '100%' } : { scale: 0.95, opacity: 0 }}
+              animate={isMobile ? { y: 0 } : { scale: 1, opacity: 1 }}
+              exit={isMobile ? { y: '100%' } : { scale: 0.95, opacity: 0 }}
+              transition={{ type: isMobile ? 'spring' : 'tween', damping: 25, stiffness: 300 }}
               onClick={(e) => e.stopPropagation()}
-              className='bg-white rounded-2xl max-w-sm w-full p-6 max-h-[90vh] overflow-y-auto'
+              className='bg-white rounded-t-[32px] md:rounded-2xl w-full md:max-w-sm md:w-full p-6 max-h-[90vh] overflow-y-auto'
             >
               <div className='flex items-center justify-between mb-5'>
                 <div>
@@ -1576,6 +1610,93 @@ const ProfileSkeleton = () => (
         )}
       </AnimatePresence>
 
+      {/* Theme Selection Modal */}
+      <AnimatePresence>
+        {themeModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className='fixed inset-0 bg-black/30 z-[60] flex items-end md:items-center justify-center md:p-4 backdrop-blur-sm'
+            onClick={() => setThemeModalOpen(false)}
+          >
+            <motion.div
+              initial={isMobile ? { y: '100%' } : { scale: 0.95, opacity: 0, y: 20 }}
+              animate={isMobile ? { y: 0 } : { scale: 1, opacity: 1, y: 0 }}
+              exit={isMobile ? { y: '100%' } : { scale: 0.95, opacity: 0, y: 20 }}
+              transition={{ type: isMobile ? 'spring' : 'tween', damping: 25, stiffness: 300 }}
+              onClick={(e) => e.stopPropagation()}
+              className='bg-white rounded-t-[32px] md:rounded-[32px] w-full md:max-w-md md:w-full p-8 shadow-2xl relative overflow-hidden'
+            >
+              <div className='flex items-center justify-between mb-6'>
+                <div>
+                  <h2 className='text-xl font-bold text-slate-900'>Choose Your Theme</h2>
+                  <p className='text-xs text-slate-500 mt-1'>Personalize your profile aesthetics</p>
+                </div>
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => setThemeModalOpen(false)}
+                  className='p-2 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors'
+                >
+                  <X size={20} />
+                </motion.button>
+              </div>
+
+              <div className='grid grid-cols-4 gap-4 mb-8'>
+                {themes.map((theme) => (
+                  <div key={theme.id} className='relative group'>
+                    <motion.button
+                      key={theme.id}
+                      onClick={() => handleThemeChange(theme.id)}
+                      whileHover={{ y: -4, scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      className={`w-full aspect-square rounded-2xl transition-all relative overflow-hidden flex items-center justify-center shadow-sm ${
+                        selectedThemeId === theme.id 
+                          ? 'ring-4 ring-[#986a41] ring-offset-2' 
+                          : 'ring-1 ring-slate-100 hover:ring-slate-300'
+                      }`}
+                    >
+                      <div
+                        className='absolute inset-0 w-full h-full'
+                        style={{ background: theme.style.background || theme.primary }}
+                      />
+                      {selectedThemeId === theme.id && (
+                        <div className='relative z-10 bg-white p-1 rounded-full shadow-lg'>
+                          <Check size={14} className='text-[#986a41]' />
+                        </div>
+                      )}
+                    </motion.button>
+                    <p className='text-[10px] text-center mt-2 font-medium text-slate-500 line-clamp-1'>
+                      {theme.label}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              <div className='bg-slate-50 rounded-2xl p-4 border border-slate-100 flex items-center gap-4'>
+                <div 
+                  className='w-12 h-12 rounded-xl shadow-lg shrink-0'
+                  style={{ background: currentTheme.style.background || currentTheme.primary }}
+                />
+                <div className='flex-1'>
+                  <p className='text-[10px] text-slate-400 font-bold uppercase tracking-widest'>Current Selection</p>
+                  <h4 className='text-sm font-bold text-slate-900'>{currentTheme.label}</h4>
+                </div>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setThemeModalOpen(false)}
+                  className='px-6 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors'
+                >
+                  Done
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Preview Modal */}
       <AnimatePresence>
         {previewModalOpen && (
@@ -1583,15 +1704,16 @@ const ProfileSkeleton = () => (
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className='fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4 backdrop-blur-sm'
+            className='fixed inset-0 bg-black/40 z-[60] flex items-end md:items-center justify-center md:p-4 backdrop-blur-sm'
             onClick={() => setPreviewModalOpen(false)}
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              initial={isMobile ? { y: '100%' } : { scale: 0.9, opacity: 0, y: 20 }}
+              animate={isMobile ? { y: 0 } : { scale: 1, opacity: 1, y: 0 }}
+              exit={isMobile ? { y: '100%' } : { scale: 0.9, opacity: 0, y: 20 }}
+              transition={{ type: isMobile ? 'spring' : 'tween', damping: 25, stiffness: 300 }}
               onClick={(e) => e.stopPropagation()}
-              className='bg-white rounded-[32px] max-w-md w-full p-8 shadow-2xl relative overflow-hidden'
+              className='bg-white rounded-t-[32px] md:rounded-[32px] w-full md:max-w-md md:w-full p-8 shadow-2xl relative overflow-hidden'
             >
                {/* Close button */}
                <button
