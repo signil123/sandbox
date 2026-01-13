@@ -103,17 +103,15 @@ export default function AuthPage({
         }
 
         const result = await dispatch(signupUser(signupData))
-        if (result.payload) {
+        if (signupUser.fulfilled.match(result)) {
           onSignupComplete?.()
           onClose()
           navigate('/dashboard')
         } else {
-          newErrors.email = result.payload || 'Signup failed'
-          setErrors(newErrors)
+          // Error is handled by reduxError selector
         }
       } catch (error) {
-        newErrors.email = error.message || 'Signup failed'
-        setErrors(newErrors)
+        console.error('Signup error:', error)
       }
       return
     }
@@ -134,18 +132,15 @@ export default function AuthPage({
             password: loginForm.password,
           })
         )
-        if (result.payload) {
+        if (loginUser.fulfilled.match(result)) {
           onSignupComplete?.()
           onClose()
           navigate('/dashboard')
         } else {
-          newErrors.email =
-            result.payload?.message || 'Invalid email or password'
-          setErrors(newErrors)
+          // Error is handled by reduxError selector
         }
       } catch (error) {
-        newErrors.email = error.message || 'Invalid email or password'
-        setErrors(newErrors)
+        console.error('Login error:', error)
       }
       return
     }
@@ -314,13 +309,13 @@ export default function AuthPage({
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -20 }}
-                    className='h-full flex flex-col justify-center max-w-lg mx-auto space-y-12'
+                    className='h-full flex flex-col justify-center max-w-lg mx-auto space-y-8 lg:space-y-12'
                   >
-                    <div className="space-y-3 text-center lg:text-left">
+                    <div className="space-y-2 lg:space-y-3 text-center lg:text-left px-4">
                       <motion.h3 
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className='text-4xl lg:text-5xl font-serif font-bold text-gray-900'
+                        className='text-3xl lg:text-5xl font-serif font-bold text-gray-900 leading-tight'
                       >
                         Welcome to Signil
                       </motion.h3>
@@ -328,48 +323,54 @@ export default function AuthPage({
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.1 }}
-                        className='text-gray-500 text-lg'
+                        className='text-gray-500 text-base lg:text-lg max-w-sm mx-auto lg:mx-0'
                       >
                         Elevate your journey with secure, premium access.
                       </motion.p>
                     </div>
 
-                    <div className='flex flex-col gap-5'>
-                      <motion.button
-                        whileHover={{ scale: 1.01, backgroundColor: '#f9fafb' }}
-                        whileTap={{ scale: 0.99 }}
-                        onClick={() => setStep('email-form')}
-                        className='flex items-center gap-6 p-5 bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md hover:border-[#163146]/20 transition-all text-left group relative overflow-hidden'
-                      >
-                        <div className="flex-shrink-0 w-14 h-14 rounded-xl bg-[#163146]/5 flex items-center justify-center group-hover:bg-[#163146] group-hover:text-white transition-all duration-300">
-                          <Zap size={28} />
-                        </div>
-                        <div className="flex-1">
-                          <span className='block text-xl font-bold text-gray-900 mb-0.5'>Get Started</span>
-                          <span className='text-gray-500 text-sm'>Create your account in seconds</span>
-                        </div>
-                        <ArrowRight size={20} className="text-gray-300 group-hover:text-[#163146] group-hover:translate-x-1 transition-all" />
-                      </motion.button>
-
-                      <motion.button
-                        whileHover={{ scale: 1.01, backgroundColor: '#f9fafb' }}
-                        whileTap={{ scale: 0.99 }}
-                        onClick={() => setStep('login-form')}
-                        className='flex items-center gap-6 p-5 bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md hover:border-[#986a41]/20 transition-all text-left group relative overflow-hidden'
-                      >
-                        <div className="flex-shrink-0 w-14 h-14 rounded-xl bg-[#986a41]/5 flex items-center justify-center group-hover:bg-[#986a41] group-hover:text-white transition-all duration-300">
-                           <Users size={28} />
-                        </div>
-                        <div className="flex-1">
-                          <span className='block text-xl font-bold text-gray-900 mb-0.5'>Sign In</span>
-                          <span className='text-gray-500 text-sm'>Already have an account? Access now</span>
-                        </div>
-                        <ArrowRight size={20} className="text-gray-300 group-hover:text-[#986a41] group-hover:translate-x-1 transition-all" />
-                      </motion.button>
+                    <div className='flex flex-col gap-4 lg:gap-5 px-4'>
+                      {[
+                        { 
+                          id: 'email-form', 
+                          title: 'Get Started', 
+                          desc: 'Create your account in seconds', 
+                          icon: Zap, 
+                          color: '#163146' 
+                        },
+                        { 
+                          id: 'login-form', 
+                          title: 'Sign In', 
+                          desc: 'Already have an account?', 
+                          icon: Users, 
+                          color: '#986a41' 
+                        }
+                      ].map((item, i) => (
+                        <motion.button
+                          key={item.id}
+                          whileHover={{ scale: 1.01, backgroundColor: '#f9fafb' }}
+                          whileTap={{ scale: 0.99 }}
+                          onClick={() => setStep(item.id)}
+                          className='flex items-center gap-4 lg:gap-6 p-4 lg:p-5 bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md transition-all text-left group relative overflow-hidden'
+                          style={{ borderColor: step === item.id ? item.color : '' }}
+                        >
+                          <div 
+                            className="flex-shrink-0 w-12 h-12 lg:w-14 lg:h-14 rounded-xl flex items-center justify-center transition-all duration-300"
+                            style={{ backgroundColor: `${item.color}10`, color: item.color }}
+                          >
+                            <item.icon size={24} className="group-hover:scale-110 transition-transform" />
+                          </div>
+                          <div className="flex-1">
+                            <span className='block text-lg lg:text-xl font-bold text-gray-900 leading-tight'>{item.title}</span>
+                            <span className='text-gray-500 text-xs lg:text-sm'>{item.desc}</span>
+                          </div>
+                          <ArrowRight size={18} className="text-gray-300 group-hover:text-gray-900 group-hover:translate-x-1 transition-all" />
+                        </motion.button>
+                      ))}
                     </div>
 
-                    <div className="pt-4 text-center">
-                       <p className="text-xs text-gray-400 font-medium tracking-widest uppercase">
+                    <div className="pt-2 lg:pt-4 text-center">
+                       <p className="text-[10px] lg:text-xs text-gray-400 font-medium tracking-widest uppercase">
                          Precision Crafted Excellence
                        </p>
                     </div>
