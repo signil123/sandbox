@@ -1,20 +1,20 @@
 // File: client/src/redux/store.js
 import { combineReducers, configureStore } from '@reduxjs/toolkit'
 import {
-  FLUSH,
-  PAUSE,
-  PERSIST,
-  persistReducer,
-  persistStore,
-  PURGE,
-  REGISTER,
-  REHYDRATE,
+    FLUSH,
+    PAUSE,
+    PERSIST,
+    persistReducer,
+    persistStore,
+    PURGE,
+    REGISTER,
+    REHYDRATE,
 } from 'redux-persist'
 import storage from 'redux-persist/lib/storage'
 import userReducer from './userSlice'
 
 const persistConfig = {
-  key: 'root',
+  key: 'signil-root',
   version: 1,
   storage,
   whitelist: ['user'], // Only persist user state

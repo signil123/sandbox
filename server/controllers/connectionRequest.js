@@ -172,12 +172,30 @@ export const getPendingRequests = async (req, res, next) => {
     // Get additional info for each request
     const enrichedRequests = await Promise.all(
       requests.map(async (req) => {
+        const profile = await Profile.findOne({ user: req.from._id })
+          .select('profileImage title location about certifications expertise bannerImage themeId ratings experience')
+
         return {
           requestId: req._id,
           sender: {
             userId: req.from._id,
             name: req.from.name,
             email: req.from.email,
+          },
+          from: {
+            _id: req.from._id,
+            name: req.from.name,
+            profileImage: profile?.profileImage,
+            title: profile?.title,
+            location: profile?.location,
+            about: profile?.aboutMe || profile?.bio,
+            certifications: profile?.certifications,
+            expertise: profile?.specialization || profile?.specialties,
+            bannerImage: profile?.bannerImage,
+            themeId: profile?.themeId,
+            rating: profile?.ratings?.averageRating,
+            reviewCount: profile?.ratings?.totalReviews,
+            experience: profile?.experience,
           },
           message: req.message,
           sentAt: req.createdAt,

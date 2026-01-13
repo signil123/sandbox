@@ -34,6 +34,9 @@ export const initSocket = (server) => {
   })
 
   io.on('connection', (socket) => {
+    // Join user-specific room for receiving personal notifications (e.g., event invitations)
+    socket.join(socket.user._id.toString());
+    
     socket.user.status = 'online'
     socket.user.lastSeen = new Date()
     socket.user.save().then(() => {

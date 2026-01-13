@@ -51,9 +51,31 @@ export const startConversation = async (req, res, next) => {
       })
     }
 
+    // Re-fetch with population to ensure UI has names and profile info immediately
+    const populatedConv = await Conversation.findById(conversation._id)
+      .populate('participant1', 'name email userType status lastSeen settings')
+      .populate('participant2', 'name email userType status lastSeen settings')
+      .populate('lastMessage')
+
+    const otherUser = populatedConv.participant1._id.toString() === senderId ? populatedConv.participant2 : populatedConv.participant1
+    const profile = await Profile.findOne({ user: otherUser._id }).select('profileImage title bannerImage themeId')
+
+    const responseConv = {
+      ...populatedConv.toObject(),
+      otherUser: {
+        ...otherUser.toObject(),
+        profileImage: profile?.profileImage,
+        title: profile?.title,
+        bannerImage: profile?.bannerImage,
+        themeId: profile?.themeId,
+        status: otherUser.status,
+        lastSeen: otherUser.settings?.showLastSeen ? otherUser.lastSeen : null,
+      }
+    }
+
     res.status(200).json({
       status: 'success',
-      data: { conversation },
+      data: { conversation: responseConv },
     })
   } catch (error) {
     console.error('Error in startConversation:', error)
@@ -151,16 +173,30 @@ export const getConversations = async (req, res, next) => {
       $or: [{ participant1: userId }, { participant2: userId }],
       isArchived: false,
     })
-      .populate('participant1', 'name email userType')
-      .populate('participant2', 'name email userType')
+      .populate('participant1', 'name email userType status lastSeen settings')
+      .populate('participant2', 'name email userType status lastSeen settings')
       .populate('lastMessage')
       .sort({ lastMessageAt: -1 })
+
+    // Get all other participant IDs to fetch profiles in bulk
+    const otherUserIds = conversations.map(conv => 
+      conv.participant1._id.toString() === userId ? conv.participant2._id : conv.participant1._id
+    )
+
+    // Fetch all profiles in one query
+    const profiles = await Profile.find({ user: { $in: otherUserIds } })
+      .select('user profileImage title bannerImage themeId')
+
+    const profileMap = profiles.reduce((acc, profile) => {
+      acc[profile.user.toString()] = profile
+      return acc
+    }, {})
 
     // Enrich with other participant's profile info
     const enrichedConversations = await Promise.all(
       conversations.map(async (conv) => {
         const otherUser = conv.participant1._id.toString() === userId ? conv.participant2 : conv.participant1
-        const profile = await Profile.findOne({ user: otherUser._id }).select('profileImage title')
+        const profile = profileMap[otherUser._id.toString()]
         
         const unreadCount = await conv.unreadMessageCount(userId)
         
@@ -178,6 +214,8 @@ export const getConversations = async (req, res, next) => {
             ...otherUser.toObject(),
             profileImage: profile?.profileImage,
             title: profile?.title,
+            bannerImage: profile?.bannerImage,
+            themeId: profile?.themeId,
             status: otherUser.status,
             lastSeen: otherUser.settings?.showLastSeen ? otherUser.lastSeen : null,
           },

@@ -19,6 +19,7 @@ const NotificationSchema = new mongoose.Schema(
         'connection_accepted',
         'message',
         'event_invitation',
+        'event_response',
         'event_reminder',
         'profile_verified',
         'nil_opportunity',

@@ -21,7 +21,7 @@ const MessageSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ['text', 'image', 'document', 'event', 'link'],
+      enum: ['text', 'image', 'document', 'event', 'event_invitation', 'link'],
       default: 'text',
     },
     attachments: [
@@ -39,6 +39,11 @@ const MessageSchema = new mongoose.Schema(
       endTime: Date,
       location: String,
       link: String,
+      invitationStatus: { 
+        type: String, 
+        enum: ['pending', 'accepted', 'declined'], 
+        default: 'pending' 
+      },
     },
     isRead: {
       type: Boolean,

@@ -1,31 +1,37 @@
 // File: client/src/pages/Calendar/CalendarPage.jsx
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-    Calendar as CalendarIcon,
-    Check,
-    ChevronLeft,
-    ChevronRight,
-    Clock,
-    File,
-    Filter,
-    Info,
-    Link as LinkIcon,
-    MapPin,
-    Menu,
-    Phone,
-    Plus,
-    Search,
-    Settings,
-    Shield,
-    Smartphone,
-    Star,
-    Trash2,
-    Users,
-    Video,
-    X,
+  Calendar as CalendarIcon,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Download, // Added Download icon
+  ExternalLink,
+  File,
+  Filter,
+  Info,
+  Link as LinkIcon,
+  Loader2,
+  MapPin,
+  Menu,
+  PartyPopper,
+  Phone,
+  Plus,
+  Search,
+  Settings,
+  Share,
+  Shield,
+  Smartphone,
+  Star,
+  Trash2,
+  Users,
+  Video,
+  X,
 } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
+import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import api from '../../config'
 import { selectCurrentUser } from '../../redux/userSlice'
@@ -39,8 +45,77 @@ const getImageUrl = (path) => {
   return `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`
 }
 
+// Get initials from name
+const getInitials = (name) => {
+  if (!name) return '?'
+  return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2)
+}
+
+// Get deterministic avatar color
+const getAvatarColor = (user) => {
+  const colors = [
+    'from-blue-400 to-blue-600',
+    'from-purple-400 to-purple-600',
+    'from-pink-400 to-pink-600',
+    'from-green-400 to-green-600',
+    'from-amber-400 to-amber-600',
+  ]
+  const seed = user?.name || user?._id || 'User'
+  let hash = 0
+  for (let i = 0; i < seed.length; i++) {
+    hash = seed.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  return colors[Math.abs(hash) % colors.length]
+}
+
+const CalendarSkeleton = () => (
+  <div className='w-full h-full max-w-8xl mx-auto flex flex-col px-4 md:px-8 py-6 gap-6 bg-stone-50 animate-pulse'>
+    {/* Header Skeleton */}
+    <div className='flex items-center justify-between'>
+      <div className='h-8 w-48 bg-gray-200 rounded-lg'></div>
+      <div className='flex gap-3'>
+        <div className='hidden md:block h-9 w-48 bg-gray-200 rounded-lg'></div>
+        <div className='h-9 w-32 bg-gray-200 rounded-lg'></div>
+      </div>
+    </div>
+
+    <div className='flex gap-4 md:gap-6 flex-1 overflow-hidden'>
+      {/* Sidebar Skeleton */}
+      <div className='hidden md:flex w-72 flex-col gap-4'>
+        <div className='h-80 bg-white rounded-xl border border-gray-200'></div>
+        <div className='h-40 bg-white rounded-xl border border-gray-200'></div>
+        <div className='h-32 bg-white rounded-xl border border-gray-200'></div>
+      </div>
+
+      {/* Main Calendar Skeleton */}
+      <div className='flex-1 bg-white rounded-xl border border-gray-200 p-6'>
+        <div className='flex justify-between items-center mb-6'>
+          <div className='h-8 w-32 bg-gray-200 rounded'></div>
+          <div className='flex gap-2'>
+            <div className='h-8 w-8 bg-gray-200 rounded'></div>
+            <div className='h-8 w-8 bg-gray-200 rounded'></div>
+          </div>
+        </div>
+        <div className='grid grid-cols-8 gap-4 h-full'>
+          <div className='col-span-1 space-y-4'>
+            {[...Array(10)].map((_, i) => (
+              <div key={i} className='h-4 w-12 bg-gray-100 rounded'></div>
+            ))}
+          </div>
+          <div className='col-span-7 grid grid-cols-7 gap-1 h-full'>
+             {[...Array(7)].map((_, i) => (
+               <div key={i} className='bg-gray-50 rounded-lg h-full border border-gray-100'></div>
+             ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+)
+
 const CalendarPage = () => {
   const currentUser = useSelector(selectCurrentUser)
+  const [searchParams] = useSearchParams()
   const [events, setEvents] = useState([])
   const [upcomingEvents, setUpcomingEvents] = useState([])
   const [invites, setInvites] = useState([])
@@ -54,9 +129,64 @@ const CalendarPage = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024)
   const [loading, setLoading] = useState(true)
   const [network, setNetwork] = useState([])
+  const [syncInfo, setSyncInfo] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedInvitees, setSelectedInvitees] = useState([])
   const [isSearchingConnections, setIsSearchingConnections] = useState(false)
+  const [isCreatingEvent, setIsCreatingEvent] = useState(false)
+  const [processingInviteId, setProcessingInviteId] = useState(null)
+  const [showSuccessModal, setShowSuccessModal] = useState(false)
+  
+  // Form states for validation
+  const [formStartTime, setFormStartTime] = useState('09:00')
+  const [formEndTime, setFormEndTime] = useState('10:00')
+
+  // Handle window resize for mobile state
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 1024)
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  // Fetch sync info
+  useEffect(() => {
+    const fetchSyncInfo = async () => {
+      try {
+        const res = await api.get('/events/sync-info')
+        if (res.data.status === 'success') {
+          setSyncInfo(res.data.data)
+        }
+      } catch (error) {
+        console.error('Error fetching sync info:', error)
+      }
+    }
+    fetchSyncInfo()
+  }, [])
+
+  // Helper for generating external calendar links
+  const generateCalendarLink = (event, type) => {
+    const title = encodeURIComponent(event.title)
+    const desc = encodeURIComponent(event.description || '')
+    const loc = encodeURIComponent(event.location?.address || event.virtualLocation?.link || '')
+    
+    // Format: YYYYMMDDTHHmmssZ
+    const formatDate = (dateStr) => {
+      const d = new Date(dateStr)
+      return d.toISOString().replace(/-|:|\.\d+/g, '')
+    }
+    
+    const start = formatDate(event.startDate)
+    const end = formatDate(event.endDate)
+
+    if (type === 'google') {
+      return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${start}/${end}&details=${desc}&location=${loc}`
+    } else if (type === 'outlook') {
+      return `https://outlook.live.com/calendar/0/deeplink/compose?path=/calendar/action/compose&rru=addevent&subject=${title}&startdt=${start}&enddt=${end}&body=${desc}&location=${loc}`
+    }
+    return '#'
+  }
 
   // Fetch initial data
   const fetchData = useCallback(async () => {
@@ -97,18 +227,53 @@ const CalendarPage = () => {
     fetchNetwork()
   }, [fetchData, currentUser])
 
-  const handleRespond = async (eventId, status) => {
-    const action = status === 'accepted' ? 'accept' : 'decline'
-    if (!window.confirm(`Are you sure you want to ${action} this event?`)) return
-
-    try {
-      await api.patch(`/events/${eventId}/respond`, { status })
-      toast.success(`Successfully ${status} the invitation`)
-      fetchData()
-    } catch (error) {
-      console.error('Error responding to invite:', error)
-      toast.error('Failed to respond to invitation')
+  // Handle deep linking from URL
+  useEffect(() => {
+    const eventId = searchParams.get('eventId')
+    if (eventId && events.length > 0 && !loading) {
+      const event = events.find(e => e._id === eventId)
+      if (event) {
+        setSelectedEvent(event)
+        setShowEventDetails(true)
+      }
     }
+  }, [searchParams, events, loading])
+
+  // Handle ?action=create from URL
+  useEffect(() => {
+    if (searchParams.get('action') === 'create') {
+      setIsAddEventOpen(true)
+      
+      // Auto-populate invitee if provided
+      const inviteeId = searchParams.get('inviteeId')
+      const name = searchParams.get('name')
+      const profileImage = searchParams.get('profileImage')
+      
+      if (inviteeId && name) {
+        setSelectedInvitees([{
+          _id: inviteeId,
+          name: decodeURIComponent(name),
+          profileImage: profileImage ? decodeURIComponent(profileImage) : null
+        }])
+      }
+    }
+  }, [searchParams])
+
+  const handleRespond = async (eventId, status) => {
+    setProcessingInviteId(eventId);
+    
+    toast.promise(api.patch(`/events/${eventId}/respond`, { status }), {
+      loading: `Updating: ${status}...`,
+      success: (response) => {
+        if (response.data.status === 'success') {
+          fetchData();
+          return `Invitation ${status}`;
+        }
+        throw new Error(response.data.message || 'Failed to update invite');
+      },
+      error: 'Failed to respond to invitation',
+      finally: () => setProcessingInviteId(null)
+    });
   }
 
   const handleDeleteEvent = async (eventId) => {
@@ -130,6 +295,19 @@ const CalendarPage = () => {
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
+
+  // Lock background scroll when any modal is open
+  useEffect(() => {
+    const isModalOpen = isAddEventOpen || showEventDetails || showSuccessModal;
+    if (isModalOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isAddEventOpen, showEventDetails, showSuccessModal]);
 
   // Events state is now handled above with fetchData
 
@@ -216,14 +394,17 @@ const CalendarPage = () => {
     (_, i) => `${String(i).padStart(2, '0')}:00`
   )
 
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <CalendarSkeleton />
+      </DashboardLayout>
+    )
+  }
+
   return (
     <DashboardLayout>
       <div className='w-full h-full max-w-8xl mx-auto flex flex-col px-4 md:px-8 py-6 gap-6 bg-stone-50'>
-        {loading && (
-          <div className="fixed inset-0 bg-white/50 backdrop-blur-sm z-[100] flex items-center justify-center">
-             <div className="w-12 h-12 border-4 border-[#163146] border-t-transparent rounded-full animate-spin"></div>
-          </div>
-        )}
 
         {/* Header */}
         <motion.div
@@ -422,6 +603,37 @@ const CalendarPage = () => {
                     </div>
                   </div>
 
+                  {/* Sync Settings Widget - Enhanced & Promoted */}
+                  <div className="md:rounded-xl md:border md:border-stone-100 bg-stone-50/50 p-4 md:p-4 border-l-4 border-l-[#986a41]">
+                    <div className="flex items-center gap-2 mb-3">
+                       <div className="p-1.5 bg-[#986a41]/10 rounded-lg text-[#986a41]">
+                          <Smartphone size={16} />
+                       </div>
+                       <div>
+                          <p className="text-[10px] font-bold text-[#163146] uppercase tracking-wider">System Sync</p>
+                          <p className="text-[9px] text-stone-400 font-medium">Sync with your device calendar</p>
+                       </div>
+                    </div>
+                    {syncInfo ? (
+                      <div className="space-y-3">
+                         <a 
+                           href={syncInfo.syncUrl}
+                           className="flex items-center justify-center gap-2 w-full py-2.5 bg-[#986a41] text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-[#855a36] transition-all shadow-md hover:shadow-lg active:scale-[0.98]"
+                         >
+                           <Share size={14} />
+                           Sync My Schedule
+                         </a>
+                         <p className="text-[8px] text-stone-400 text-center leading-relaxed px-1">
+                           One-click sync to your native system calendar.
+                         </p>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center py-4">
+                         <Loader2 size={20} className="animate-spin text-stone-300" />
+                      </div>
+                    )}
+                  </div>
+
                   {/* Event Type Filter */}
                   <div className='md:rounded-xl md:border md:border-gray-200 md:shadow-sm bg-white p-4 md:p-4'>
                     <h3 className='font-semibold text-gray-900 mb-3 text-sm'>
@@ -485,19 +697,31 @@ const CalendarPage = () => {
                             }}
                             className={`w-full p-3 rounded-lg text-left border-l-4 ${getEventColor(
                               event.locationType
-                            )} hover:shadow-md transition-all flex gap-3`}
+                            )} hover:shadow-md transition-all flex gap-3 items-center bg-stone-50/50`}
                             whileHover={{ x: 4 }}
                           >
-                            <img 
-                              src={getImageUrl(event.creator?.profileImage) || '/default-avatar.png'} 
-                              alt="" 
-                              className="w-8 h-8 rounded-full border border-stone-200 object-cover"
-                            />
-                            <div>
-                              <p className='font-semibold text-xs text-[#163146]'>{event.title}</p>
-                              <p className='text-[10px] text-stone-500 mt-0.5'>
-                                {new Date(event.startDate).toLocaleDateString()} • {new Date(event.startDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                              </p>
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-sm shrink-0 bg-gradient-to-br ${getAvatarColor(event.creator)}`}>
+                              {event.creator?.profileImage ? (
+                                <img 
+                                  src={getImageUrl(event.creator.profileImage)} 
+                                  alt={event.creator.name} 
+                                  className="w-full h-full rounded-full object-cover border border-white/20"
+                                />
+                              ) : (
+                                <span>{getInitials(event.creator?.name || 'User')}</span>
+                              )}
+                            </div>
+                            <div className="overflow-hidden">
+                              <p className='font-semibold text-xs text-[#163146] truncate w-full'>{event.title}</p>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className="text-[10px] text-stone-500 font-medium">
+                                  {new Date(event.startDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                </span>
+                                <span className="w-0.5 h-0.5 bg-stone-300 rounded-full"></span>
+                                <span className="text-[10px] text-stone-500 font-medium">
+                                  {new Date(event.startDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              </div>
                             </div>
                           </motion.button>
                         ))
@@ -513,8 +737,10 @@ const CalendarPage = () => {
                       Invites
                     </h3>
                     <div className='space-y-3'>
-                      {invites.length > 0 ? (
-                        invites.map((invite) => (
+                      {invites.filter(inv => inv.event?.creator?._id !== currentUser?._id).length > 0 ? (
+                        invites
+                          .filter(inv => inv.event?.creator?._id !== currentUser?._id)
+                          .map((invite) => (
                           <div key={invite._id} className="p-3 rounded-lg border border-stone-100 flex items-center justify-between gap-2">
                              <div className="flex items-center gap-2">
                                <img 
@@ -529,16 +755,26 @@ const CalendarPage = () => {
                              </div>
                              <div className="flex gap-1">
                                <button 
+                                 disabled={processingInviteId === invite.event?._id}
                                  onClick={() => handleRespond(invite.event?._id, 'accepted')}
-                                 className="p-1.5 bg-green-50 text-green-600 rounded-lg hover:bg-green-100"
+                                 className="p-1.5 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 disabled:opacity-50"
                                >
-                                 <Check size={14} />
+                                 {processingInviteId === invite.event?._id ? (
+                                   <Loader2 size={14} className="animate-spin" />
+                                 ) : (
+                                   <Check size={14} />
+                                 )}
                                </button>
                                <button 
+                                 disabled={processingInviteId === invite.event?._id}
                                  onClick={() => handleRespond(invite.event?._id, 'declined')}
-                                 className="p-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100"
-                               >
-                                 <Trash2 size={14} />
+                                 className="p-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 disabled:opacity-50"
+                                >
+                                 {processingInviteId === invite.event?._id ? (
+                                   <Loader2 size={14} className="animate-spin" />
+                                 ) : (
+                                   <Trash2 size={14} />
+                                 )}
                                </button>
                              </div>
                           </div>
@@ -548,6 +784,7 @@ const CalendarPage = () => {
                       )}
                     </div>
                   </div>
+
                 </div>
               </div>
             )}
@@ -888,15 +1125,16 @@ const CalendarPage = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className='fixed inset-0 bg-black/20 backdrop-blur-md flex items-center justify-center z-50 p-4'
+            className='fixed inset-0 bg-black/20 backdrop-blur-md flex items-end md:items-center justify-center z-50 md:p-4'
             onClick={() => setIsAddEventOpen(false)}
           >
             <motion.div
-              initial={{ scale: 0.95, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              initial={isMobile ? { y: '100%' } : { scale: 0.95, opacity: 0, y: 20 }}
+              animate={isMobile ? { y: 0 } : { scale: 1, opacity: 1, y: 0 }}
+              exit={isMobile ? { y: '100%' } : { scale: 0.95, opacity: 0, y: 20 }}
+              transition={{ type: isMobile ? 'spring' : 'tween', damping: 25, stiffness: 300 }}
               onClick={(e) => e.stopPropagation()}
-              className='bg-white rounded-2xl shadow-2xl max-w-md w-full'
+              className='bg-white rounded-t-3xl md:rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto'
             >
               <div className="bg-[#163146] p-6 text-white flex justify-between items-center rounded-t-2xl">
                  <div>
@@ -919,10 +1157,39 @@ const CalendarPage = () => {
                 
                 try {
                   // Reconstruct dates from split fields
-                  const startDateTime = `${data.startDate}T${data.startTime}`;
-                  const endDateTime = data.endTime ? `${data.startDate}T${data.endTime}` : startDateTime;
+                  const startDateTime = `${data.startDate}T${formStartTime}`;
+                  const endDateTime = formEndTime ? `${data.startDate}T${formEndTime}` : startDateTime;
 
-                  await api.post('/events', {
+                  // Validation: Start time must be before End time
+                  if (formStartTime >= formEndTime) {
+                    toast.error('End time must be after start time');
+                    return;
+                  }
+
+                  // Conflict Detection
+                  const newStart = new Date(startDateTime).getTime();
+                  const newEnd = new Date(endDateTime).getTime();
+
+                  const hasConflict = events.some(existingEvent => {
+                    // Skip if event is declined (optional, but good UX)
+                    // if (existingEvent.invitationStatus === 'declined') return false; 
+
+                    const existingStart = new Date(existingEvent.startDate).getTime();
+                    const existingEnd = new Date(existingEvent.endDate || existingEvent.startDate).getTime();
+
+                    // Check for overlap: (StartA < EndB) && (EndA > StartB)
+                    return (newStart < existingEnd && newEnd > existingStart);
+                  });
+
+                  if (hasConflict) {
+                    toast.error('Time slot conflict! You already have an event scheduled for this time.');
+                    return;
+                  }
+
+                  setIsCreatingEvent(true);
+                  const inviteCount = selectedInvitees.length;
+
+                  toast.promise(api.post('/events', {
                     title: data.title,
                     description: data.description,
                     eventType: data.eventType || 'meeting',
@@ -932,31 +1199,45 @@ const CalendarPage = () => {
                     startDate: startDateTime,
                     endDate: endDateTime,
                     inviteeIds: selectedInvitees.map(i => i._id),
+                  }), {
+                    loading: 'Creating event...',
+                    success: () => {
+                      setIsAddEventOpen(false);
+                      setSelectedInvitees([]);
+                      setSearchTerm('');
+                      setFormStartTime('09:00');
+                      setFormEndTime('10:00');
+                      fetchData();
+                      setShowSuccessModal(true); // Show the beautiful success modal
+                      return inviteCount > 0 
+                        ? `Event created! Invitations sent to ${inviteCount} ${inviteCount === 1 ? 'person' : 'people'}.`
+                        : 'Event created successfully';
+                    },
+                    error: (err) => {
+                      console.error('Error creating event:', err);
+                      return 'Failed to create event';
+                    },
+                    finally: () => setIsCreatingEvent(false)
                   });
-                  toast.success('Event created successfully');
-                  setIsAddEventOpen(false);
-                  setSelectedInvitees([]);
-                  setSearchTerm('');
-                  fetchData();
                 } catch (error) {
-                  console.error('Error creating event:', error);
-                  toast.error('Failed to create event');
+                  console.error('Error in form submission:', error);
+                  setIsCreatingEvent(false);
                 }
               }}>
                 <div className='space-y-1.5'>
-                  <label className='text-[10px] font-bold text-stone-400 uppercase tracking-widest'>Title</label>
+                  <label className='text-[10px] font-bold text-stone-400 uppercase tracking-widest'>Event Name</label>
                   <input
                     name='title'
                     required
                     type='text'
-                    placeholder='Event title...'
+                    placeholder='What are we doing?'
                     className='w-full px-4 py-2.5 bg-stone-50 border border-stone-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#163146] transition-all text-sm'
                   />
                 </div>
 
                 <div className='grid grid-cols-2 gap-4'>
                   <div className='space-y-1.5'>
-                    <label className='text-[10px] font-bold text-stone-400 uppercase tracking-widest'>Type</label>
+                    <label className='text-[10px] font-bold text-stone-400 uppercase tracking-widest'>Category</label>
                     <div className="relative">
                       <select 
                         name='eventType'
@@ -972,7 +1253,7 @@ const CalendarPage = () => {
                     </div>
                   </div>
                   <div className='space-y-1.5'>
-                    <label className='text-[10px] font-bold text-stone-400 uppercase tracking-widest'>Location Type</label>
+                    <label className='text-[10px] font-bold text-stone-400 uppercase tracking-widest'>Venue</label>
                     <select 
                       name='locationType'
                       className='w-full px-4 py-2.5 bg-stone-50 border border-stone-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#163146] transition-all text-sm appearance-none'
@@ -1005,6 +1286,24 @@ const CalendarPage = () => {
                       <select
                         name='startTime'
                         required
+                        value={formStartTime}
+                        onChange={(e) => {
+                          const newStart = e.target.value;
+                          setFormStartTime(newStart);
+                          // Automatically adjust end time if it's now before start
+                          if (newStart >= formEndTime) {
+                            const [h, m] = newStart.split(':').map(Number);
+                            let endH = h;
+                            let endM = m + 30;
+                            if (endM >= 60) {
+                              endH += 1;
+                              endM -= 60;
+                            }
+                            if (endH < 24) {
+                              setFormEndTime(`${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`);
+                            }
+                          }
+                        }}
                         className='w-full pl-11 pr-4 py-2.5 bg-stone-50 border border-stone-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#163146] transition-all text-sm appearance-none'
                       >
                         {Array.from({ length: 48 }).map((_, i) => {
@@ -1022,13 +1321,24 @@ const CalendarPage = () => {
                       <Clock className="absolute left-4 text-[#986a41]" size={14} />
                       <select
                         name='endTime'
+                        value={formEndTime}
+                        onChange={(e) => setFormEndTime(e.target.value)}
                         className='w-full pl-11 pr-4 py-2.5 bg-stone-50 border border-stone-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#163146] transition-all text-sm appearance-none'
                       >
                         {Array.from({ length: 48 }).map((_, i) => {
                           const hour = Math.floor(i / 2);
                           const minute = i % 2 === 0 ? '00' : '30';
                           const time = `${hour.toString().padStart(2, '0')}:${minute}`;
-                          return <option key={time} value={time}>{time}</option>;
+                          return (
+                            <option 
+                              key={time} 
+                              value={time}
+                              disabled={time <= formStartTime}
+                              className={time <= formStartTime ? 'text-stone-300' : ''}
+                            >
+                              {time}
+                            </option>
+                          );
                         })}
                       </select>
                     </div>
@@ -1036,7 +1346,7 @@ const CalendarPage = () => {
                 </div>
 
                 <div className='space-y-1.5'>
-                  <label className='text-[10px] font-bold text-stone-400 uppercase tracking-widest'>Location details</label>
+                  <label className='text-[10px] font-bold text-stone-400 uppercase tracking-widest'>Where</label>
                   <input
                     name='location'
                     type='text'
@@ -1046,7 +1356,7 @@ const CalendarPage = () => {
                 </div>
 
                 <div className='space-y-2'>
-                  <label className='text-[10px] font-bold text-stone-400 uppercase tracking-widest'>Invite Connections</label>
+                  <label className='text-[10px] font-bold text-stone-400 uppercase tracking-widest'>Guests</label>
                   <div className="relative">
                     <div className="flex items-center gap-2 mb-2 flex-wrap">
                       {selectedInvitees.map(user => (
@@ -1130,9 +1440,17 @@ const CalendarPage = () => {
                   </button>
                   <button 
                     type='submit'
-                    className='flex-2 px-4 py-2.5 bg-[#163146] text-white rounded-xl text-sm font-bold hover:bg-[#0f2a36] shadow-lg shadow-[#163146]/20 transition-all'
+                    disabled={isCreatingEvent}
+                    className='flex-2 px-4 py-2.5 bg-[#163146] text-white rounded-xl text-sm font-bold hover:bg-[#0f2a36] shadow-lg shadow-[#163146]/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50'
                   >
-                    Create Event
+                    {isCreatingEvent ? (
+                      <>
+                        <Loader2 size={16} className='animate-spin' />
+                        Creating...
+                      </>
+                    ) : (
+                      'Create Event'
+                    )}
                   </button>
                 </div>
               </form>
@@ -1148,15 +1466,16 @@ const CalendarPage = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className='fixed inset-0 bg-black/20 backdrop-blur-md flex items-center justify-center z-50 p-4'
+            className='fixed inset-0 bg-black/20 backdrop-blur-md flex items-end md:items-center justify-center z-50 md:p-4'
             onClick={() => setShowEventDetails(false)}
           >
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
+              initial={isMobile ? { y: '100%' } : { scale: 0.95, opacity: 0 }}
+              animate={isMobile ? { y: 0 } : { scale: 1, opacity: 1 }}
+              exit={isMobile ? { y: '100%' } : { scale: 0.95, opacity: 0 }}
+              transition={{ type: isMobile ? 'spring' : 'tween', damping: 25, stiffness: 300 }}
               onClick={(e) => e.stopPropagation()}
-              className='bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden'
+              className='bg-white rounded-t-3xl md:rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden'
             >
               <div className="relative h-32 bg-[#163146] p-8">
                  <motion.button
@@ -1176,12 +1495,18 @@ const CalendarPage = () => {
 
               <div className='p-8 space-y-6'>
                 <div className="flex items-center justify-between">
-                   <div className="flex items-center gap-3">
-                      <img 
-                        src={getImageUrl(selectedEvent.creator?.profileImage) || '/default-avatar.png'} 
-                        alt="" 
-                        className="w-12 h-12 rounded-full border-2 border-stone-100"
-                      />
+                    <div className="flex items-center gap-3">
+                       {selectedEvent.creator?.profileImage ? (
+                         <img 
+                           src={getImageUrl(selectedEvent.creator?.profileImage)} 
+                           alt="" 
+                           className="w-12 h-12 rounded-full border-2 border-stone-100 object-cover"
+                         />
+                       ) : (
+                         <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${getAvatarColor(selectedEvent.creator)} flex items-center justify-center text-white text-sm font-black border-2 border-white shadow-sm`}>
+                            {getInitials(selectedEvent.creator?.name)}
+                         </div>
+                       )}
                       <div>
                          <p className="text-sm font-bold text-[#163146]">{selectedEvent.creator?.name}</p>
                          <p className="text-xs text-stone-500">Host</p>
@@ -1233,6 +1558,87 @@ const CalendarPage = () => {
                    </p>
                 </div>
 
+                {/* RSVP Attendee List (Host Only) */}
+                {selectedEvent.creator?._id === currentUser?._id && selectedEvent.attendees?.length > 0 && (
+                  <div className="space-y-3 pt-2">
+                    <div className="flex items-center justify-between">
+                       <p className="text-[10px] text-stone-400 font-bold uppercase">Attendees ({selectedEvent.attendees.length})</p>
+                       <div className="flex gap-2">
+                          <div className="flex items-center gap-1">
+                             <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                             <span className="text-[9px] text-stone-400 font-bold">{selectedEvent.attendees.filter(a => a.status === 'accepted').length}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                             <div className="w-1.5 h-1.5 rounded-full bg-yellow-500" />
+                             <span className="text-[9px] text-stone-400 font-bold">{selectedEvent.attendees.filter(a => a.status === 'pending').length}</span>
+                          </div>
+                       </div>
+                    </div>
+                    <div className="flex -space-x-2 overflow-hidden items-center">
+                       {selectedEvent.attendees.slice(0, 5).map((att, i) => (
+                         <div key={i} className="relative group">
+                           {att.invitee?.profileImage ? (
+                             <img 
+                               src={getImageUrl(att.invitee.profileImage)} 
+                               className="w-8 h-8 rounded-full border-2 border-white object-cover shadow-sm hover:scale-110 transition-transform" 
+                               title={`${att.invitee.name} (${att.status})`}
+                             />
+                           ) : (
+                             <div 
+                               className={`w-8 h-8 rounded-full border-2 border-white bg-gradient-to-br ${getAvatarColor(att.invitee)} flex items-center justify-center text-[10px] text-white font-black hover:scale-110 transition-transform`}
+                               title={`${att.invitee?.name} (${att.status})`}
+                             >
+                                {getInitials(att.invitee?.name)}
+                             </div>
+                           )}
+                           <div className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white ${
+                             att.status === 'accepted' ? 'bg-green-500' : 
+                             att.status === 'declined' ? 'bg-red-500' : 'bg-yellow-500'
+                           }`} />
+                         </div>
+                       ))}
+                       {selectedEvent.attendees.length > 5 && (
+                         <div className="w-8 h-8 rounded-full border-2 border-white bg-stone-100 flex items-center justify-center text-[10px] font-bold text-stone-500">
+                           +{selectedEvent.attendees.length - 5}
+                         </div>
+                       )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Add to External Calendars */}
+                <div className="flex items-center gap-3 pt-2">
+                   <a 
+                     href={generateCalendarLink(selectedEvent, 'google')} 
+                     target="_blank" 
+                     rel="noreferrer"
+                     className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-stone-50 hover:bg-stone-100 border border-stone-200 rounded-xl text-[10px] font-bold text-stone-600 transition-colors"
+                   >
+                     <img src="https://www.google.com/favicon.ico" className="w-3 h-3 grayscale group-hover:grayscale-0" alt="" />
+                     Google
+                   </a>
+                   <a 
+                     href={generateCalendarLink(selectedEvent, 'outlook')} 
+                     target="_blank" 
+                     rel="noreferrer"
+                     className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-stone-50 hover:bg-stone-100 border border-stone-200 rounded-xl text-[10px] font-bold text-stone-600 transition-colors"
+                   >
+                     <img src="https://outlook.live.com/favicon.ico" className="w-3 h-3 grayscale group-hover:grayscale-0" alt="" />
+                     Outlook
+                   </a>
+                   {syncInfo && (
+                     <a 
+                       href={syncInfo.downloadUrl + `?eventId=${selectedEvent._id}`}
+                       download={`event-${selectedEvent._id}.ics`}
+                       className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-[#163146] hover:bg-[#0f2a36] border border-[#163146] rounded-xl text-[10px] font-bold text-white transition-colors"
+                       title="Add to Phone Calendar"
+                     >
+                       <Smartphone size={12} />
+                       Add to Phone
+                     </a>
+                   )}
+                </div>
+
                 {selectedEvent.attachments?.length > 0 && (
                   <div className="space-y-2">
                     <p className="text-[10px] text-stone-400 font-bold uppercase">Attachments</p>
@@ -1248,20 +1654,82 @@ const CalendarPage = () => {
                   </div>
                 )}
 
-                <div className='flex gap-4 pt-4'>
-                  <button 
-                    onClick={() => handleRespond(selectedEvent._id, 'declined')}
-                    className='flex-1 px-6 py-3 border border-stone-200 rounded-xl text-stone-600 font-semibold hover:bg-stone-50 transition-colors'
-                  >
-                    Decline
-                  </button>
-                  <button 
-                    onClick={() => handleRespond(selectedEvent._id, 'accepted')}
-                    className='flex-1 px-6 py-3 bg-[#163146] text-white rounded-xl font-semibold hover:bg-[#0f2a36] shadow-lg shadow-[#163146]/20 transition-all'
-                  >
-                    Accept
-                  </button>
-                </div>
+                {/* Actions - Only show if current user is an invitee and hasn't responded yet, or show status */}
+                {selectedEvent.creator?._id !== currentUser?._id && invites.some(inv => inv.event?._id === selectedEvent._id) ? (
+                  <div className='flex gap-4 pt-4'>
+                    <button 
+                      disabled={processingInviteId === selectedEvent._id}
+                      onClick={() => handleRespond(selectedEvent._id, 'declined')}
+                      className='flex-1 px-6 py-3 border border-stone-200 rounded-xl text-stone-600 font-semibold hover:bg-stone-50 transition-colors disabled:opacity-50 flex items-center justify-center'
+                    >
+                      {processingInviteId === selectedEvent._id ? <Loader2 size={18} className="animate-spin" /> : 'Decline'}
+                    </button>
+                    <button 
+                      disabled={processingInviteId === selectedEvent._id}
+                      onClick={() => handleRespond(selectedEvent._id, 'accepted')}
+                      className='flex-1 px-6 py-3 bg-[#163146] text-white rounded-xl font-semibold hover:bg-[#0f2a36] shadow-lg shadow-[#163146]/20 transition-all disabled:opacity-50 flex items-center justify-center'
+                    >
+                      {processingInviteId === selectedEvent._id ? <Loader2 size={18} className="animate-spin" /> : 'Accept'}
+                    </button>
+                  </div>
+                ) : selectedEvent.creator?._id === currentUser?._id ? (
+                  <div className='pt-4'>
+                    <div className='w-full py-3 bg-stone-50 border border-stone-100 rounded-xl text-stone-500 font-bold text-[10px] uppercase tracking-widest text-center'>
+                      You are the host
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Success Modal (Invitation Sent) */}
+      <AnimatePresence>
+        {showSuccessModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className='fixed inset-0 bg-[#163146]/60 backdrop-blur-xl flex items-end md:items-center justify-center z-[100] md:p-4'
+            onClick={() => setShowSuccessModal(false)}
+          >
+            <motion.div
+              initial={isMobile ? { y: '100%' } : { scale: 0.9, opacity: 0, y: 20 }}
+              animate={isMobile ? { y: 0 } : { scale: 1, opacity: 1, y: 0 }}
+              exit={isMobile ? { y: '100%' } : { scale: 0.9, opacity: 0, y: 20 }}
+              transition={{ type: isMobile ? 'spring' : 'tween', damping: 25, stiffness: 300 }}
+              onClick={(e) => e.stopPropagation()}
+              className='bg-white rounded-t-3xl md:rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden p-8 text-center space-y-6 relative'
+            >
+                <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-[#163146] via-[#163146] to-[#986a41]" />
+                
+                <motion.div 
+                  initial={{ rotate: -20, scale: 0 }}
+                  animate={{ rotate: 0, scale: 1 }}
+                  transition={{ type: "spring", stiffness: 200, damping: 12, delay: 0.2 }}
+                  className="w-20 h-20 bg-[#986a41]/10 rounded-full flex items-center justify-center mx-auto text-[#163146]"
+                >
+                  <PartyPopper size={40} />
+                </motion.div>
+
+              <div className="space-y-2">
+                <h3 className="text-2xl font-bold text-[#163146]">Invitation Sent!</h3>
+                <p className="text-sm text-stone-500 leading-relaxed">
+                  Your event has been successfully scheduled and invitations have been sent to all participants.
+                </p>
+              </div>
+
+              <div className="pt-2">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setShowSuccessModal(false)}
+                  className="w-full py-4 bg-[#163146] text-white rounded-2xl font-bold text-sm shadow-xl shadow-blue-900/20 transition-all"
+                >
+                  Awesome!
+                </motion.button>
               </div>
             </motion.div>
           </motion.div>

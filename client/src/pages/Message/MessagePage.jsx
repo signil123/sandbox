@@ -8,47 +8,17 @@
 import imageCompression from 'browser-image-compression'
 import EmojiPicker from 'emoji-picker-react'
 import { AnimatePresence, motion } from 'framer-motion'
-import {
-    Ban,
-    Calendar,
-    Check,
-    Clock,
-    Download,
-    FileText,
-    Image as ImageIcon,
-    LayoutGrid,
-    Menu,
-    MessageSquare,
-    MoreVertical,
-    Paperclip,
-    Paperclip as PaperclipIcon,
-    PenLine,
-    Search,
-    Send,
-    Settings,
-    Smile,
-    Trash2,
-    X,
-} from 'lucide-react'
+import { Ban, Calendar, Check, Clock, Download, FileText, Image as ImageIcon, LayoutGrid, Loader2, MapPin, Menu, MessageSquare, MoreVertical, Paperclip, Paperclip as PaperclipIcon, PenLine, Search, Send, Settings, Smile, Trash2, X } from 'lucide-react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import ProfilePopup from '../../components/Dashboard/ProfilePopup'
 import { Button } from '../../components/ui/button'
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-} from '../../components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog'
 import { Textarea } from '../../components/ui/textarea'
-import {
-    fetchUnreadMessages,
-    selectCurrentUser,
-    setActiveConversationId,
-    setUser
-} from '../../redux/userSlice'
+import { getThemeById } from '../../constants/themes'
+import { fetchUnreadMessages, selectCurrentUser, setActiveConversationId, setUser } from '../../redux/userSlice'
 import { authService } from '../../services/authService'
 import { connectionService } from '../../services/connectionService'
 import { eventService } from '../../services/eventService'
@@ -101,8 +71,15 @@ const getInitials = (name) => {
     .toUpperCase()
 }
 
-// Avatar color helper
-const getAvatarColor = (id) => {
+// Helper to get consistent user ID from various object formats
+const getUserId = (user) => {
+  if (!user) return null
+  // Prioritize userId (used in requests) then _id (standard) then id (fallback)
+  return user.userId || user._id || user.id
+}
+
+// Get deterministic color based on name or ID
+const getAvatarColor = (user) => {
   const colors = [
     'from-blue-400 to-blue-600',
     'from-purple-400 to-purple-600',
@@ -110,7 +87,17 @@ const getAvatarColor = (id) => {
     'from-green-400 to-green-600',
     'from-amber-400 to-amber-600',
   ]
-  return colors[id % colors.length]
+  
+  // Use name for consistency across different ID formats, fallback to any available ID
+  const name = user?.name && user.name !== 'User' ? user.name : null
+  const id = user?._id || user?.id || user?.userId
+  const seed = name || (id ? String(id) : 'User')
+  
+  let hash = 0
+  for (let i = 0; i < seed.length; i++) {
+    hash = seed.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  return colors[Math.abs(hash) % colors.length]
 }
 
 // Get image URL helper
@@ -125,7 +112,8 @@ const getProfileImage = (user) => {
   if (!user) return null
   const path = user.profileImage || user.photo || user.profileImg
   if (path) return getImageUrl(path)
-  return `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}&background=random`
+  const name = user.name && user.name !== 'User' ? user.name : (user.email ? user.email.split('@')[0] : 'User')
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`
 }
 
 // Expanded Profile View Component - Matches ProfilePopup styling
@@ -173,19 +161,14 @@ function ExpandedProfileView({
         {/* Content - scrollable */}
         <div className='flex-1 overflow-y-auto'>
           <div className='p-3 md:p-4 space-y-2 md:space-y-3'>
-            {/* Banner - simple background color based on user ID */}
+            {/* Banner - uses bannerImage or themeId consistent with PublicProfilePage */}
             <div className='relative'>
               <div
-                className='h-24 rounded-lg'
-                style={{
-                  backgroundColor: [
-                    '#E3F2FD',
-                    '#F3E5F5',
-                    '#FCE4EC',
-                    '#E8F5E9',
-                    '#FFF3E0',
-                  ][user?.id % 5],
-                }}
+                className='h-24 rounded-lg bg-cover bg-center'
+                style={user?.bannerImage 
+                    ? { backgroundImage: `url(${getImageUrl(user.bannerImage)})` } 
+                    : getThemeById(user?.themeId || 'ocean').style
+                }
               />
             </div>
 
@@ -193,7 +176,7 @@ function ExpandedProfileView({
             <div className='flex flex-col items-center -mt-14 relative z-10'>
                 <motion.div
                 className={`w-28 h-28 md:w-32 md:h-32 rounded-full bg-gradient-to-br ${getAvatarColor(
-                  user?.id || user?._id
+                  user
                 )} flex items-center justify-center text-white font-bold text-3xl border-4 border-white shadow-lg overflow-hidden`}
                 initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
@@ -396,127 +379,6 @@ function ExpandedProfileView({
   )
 }
 
-// Event Scheduling Modal
-function EventModal({ isOpen, onClose, onSubmit, eventData, setEventData, isSubmitting }) {
-  if (!isOpen) return null
-
-  return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-        className='fixed inset-0 backdrop-blur-sm bg-black/40 z-[60] flex items-center justify-center p-4'
-      >
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          onClick={(e) => e.stopPropagation()}
-          className='bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col'
-        >
-          <div className='p-4 border-b border-gray-100 flex items-center justify-between'>
-            <h3 className='font-bold text-[#163146]'>Schedule Event</h3>
-            <button onClick={onClose} className='p-1 hover:bg-gray-100 rounded-lg'><X size={20} /></button>
-          </div>
-
-          <div className='p-4 space-y-4 overflow-y-auto max-h-[70vh]'>
-            <div>
-              <label className='block text-xs font-bold text-gray-500 uppercase mb-1'>Event Title</label>
-              <input 
-                type="text" 
-                value={eventData.title}
-                onChange={(e) => setEventData({ ...eventData, title: e.target.value })}
-                placeholder="e.g., Discovery Call"
-                className='w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#986a41]/20 focus:border-[#986a41] outline-none'
-              />
-            </div>
-
-            <div className='grid grid-cols-2 gap-3'>
-              <div>
-                <label className='block text-xs font-bold text-gray-500 uppercase mb-1'>Start Date</label>
-                <input 
-                  type="date" 
-                  value={eventData.startDate}
-                  onChange={(e) => setEventData({ ...eventData, startDate: e.target.value })}
-                  className='w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none'
-                />
-              </div>
-              <div>
-                <label className='block text-xs font-bold text-gray-500 uppercase mb-1'>Start Time</label>
-                <input 
-                  type="time" 
-                  value={eventData.startTime}
-                  onChange={(e) => setEventData({ ...eventData, startTime: e.target.value })}
-                  className='w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none'
-                />
-              </div>
-            </div>
-
-            <div className='grid grid-cols-2 gap-3'>
-              <div>
-                <label className='block text-xs font-bold text-gray-500 uppercase mb-1'>End Date</label>
-                <input 
-                  type="date" 
-                  value={eventData.endDate}
-                  onChange={(e) => setEventData({ ...eventData, endDate: e.target.value })}
-                  className='w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none'
-                />
-              </div>
-              <div>
-                <label className='block text-xs font-bold text-gray-500 uppercase mb-1'>End Time</label>
-                <input 
-                  type="time" 
-                  value={eventData.endTime}
-                  onChange={(e) => setEventData({ ...eventData, endTime: e.target.value })}
-                  className='w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none'
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className='block text-xs font-bold text-gray-500 uppercase mb-1'>Location / Link</label>
-              <input 
-                type="text" 
-                value={eventData.virtualLocation.link}
-                onChange={(e) => setEventData({ ...eventData, virtualLocation: { ...eventData.virtualLocation, link: e.target.value } })}
-                placeholder="Zoom link or Physical Address"
-                className='w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none'
-              />
-            </div>
-
-            <div>
-              <label className='block text-xs font-bold text-gray-500 uppercase mb-1'>Description</label>
-              <textarea 
-                value={eventData.description}
-                onChange={(e) => setEventData({ ...eventData, description: e.target.value })}
-                className='w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none resize-none'
-                rows={3}
-              />
-            </div>
-          </div>
-
-          <div className='p-4 border-t border-gray-100 flex gap-2'>
-            <button 
-              onClick={onClose}
-              className='flex-1 py-2 text-sm font-bold text-gray-500 hover:bg-gray-50 rounded-xl'
-            >
-              Cancel
-            </button>
-            <button 
-              onClick={onSubmit}
-              disabled={isSubmitting || !eventData.title || !eventData.startDate}
-              className='flex-1 py-2 text-sm font-bold text-white bg-[#163146] hover:bg-[#0f1f27] rounded-xl disabled:opacity-50'
-            >
-              {isSubmitting ? 'Scheduling...' : 'Schedule Event'}
-            </button>
-          </div>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
-  )
-}
 
 // Main Component
 
@@ -537,6 +399,7 @@ function MessagePage() {
   const [isMessagesLoading, setIsMessagesLoading] = useState(false)
   const [isSending, setIsSending] = useState(false)
   const [isMobileOpen, setIsMobileOpen] = useState(false)
+  const [messageCache, setMessageCache] = useState({})
   const messageEndRef = useRef(null)
   const [dragStart, setDragStart] = useState(0)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
@@ -550,21 +413,11 @@ function MessagePage() {
   const [userSettings, setUserSettings] = useState(currentLoggedInUser?.settings || { showLastSeen: true })
   const [searchResults, setSearchResults] = useState([])
   const [isSearching, setIsSearching] = useState(false)
-  const [showEventModal, setShowEventModal] = useState(false)
+  const [respondingMessageId, setRespondingMessageId] = useState(null)
+  const [processingRequestId, setProcessingRequestId] = useState(null)
   const [showConnectionModal, setShowConnectionModal] = useState(false)
   const [connectionMessage, setConnectionMessage] = useState('')
   const [addNoteMode, setAddNoteMode] = useState(false)
-  const [eventData, setEventData] = useState({
-    title: '',
-    description: '',
-    eventType: 'networking',
-    startDate: '',
-    startTime: '',
-    endDate: '',
-    endTime: '',
-    isVirtual: true,
-    virtualLocation: { platform: 'Zoom', link: '' }
-  })
   const fileInputRef = useRef(null)
   const emojiPickerRef = useRef(null)
   const chatMenuRef = useRef(null)
@@ -614,6 +467,32 @@ function MessagePage() {
             return c
           })
         )
+      })
+
+      // Handle new event invitation (real-time from CalendarPage)
+      socket.on('event_invitation', ({ message, conversationId }) => {
+        // Refresh conversations to show the new conversation if it was just created
+        loadConversations()
+        toast.info(`New event invitation: ${message.eventInfo?.title || 'Event'}`, {
+          duration: 5000,
+          action: {
+            label: 'View',
+            onClick: () => {
+              setSelectedConversationId(conversationId)
+              setActiveTab('network')
+            }
+          }
+        })
+      })
+
+      // Handle event invitation response updates
+      socket.on('event_invitation_response', ({ messageId, status, eventId }) => {
+        // Update message status in current view if visible
+        setMessages((prev) => prev.map(msg => 
+          msg._id === messageId 
+            ? { ...msg, eventInfo: { ...msg.eventInfo, invitationStatus: status } }
+            : msg
+        ))
       })
 
       return () => {
@@ -717,11 +596,26 @@ function MessagePage() {
   useEffect(() => {
     const loadMessages = async () => {
       if (!selectedConversationId) return
-      setIsMessagesLoading(true)
+      
+      // Use cache if available for instant UI update
+      if (messageCache[selectedConversationId]) {
+        setMessages(messageCache[selectedConversationId])
+      } else {
+        setIsMessagesLoading(true)
+      }
+
       try {
         const response = await messageService.getMessages(selectedConversationId)
         if (response.data.status === 'success') {
-          setMessages(response.data.data.messages)
+          const newMessages = response.data.data.messages
+          setMessages(newMessages)
+          
+          // Update cache
+          setMessageCache(prev => ({
+            ...prev,
+            [selectedConversationId]: newMessages
+          }))
+
           // Update global unread count
           dispatch(fetchUnreadMessages())
         }
@@ -743,15 +637,22 @@ function MessagePage() {
         if (response.data.status === 'success') {
           // Format requests to match expected UI
           const formatted = response.data.data.requests.map(req => ({
-            id: req._id,
-            userId: req.from._id,
-            name: req.from.name,
-            profileImage: req.from.profileImage,
-            title: req.from.title,
-            location: req.from.location,
-            about: req.from.about,
+            id: req.requestId,
+            userId: req.sender.userId,
+            name: req.sender.name,
+            profileImage: req.from?.profileImage,
+            title: req.from?.title,
+            location: req.from?.location,
+            about: req.from?.about,
+            certifications: req.from?.certifications,
+            expertise: req.from?.expertise,
+            bannerImage: req.from?.bannerImage,
+            themeId: req.from?.themeId,
+            rating: req.from?.rating,
+            reviewCount: req.from?.reviewCount,
+            experience: req.from?.experience,
             message: req.message,
-            timestamp: new Date(req.createdAt).toLocaleDateString(),
+            timestamp: new Date(req.sentAt).toLocaleDateString(),
             from: req.from
           }))
           setRequests(formatted)
@@ -1042,113 +943,94 @@ function MessagePage() {
     }
   }
 
-  const handleCreateEvent = async () => {
-    if (!selectedConversationId || !selectedUser) return
-    setIsSending(true)
-    try {
-        const start = `${eventData.startDate}T${eventData.startTime || '00:00'}:00`
-        const end = `${eventData.endDate || eventData.startDate}T${eventData.endTime || '23:59'}:00`
-        
-        const res = await eventService.createEvent({
-            ...eventData,
-            startDate: new Date(start),
-            endDate: new Date(end),
-            inviteeId: selectedUser._id
-        })
-
-        if (res.data.status === 'success') {
-            const event = res.data.data.event
-            // Send message with event info
-            const msgRes = await messageService.sendMessage(selectedConversationId, `📅 Event Scheduled: ${event.title}`, {
-                type: 'event',
-                eventInfo: {
-                    eventId: event._id,
-                    title: event.title,
-                    startTime: event.startDate,
-                    endTime: event.endDate,
-                    location: event.virtualLocation?.link || event.location?.address
-                }
-            })
-
-            if (msgRes.data.status === 'success') {
-                setMessages(prev => [...prev, msgRes.data.data.message])
-                setShowEventModal(false)
-                toast.success('Event scheduled and sent!')
-                // Reset form
-                setEventData({
-                    title: '',
-                    description: '',
-                    eventType: 'networking',
-                    startDate: '',
-                    startTime: '',
-                    endDate: '',
-                    endTime: '',
-                    isVirtual: true,
-                    virtualLocation: { platform: 'Zoom', link: '' }
-                })
-            }
-        }
-    } catch (error) {
-        console.error('Failed to create event:', error)
-        toast.error('Failed to schedule event')
-    } finally {
-        setIsSending(false)
-    }
-  }
-
   const handleAcceptRequest = async (requestId) => {
-    try {
-      const response = await connectionService.acceptRequest(currentLoggedInUser._id, requestId)
-      if (response.data.status === 'success') {
-        toast.success('Connection request accepted!')
-        setRequests(prev => prev.filter(r => r.id !== requestId))
-        setExpandedProfile(null)
-        
-        // Refresh conversations to show the new connection
-        const convs = await messageService.getConversations()
-        setConversations(convs.data.data.conversations)
-        
-        // Find the new conversation and select it
-        const newConv = convs.data.data.conversations.find(c => 
-          c.participant1._id === requestId || c.participant2._id === requestId
-        )
-        if (newConv) setSelectedConversationId(newConv._id)
-        
-        setActiveTab('network')
-      }
-    } catch (error) {
-      console.error('Failed to accept request:', error)
-      toast.error('Failed to accept request')
-    }
+    setProcessingRequestId(requestId);
+    
+    toast.promise(connectionService.acceptRequest(currentLoggedInUser._id, requestId), {
+      loading: 'Accepting connection request...',
+      success: (response) => {
+        if (response.data.status === 'success') {
+          setRequests(prev => prev.filter(r => r.id !== requestId))
+          setExpandedProfile(null)
+          loadConversations() // Reload conversations to show the new connection
+          return 'Connection request accepted!'
+        }
+        throw new Error(response.data.message || 'Failed to accept request')
+      },
+      error: (err) => {
+        console.error('Failed to accept request:', err)
+        return err.response?.data?.message || err.message || 'Failed to accept request'
+      },
+      finally: () => setProcessingRequestId(null)
+    })
   }
 
   const handleDeclineRequest = async (requestId) => {
-    try {
-      await connectionService.declineRequest(currentLoggedInUser._id, requestId)
-      setRequests(prev => prev.filter(r => r.id !== requestId))
-      setExpandedProfile(null)
-      toast.success('Connection request declined')
-    } catch (error) {
-      console.error('Failed to decline request:', error)
-      toast.error('Failed to decline request')
-    }
+    setProcessingRequestId(requestId);
+    
+    toast.promise(connectionService.declineRequest(currentLoggedInUser._id, requestId), {
+      loading: 'Declining connection request...',
+      success: (response) => {
+        if (response.data.status === 'success') {
+          setRequests(prev => prev.filter(r => r.id !== requestId))
+          setExpandedProfile(null)
+          return 'Connection request declined'
+        }
+        throw new Error(response.data.message || 'Failed to decline request')
+      },
+      error: (err) => {
+        console.error('Failed to decline request:', err)
+        return err.response?.data?.message || err.message || 'Failed to decline request'
+      },
+      finally: () => setProcessingRequestId(null)
+    })
   }
 
   const handleEventResponse = async (eventId, status) => {
-    try {
-      const response = await api.patch(`/events/${eventId}/respond`, { status });
-      if (response.data.status === 'success') {
-        toast.success(`Event ${status}`);
-        // Refresh messages to show updated status or just show toast
-        const msgRes = await messageService.getMessages(selectedConversationId);
-        if (msgRes.data.status === 'success') {
-          setMessages(msgRes.data.data.messages);
+    toast.promise(api.patch(`/events/${eventId}/respond`, { status }), {
+      loading: `Updating event: ${status}...`,
+      success: (response) => {
+        if (response.data.status === 'success') {
+          // Refresh messages to show updated status
+          messageService.getMessages(selectedConversationId).then(msgRes => {
+            if (msgRes.data.status === 'success') {
+              setMessages(msgRes.data.data.messages);
+            }
+          });
+          return `Event ${status}`;
         }
-      }
-    } catch (error) {
-      console.error('Error responding to event:', error);
-      toast.error('Failed to respond to event');
-    }
+        throw new Error(response.data.message || 'Failed to update event');
+      },
+      error: 'Failed to respond to event'
+    });
+  }
+
+  // Handle event invitation response from message (new flow)
+  const handleEventInvitationResponse = async (messageId, status) => {
+    setRespondingMessageId(messageId);
+    
+    toast.promise(eventService.respondToEventInviteFromMessage(messageId, status), {
+      loading: `Updating invitation status...`,
+      success: (response) => {
+        if (response.data.status === 'success') {
+          // Update the message locally to reflect the new status
+          setMessages(prev => prev.map(msg => 
+            msg._id === messageId 
+              ? { ...msg, eventInfo: { ...msg.eventInfo, invitationStatus: status } }
+              : msg
+          ));
+          // Refresh conversations to update any connection status changes
+          loadConversations();
+          return `Invitation ${status}!`;
+        }
+        throw new Error(response.data.message || 'Failed to update invitation');
+      },
+      error: (err) => {
+        console.error('Error responding to event invitation:', err);
+        return err.response?.data?.message || err.message || 'Failed to respond to event invitation';
+      },
+      finally: () => setRespondingMessageId(null)
+    });
   }
 
   const filteredItems =
@@ -1318,7 +1200,7 @@ function MessagePage() {
                       className='p-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer'
                     >
                       <div className='flex items-center gap-2 mb-1'>
-                        <div className={`w-6 h-6 rounded-full bg-gradient-to-br ${getAvatarColor(msg.conversationInfo.otherUser._id)} flex items-center justify-center text-[10px] text-white font-bold`}>
+                        <div className={`w-6 h-6 rounded-full bg-gradient-to-br ${getAvatarColor(msg.conversationInfo.otherUser)} flex items-center justify-center text-[10px] text-white font-bold`}>
                           {msg.conversationInfo.otherUser.profileImage ? <img src={getImageUrl(msg.conversationInfo.otherUser.profileImage)} className='w-full h-full rounded-full object-cover' /> : getInitials(msg.conversationInfo.otherUser.name)}
                         </div>
                         <span className='text-[10px] font-bold text-gray-700'>{msg.conversationInfo.otherUser.name}</span>
@@ -1363,8 +1245,9 @@ function MessagePage() {
                             className='relative flex-shrink-0 hover:opacity-75 transition-opacity'
                           >
                             <div
+                              data-location="mobile-network-list"
                               className={`w-8 h-8 rounded-full bg-gradient-to-br ${getAvatarColor(
-                                user?._id
+                                user
                               )} flex items-center justify-center text-white font-semibold text-xs overflow-hidden`}
                             >
                               <img 
@@ -1415,7 +1298,7 @@ function MessagePage() {
                       <div className='flex items-start gap-2'>
                         <div
                           className={`w-8 h-8 rounded-full bg-gradient-to-br ${getAvatarColor(
-                            req.userId
+                            req
                           )} flex items-center justify-center text-white font-semibold text-xs flex-shrink-0 overflow-hidden`}
                         >
                           <img 
@@ -1467,11 +1350,11 @@ function MessagePage() {
                 </div>
               )}
             </div>
-            )}
-          </div>
-        </motion.div>
+          )}
+        </div>
+      </motion.div>
 
-        {/* Left Panel - Desktop */}
+      {/* Left Panel - Desktop */}
         <div className='hidden lg:flex flex-col w-80 rounded-2xl overflow-hidden bg-white border border-gray-200 h-full shadow-lg shadow-gray-200/50 transition-all hover:shadow-xl'>
           <div className='p-4 border-b border-gray-100 bg-gray-50/50'>
             <h2 className='text-lg font-bold text-[#163146] mb-3'>Messaging</h2>
@@ -1524,8 +1407,8 @@ function MessagePage() {
                      className='p-4 border-b border-gray-100 hover:bg-stone-50 cursor-pointer transition-colors group'
                    >
                      <div className='flex items-center gap-3 mb-2'>
-                        <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${getAvatarColor(msg.conversationInfo.otherUser._id)} flex items-center justify-center text-xs text-white font-bold shadow-sm`}>
-                           {msg.conversationInfo.otherUser.profileImage ? <img src={getImageUrl(msg.conversationInfo.otherUser.profileImage)} className='w-full h-full rounded-full object-cover' /> : getInitials(msg.conversationInfo.otherUser.name)}
+                         <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${getAvatarColor(msg.conversationInfo.otherUser)} flex items-center justify-center text-xs text-white font-bold shadow-sm`}>
+                          {msg.conversationInfo.otherUser.profileImage ? <img src={getImageUrl(msg.conversationInfo.otherUser.profileImage)} className='w-full h-full rounded-full object-cover' /> : getInitials(msg.conversationInfo.otherUser.name)}
                         </div>
                         <div className='flex-1 min-w-0'>
                           <div className='flex justify-between items-center'>
@@ -1575,8 +1458,9 @@ function MessagePage() {
                             className='relative flex-shrink-0 hover:opacity-75 transition-opacity'
                           >
                             <div
+                              data-location="desktop-network-list"
                               className={`w-12 h-12 rounded-full bg-gradient-to-br ${getAvatarColor(
-                                user?._id
+                                user
                               )} flex items-center justify-center text-white font-semibold text-base shadow-sm`}
                             >
                               {user?.profileImage ? (
@@ -1626,7 +1510,7 @@ function MessagePage() {
                     <div className='flex items-start gap-3'>
                       <div
                         className={`w-10 h-10 rounded-full bg-gradient-to-br ${getAvatarColor(
-                          req.userId
+                          req
                         )} flex items-center justify-center text-white font-semibold text-sm flex-shrink-0 overflow-hidden`}
                       >
                         <img 
@@ -1656,15 +1540,27 @@ function MessagePage() {
                           onClick={(e) => e.stopPropagation()}
                         >
                           <button
+                            disabled={processingRequestId === req.id}
                             onClick={() => handleAcceptRequest(req.id)}
-                            className='flex-1 py-1.5 rounded-lg text-xs font-medium text-white transition-all flex items-center justify-center gap-1 hover:opacity-90 bg-[#163146]'
+                            className='flex-1 py-1.5 rounded-lg text-xs font-medium text-white transition-all flex items-center justify-center gap-1 hover:opacity-90 bg-[#163146] disabled:opacity-50'
                           >
-                            <Check size={14} /> Accept
+                            {processingRequestId === req.id ? (
+                              <Loader2 size={14} className='animate-spin' />
+                            ) : (
+                              <Check size={14} />
+                            )}
+                            Accept
                           </button>
                           <button
+                            disabled={processingRequestId === req.id}
                             onClick={() => handleDeclineRequest(req.id)}
-                            className='flex-1 py-1.5 rounded-lg text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-all'
+                            className='flex-1 py-1.5 rounded-lg text-xs font-medium bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 transition-all disabled:opacity-50'
                           >
+                            {processingRequestId === req.id ? (
+                                <Loader2 size={14} className='animate-spin' />
+                            ) : (
+                                <X size={14} />
+                            )}
                             Decline
                           </button>
                         </div>
@@ -1699,8 +1595,9 @@ function MessagePage() {
                 >
                   <div className='relative flex-shrink-0'>
                     <div
+                      data-location="chat-header"
                       className={`w-10 h-10 rounded-full bg-gradient-to-br ${getAvatarColor(
-                        selectedUser?._id
+                        selectedUser
                       )} flex items-center justify-center text-white font-semibold text-sm shadow-sm group-hover:ring-2 group-hover:ring-[#986a41] transition-all overflow-hidden`}
                     >
                       <img 
@@ -1837,7 +1734,145 @@ function MessagePage() {
                     Send a message to start the conversation with {selectedUser?.name}
                   </p>
                 </div>
-              ) : messages.map((msg) => (
+              ) : messages.map((msg) => {
+                const isEventInvite = msg.type === 'event_invitation' && msg.eventInfo;
+                
+                if (isEventInvite) {
+                  return (
+                    <div
+                      key={msg._id}
+                      className={`flex w-full ${
+                        msg.sender === currentLoggedInUser._id ? 'justify-end' : 'justify-start'
+                      }`}
+                    >
+                      <motion.div 
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          className={`mb-4 rounded-3xl border overflow-hidden flex flex-col sm:flex-row shadow-xl transition-all duration-500 hover:shadow-2xl hover:shadow-blue-500/5 group bg-white border-slate-100`}
+                          style={{ width: '100%', maxWidth: '540px' }}
+                      >
+                          {/* Left Accent Strip (Desktop only) or Top (Mobile) */}
+                          <div className={`w-full sm:w-2 h-2 sm:h-auto ${
+                              msg.sender === currentLoggedInUser._id ? 'bg-blue-600' : 'bg-[#163146]'
+                          }`} />
+
+                          <div className="flex-1 flex flex-col">
+                              <div className="flex flex-col sm:flex-row divide-y sm:divide-y-0 sm:divide-x divide-slate-50">
+                                  {/* Section 1: Title & Icon */}
+                                  <div className="p-5 flex items-start gap-4 flex-1">
+                                      <div className={`p-3 rounded-2xl shadow-inner flex-shrink-0 ${
+                                          msg.sender === currentLoggedInUser._id ? 'bg-blue-50 text-blue-600' : 'bg-slate-50 text-[#163146]'
+                                      }`}>
+                                          <Calendar size={24} strokeWidth={2.5} />
+                                      </div>
+                                      <div className="min-w-0 pr-2">
+                                          <div className="flex items-center gap-2 mb-1">
+                                            <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${
+                                                msg.sender === currentLoggedInUser._id ? 'text-blue-600' : 'text-slate-400'
+                                            }`}>
+                                                Invitation
+                                            </span>
+                                            {msg.sender === currentLoggedInUser._id && (
+                                              <span className="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-md font-bold uppercase">Sent</span>
+                                            )}
+                                          </div>
+                                          <h4 className="text-lg font-black text-slate-900 leading-tight truncate">
+                                              {msg.eventInfo.title}
+                                          </h4>
+                                      </div>
+                                  </div>
+
+                                  {/* Section 2: Meta Info */}
+                                  <div className="p-5 flex flex-col justify-center gap-3 bg-slate-50/30 min-w-[200px]">
+                                      <div className="flex items-center gap-2.5">
+                                          <Clock size={15} className="text-blue-500" />
+                                          <div className="flex flex-col">
+                                              <span className="text-[11px] font-bold text-slate-800">
+                                                  {new Date(msg.eventInfo.startTime).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+                                              </span>
+                                              <span className="text-[10px] text-slate-500 font-medium">
+                                                  {new Date(msg.eventInfo.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                              </span>
+                                          </div>
+                                      </div>
+                                      {msg.eventInfo.location && (
+                                          <div className="flex items-center gap-2.5">
+                                              <MapPin size={15} className="text-blue-500" />
+                                              <span className="text-[10px] text-slate-600 font-bold truncate max-w-[140px]">
+                                                  {msg.eventInfo.location}
+                                              </span>
+                                          </div>
+                                      )}
+                                  </div>
+                              </div>
+
+                              {/* Footer: Actions or Status */}
+                              <div className="px-5 py-4 border-t border-slate-50 bg-white/50">
+                                  {msg.eventInfo.invitationStatus === 'pending' && msg.sender !== currentLoggedInUser._id ? (
+                                      <div className='space-y-3'>
+                                        <div className="flex gap-3">
+                                            <motion.button 
+                                                whileHover={{ scale: 1.02 }}
+                                                whileTap={{ scale: 0.98 }}
+                                                disabled={respondingMessageId === msg._id}
+                                                onClick={() => handleEventInvitationResponse(msg._id, 'accepted')}
+                                                className="flex-1 py-3 bg-[#163146] text-white rounded-xl text-xs font-black uppercase tracking-wider hover:bg-[#0f1f27] transition-colors flex items-center justify-center gap-2 shadow-lg shadow-blue-900/10 disabled:opacity-50"
+                                            >
+                                                {respondingMessageId === msg._id ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} strokeWidth={3} />}
+                                                Accept
+                                            </motion.button>
+                                            <motion.button 
+                                                whileHover={{ scale: 1.02 }}
+                                                whileTap={{ scale: 0.98 }}
+                                                disabled={respondingMessageId === msg._id}
+                                                onClick={() => handleEventInvitationResponse(msg._id, 'declined')}
+                                                className="px-6 py-3 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-xl text-xs font-black uppercase tracking-wider transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                                            >
+                                                <X size={16} strokeWidth={3} />
+                                                Decline
+                                            </motion.button>
+                                        </div>
+                                        <Link 
+                                          to={`/calendar?eventId=${msg.eventInfo.eventId}`}
+                                          className="flex items-center justify-center gap-2 w-full py-2.5 bg-blue-50 text-blue-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-100 transition-colors border border-blue-100/50"
+                                        >
+                                          <Search size={14} />
+                                          View on Calendar
+                                        </Link>
+                                      </div>
+                                  ) : (
+                                      <div className={`flex items-center justify-between`}>
+                                          <div className='flex gap-2 items-center'>
+                                            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${
+                                                msg.eventInfo.invitationStatus === 'accepted' ? 'bg-green-100 text-green-700' :
+                                                msg.eventInfo.invitationStatus === 'declined' ? 'bg-red-100 text-red-700' :
+                                                'bg-blue-100 text-blue-700'
+                                            }`}>
+                                                {msg.eventInfo.invitationStatus === 'accepted' && <><Check size={10} strokeWidth={3} /> Confirmed</>}
+                                                {msg.eventInfo.invitationStatus === 'declined' && <><X size={10} strokeWidth={3} /> Declined</>}
+                                                {msg.eventInfo.invitationStatus === 'pending' && msg.sender === currentLoggedInUser._id && 'Awaiting Response'}
+                                            </div>
+                                            <Link 
+                                              to={`/calendar?eventId=${msg.eventInfo.eventId}`}
+                                              className="p-2 bg-blue-50 text-blue-600 rounded-full hover:bg-blue-100 transition-colors"
+                                              title="View on Calendar"
+                                            >
+                                              <Search size={14} />
+                                            </Link>
+                                          </div>
+                                          <div className="text-[9px] text-slate-300 uppercase font-black tracking-tighter">
+                                              {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                          </div>
+                                      </div>
+                                  )}
+                              </div>
+                          </div>
+                      </motion.div>
+                    </div>
+                  );
+                }
+
+                return (
                 <div
                   key={msg._id}
                   className={`flex ${
@@ -1896,8 +1931,8 @@ function MessagePage() {
                                         {msg.eventInfo.location}
                                     </p>
                                 )}
-                            </div>
-                             <div className="flex gap-2 mt-2">
+                             </div>
+                              <div className="flex gap-2 mt-2">
                                 <button 
                                     onClick={() => window.open('/calendar', '_blank')}
                                     className={`flex-1 py-1.5 px-3 rounded-lg text-[10px] font-bold transition-all ${msg.sender === currentLoggedInUser._id ? 'bg-white text-[#163146]' : 'bg-[#163146] text-white'}`}
@@ -1923,7 +1958,7 @@ function MessagePage() {
                              </div>
                         </div>
                     )}
-                    {msg.content && <p className='text-sm sm:text-base break-words leading-relaxed'>{msg.content}</p>}
+                    {msg.content && msg.type !== 'event_invitation' && <p className='text-sm sm:text-base break-words leading-relaxed'>{msg.content}</p>}
                     <div
                       className={`flex items-center justify-end gap-1 mt-1 ${
                         msg.sender === currentLoggedInUser._id
@@ -1940,7 +1975,7 @@ function MessagePage() {
                     </div>
                   </div>
                 </div>
-              )) }
+              )}) }
               {otherUserTyping && (
                 <div className="flex justify-start animate-fade-in">
                     <div className="bg-gray-100 border border-gray-200 rounded-2xl rounded-bl-none px-4 py-3 flex items-center gap-1">
@@ -2051,14 +2086,13 @@ function MessagePage() {
                   >
                     <PaperclipIcon size={20} />
                   </button>
-                  <button 
-                    onClick={() => setShowEventModal(true)}
-                    disabled={!isConnected}
-                    className={`p-2 rounded-full transition-colors ${!isConnected ? 'text-gray-300 cursor-not-allowed' : 'hover:bg-gray-100 text-gray-500'}`}
+                  <Link 
+                    to={`/calendar?action=create&inviteeId=${selectedUser._id}&name=${encodeURIComponent(selectedUser.name)}&profileImage=${encodeURIComponent(selectedUser.profileImage || '')}`}
+                    className={`p-2 rounded-full transition-colors ${!isConnected ? 'text-gray-300 cursor-not-allowed pointer-events-none' : 'hover:bg-gray-100 text-gray-500'}`}
                     title={isConnected ? "Schedule Event" : "Connect to schedule events"}
                   >
                     <Calendar size={20} />
-                  </button>
+                  </Link>
                   <input 
                     type="file"
                     ref={fileInputRef}
@@ -2123,13 +2157,16 @@ function MessagePage() {
       <ProfilePopup
         profile={expandedProfile ? {
             ...expandedProfile,
-            id: expandedProfile._id || expandedProfile.id,
+            id: expandedProfile._id || expandedProfile.userId || expandedProfile.id,
             profileImg: getProfileImage(expandedProfile),
             type: expandedProfile.userType || 'advisor',
             connections: expandedProfile.connections || 0,
             experience: expandedProfile.experience || 0,
             rating: expandedProfile.rating || 0,
-            reviewCount: expandedProfile.reviewCount || 0
+            reviewCount: expandedProfile.reviewCount || 0,
+            banner: expandedProfile.bannerImage 
+              ? { backgroundImage: `url(${getImageUrl(expandedProfile.bannerImage)})` } 
+              : getThemeById(expandedProfile?.themeId || 'ocean').style
         } : null}
         isOpen={!!expandedProfile && expandedProfileType === 'user'}
         onClose={() => setExpandedProfile(null)}
@@ -2158,14 +2195,6 @@ function MessagePage() {
         )}
       </AnimatePresence>
 
-      <EventModal 
-        isOpen={showEventModal}
-        onClose={() => setShowEventModal(false)}
-        onSubmit={handleCreateEvent}
-        eventData={eventData}
-        setEventData={setEventData}
-        isSubmitting={isSending}
-      />
 
       {/* Connection Modal */}
       <Dialog open={showConnectionModal} onOpenChange={setShowConnectionModal}>

@@ -1,9 +1,11 @@
 // File: client/src/pages/Dashboard/DashboardPage.jsx
+import axios from 'axios'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
     Calendar,
     ChevronLeft,
     ChevronRight,
+    Clock,
     ExternalLink,
     Eye,
     LineChart,
@@ -30,6 +32,7 @@ import {
     YAxis,
 } from 'recharts'
 import { toast } from 'sonner'
+import api from '../../config'
 
 import { AdvisorRecommendationCard } from '../../components/Dashboard/AdvisorRecommendationCard'
 import { AdvisorRoster, CurrentAdvisors } from '../../components/Dashboard/NetworkWidgets'
@@ -96,7 +99,7 @@ const DashboardPage = () => {
   const currentUser = useSelector(selectCurrentUser)
   const dispatch = useDispatch()
   const network = useSelector(state => state.user.network) || { advisors: [], roster: [], loading: false }
-  const [showStats, setShowStats] = useState(true)
+  const [showStats, setShowStats] = useState(false)
   const [timeRange, setTimeRange] = useState('1M')
   const [advisorCarouselIndex, setAdvisorCarouselIndex] = useState(0)
   const [selectedProfile, setSelectedProfile] = useState(null)
@@ -108,10 +111,80 @@ const DashboardPage = () => {
   const [advisorsListData, setAdvisorsListData] = useState([])
   const [loadingAdvisors, setLoadingAdvisors] = useState(true)
 
-  // Reset carousel index when data changes
+  // Fetch Network Summary
+  const [statsSummary, setStatsSummary] = useState(null)
+  
+  // Real Data States
+  const [upcomingEvents, setUpcomingEvents] = useState([])
+  const [news, setNews] = useState([])
+  const [loadingNews, setLoadingNews] = useState(true)
+  const [eventsPage, setEventsPage] = useState(0)
+  const ITEMS_PER_PAGE = 4
+
+  // Fetch Real Data
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        // 1. Fetch Upcoming Events
+        const eventsRes = await api.get('/events/upcoming')
+        if (eventsRes.data.status === 'success') {
+          setUpcomingEvents(eventsRes.data.data?.events || eventsRes.data.events || [])
+        }
+
+        // 2. Fetch Network Summary
+        if (currentUser?._id) {
+           try {
+             const summaryRes = await connectionService.getSummary(currentUser._id)
+             if (summaryRes.data.status === 'success') {
+               setStatsSummary(summaryRes.data.data)
+             }
+           } catch (e) {
+             // specific console log or ignore
+           }
+        }
+
+        // 3. Fetch News
+        const apiKey = import.meta.env.VITE_NEWS_API
+        if (apiKey) {
+           const newsRes = await axios.get('https://newsapi.org/v2/everything', {
+            params: {
+              q: '"NIL" OR "athlete endorsement" OR "sports business"',
+              language: 'en',
+              sortBy: 'publishedAt',
+              apiKey: apiKey,
+              pageSize: 3
+            },
+          })
+          
+          if (newsRes.data.status === 'ok') {
+            const formattedNews = newsRes.data.articles
+              .filter((article) => article.urlToImage)
+              .map((article, index) => ({
+                id: index,
+                title: article.title,
+                source: article.source.name,
+                timestamp: new Date(article.publishedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+                category: 'News',
+                url: article.url
+              }))
+            setNews(formattedNews)
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error)
+      } finally {
+        setLoadingNews(false)
+      }
+    }
+
+    fetchDashboardData()
+  }, [currentUser?._id])
+
+  // Reset carousel index/pagination when data changes
   useEffect(() => {
     setAdvisorCarouselIndex(0)
-  }, [advisorsListData.length])
+    setEventsPage(0)
+  }, [advisorsListData.length, upcomingEvents.length])
 
   // Mapping of stat card labels to their routes
   const insightRoutes = {
@@ -139,25 +212,25 @@ const DashboardPage = () => {
   const keyInsights = [
     {
       label: 'Profile Views',
-      value: '2,451',
-      trend: '+12%',
+      value: statsSummary?.profileViews ? statsSummary.profileViews.toString() : '2,451',
+      trend: statsSummary?.viewsTrend || '+12%',
       icon: Eye,
     },
     {
       label: 'New Messages',
-      value: '18',
+      value: statsSummary?.unreadMessages ? statsSummary.unreadMessages.toString() : '0',
       trend: '+5%',
       icon: MessageSquare,
     },
     {
       label: 'Upcoming Events',
-      value: '7',
-      trend: '+2',
+      value: upcomingEvents.length.toString(),
+      trend: upcomingEvents.length > 0 ? '+1' : '0',
       icon: Calendar,
     },
     {
       label: 'Connected Advisors',
-      value: '12',
+      value: ((network.advisors?.length || 0) + (network.roster?.length || 0)).toString(),
       trend: '+3',
       icon: Users,
     },
@@ -214,53 +287,9 @@ const DashboardPage = () => {
 
   const advisors = advisorsListData
   // Upcoming Events
-  const upcomingEvents = [
-    {
-      id: 1,
-      title: 'NIL Strategy Workshop',
-      date: 'Jan 25, 2025',
-      time: '2:00 PM',
-      type: 'Workshop',
-    },
-    {
-      id: 2,
-      title: 'Meet with Financial Advisor',
-      date: 'Jan 27, 2025',
-      time: '3:30 PM',
-      type: 'Meeting',
-    },
-    {
-      id: 3,
-      title: 'Brand Partnership Discussion',
-      date: 'Jan 29, 2025',
-      time: '1:00 PM',
-      type: 'Meeting',
-    },
-  ]
+  // upcomingEvents state managed above
   // Latest News
-  const latestNews = [
-    {
-      id: 1,
-      title: 'New NIL Regulations Announced for College Athletes',
-      source: 'Sports Business Journal',
-      timestamp: '2 hours ago',
-      category: 'Regulations',
-    },
-    {
-      id: 2,
-      title: 'Top 10 Emerging NIL Opportunities in 2025',
-      source: 'NIL Insider',
-      timestamp: '5 hours ago',
-      category: 'Opportunities',
-    },
-    {
-      id: 3,
-      title: 'How to Maximize Your Personal Brand',
-      source: 'Sports Marketing Today',
-      timestamp: '1 day ago',
-      category: 'Strategy',
-    },
-  ]
+  // latestNews state managed above
   // Statistics Data
   const statisticsData = {
     '1W': [
@@ -556,63 +585,156 @@ const DashboardPage = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: 0.3 }}
-              className='bg-white rounded-[2rem] p-8 border border-gray-50 shadow-sm relative overflow-hidden'
+              className='bg-white rounded-[2rem] p-8 border border-gray-50 shadow-sm relative overflow-hidden h-full flex flex-col'
             >
               <div className='flex items-center justify-between mb-8'>
                 <div className='flex items-center gap-3'>
                   <div className='p-2 bg-[#163146]/5 rounded-xl text-[#163146]'>
                     <Calendar size={20} />
                   </div>
-                  <h2 className='text-xl font-bold text-gray-900'>
-                    Upcoming Events
-                  </h2>
+                  <div>
+                    <h2 className='text-xl font-bold text-gray-900 leading-none'>
+                      Upcoming Events
+                    </h2>
+                    <p className='text-[10px] items-center gap-1 text-gray-400 font-bold uppercase tracking-wider mt-1.5 hidden sm:flex'>
+                       {upcomingEvents.length} Scheduled
+                    </p>
+                  </div>
                 </div>
-                <button className='text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-[#163146] transition-colors'>
-                  See All
-                </button>
+                
+                <div className="flex items-center gap-2">
+                   <div className="flex bg-gray-50 rounded-lg p-1 gap-1">
+                      <button 
+                        onClick={() => setEventsPage(p => Math.max(0, p - 1))}
+                        disabled={eventsPage === 0}
+                        className="p-1.5 rounded-md hover:bg-white hover:shadow-sm text-gray-400 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:shadow-none transition-all"
+                      >
+                         <ChevronLeft size={16} />
+                      </button>
+                      <button 
+                        onClick={() => setEventsPage(p => (p + 1) * ITEMS_PER_PAGE < upcomingEvents.length ? p + 1 : p)}
+                        disabled={(eventsPage + 1) * ITEMS_PER_PAGE >= upcomingEvents.length}
+                        className="p-1.5 rounded-md hover:bg-white hover:shadow-sm text-gray-400 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:shadow-none transition-all"
+                      >
+                         <ChevronRight size={16} />
+                      </button>
+                   </div>
+                   <button 
+                    onClick={() => navigate('/calendar')}
+                    className='hidden sm:block px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-[#163146] bg-[#163146]/5 hover:bg-[#163146] hover:text-white rounded-lg transition-all ml-2'
+                   >
+                     View Calendar
+                   </button>
+                </div>
               </div>
 
-              <div className='space-y-4'>
-                {upcomingEvents.map((event, index) => (
-                  <motion.div
-                    key={event.id}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.3, delay: 0.4 + index * 0.1 }}
-                    className='group flex items-start gap-4 p-4 rounded-3xl border border-transparent hover:border-gray-100 hover:bg-gray-50/50 transition-all cursor-pointer'
-                  >
-                    <div className='flex flex-col items-center justify-center w-12 h-14 bg-[#163146] text-white rounded-2xl transition-all duration-300'>
-                      <span className='text-[10px] font-black uppercase tracking-tighter opacity-70 leading-none mb-1'>JAN</span>
-                      <span className='text-lg font-black leading-none'>{25 + index}</span>
-                    </div>
+              <div className='space-y-3 flex-1'>
+                <AnimatePresence mode="wait">
+                  {upcomingEvents.length > 0 ? (
+                    <motion.div
+                      key={eventsPage}
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      transition={{ duration: 0.2 }}
+                      className="space-y-3"
+                    >
+                      {upcomingEvents
+                        .slice(eventsPage * ITEMS_PER_PAGE, (eventsPage + 1) * ITEMS_PER_PAGE)
+                        .map((event, index) => {
+                        const dateObj = new Date(event.startDate)
+                        const month = dateObj.toLocaleString('en-US', { month: 'short' }).toUpperCase()
+                        const day = dateObj.getDate()
+                        const time = dateObj.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+                        const isPrimary = index === 0 && eventsPage === 0
+                        
+                        return (
+                          <motion.div
+                            key={event._id}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.2, delay: index * 0.05 }}
+                            onClick={() => navigate(`/calendar?eventId=${event._id}`)}
+                            className={`group flex items-center gap-4 p-3 rounded-2xl border transition-all cursor-pointer relative overflow-hidden ${
+                                isPrimary 
+                                ? 'bg-[#163146] border-[#163146] text-white shadow-lg shadow-[#163146]/20' 
+                                : 'bg-white border-gray-100 hover:border-[#163146]/20 hover:shadow-md'
+                            }`}
+                          >
+                            {/* Decorative gradient for primary item */}
+                            {isPrimary && (
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none" />
+                            )}
 
-                    <div className='flex-1 min-w-0'>
-                      <div className='flex items-center gap-2 mb-1'>
-                        <span className={`w-1.5 h-1.5 rounded-full ${index === 0 ? 'bg-amber-400' : 'bg-[#163146]'}`} />
-                        <h4 className='font-bold text-gray-900 text-sm truncate group-hover:text-[#163146] transition-colors'>
-                          {event.title}
-                        </h4>
+                            <div className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all duration-300 shrink-0 ${
+                                isPrimary
+                                ? 'bg-white/10 text-white backdrop-blur-sm'
+                                : 'bg-gray-50 text-gray-900 group-hover:bg-[#163146] group-hover:text-white'
+                            }`}>
+                              <span className={`text-[9px] font-black uppercase tracking-tighter leading-none mb-0.5 ${isPrimary ? 'opacity-70' : 'text-gray-400 group-hover:text-white/70'}`}>{month}</span>
+                              <span className='text-lg font-black leading-none'>{day}</span>
+                            </div>
+      
+                            <div className='flex-1 min-w-0 z-10'>
+                              <h4 className={`font-bold text-sm truncate mb-1 ${isPrimary ? 'text-white' : 'text-gray-900'}`}>
+                                {event.title}
+                              </h4>
+                              <div className='flex items-center gap-3'>
+                                <p className={`text-[10px] font-medium flex items-center gap-1.5 ${isPrimary ? 'text-gray-300' : 'text-gray-400'}`}>
+                                    <Clock size={12} strokeWidth={2.5} />
+                                    {time}
+                                </p>
+                                <span className={`w-1 h-1 rounded-full ${isPrimary ? 'bg-white/30' : 'bg-gray-300'}`} />
+                                <p className={`text-[10px] font-bold uppercase tracking-wider ${
+                                    isPrimary ? 'text-[#cbbea8]' : 'text-[#986a41]'
+                                }`}>
+                                    {event.locationType || 'Event'}
+                                </p>
+                              </div>
+                            </div>
+      
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                                isPrimary
+                                ? 'bg-white/10 text-white hover:bg-white hover:text-[#163146]'
+                                : 'bg-gray-50 text-gray-300 group-hover:bg-[#163146] group-hover:text-white'
+                            }`}>
+                              <ChevronRight size={14} strokeWidth={3} />
+                            </div>
+                          </motion.div>
+                        )
+                      })}
+                    </motion.div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-[300px] text-center">
+                      <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center text-gray-300 mb-4">
+                        <Calendar size={24} />
                       </div>
-                      <p className='text-[11px] text-gray-400 font-medium flex items-center gap-2'>
-                        <span>{event.time}</span>
-                        <span className='w-1 h-1 rounded-full bg-gray-200' />
-                        <span className='font-bold text-[#986a41]'>{event.type}</span>
-                      </p>
+                      <p className="text-gray-900 font-bold text-sm">No upcoming events</p>
+                      <p className="text-gray-400 text-xs mt-1 max-w-[200px]">Your schedule is clear for now. Time to plan ahead?</p>
+                      <button 
+                         onClick={() => navigate('/calendar?action=create')}
+                         className="mt-4 px-4 py-2 bg-[#163146] text-white text-[10px] font-bold uppercase tracking-widest rounded-xl hover:bg-[#0f2a36] transition-all shadow-lg shadow-[#163146]/20"
+                       >
+                         Schedule Event
+                       </button>
                     </div>
-
-                    <div className='w-8 h-8 rounded-full border border-gray-100 flex items-center justify-center text-gray-300 group-hover:text-[#163146] group-hover:border-[#163146]/20 group-hover:bg-white transition-all'>
-                      <ChevronRight size={14} />
-                    </div>
-                  </motion.div>
-                ))}
+                  )}
+                </AnimatePresence>
               </div>
 
-              <motion.button
-                className='w-full mt-6 py-4 bg-gray-50 text-gray-900 rounded-2xl text-xs font-bold hover:bg-[#163146] hover:text-white transition-all active:scale-[0.98]'
-                whileHover={{ y: -2 }}
-              >
-                Launch Calendar
-              </motion.button>
+              {upcomingEvents.length > 0 && (
+                  <div className="mt-6 flex items-center justify-center gap-1.5">
+                      {Array.from({ length: Math.ceil(upcomingEvents.length / ITEMS_PER_PAGE) }).map((_, idx) => (
+                          <button 
+                            key={idx}
+                            onClick={() => setEventsPage(idx)}
+                            className={`w-1.5 h-1.5 rounded-full transition-all ${
+                                idx === eventsPage ? 'bg-[#163146] w-4' : 'bg-gray-200 hover:bg-gray-300'
+                            }`}
+                          />
+                      ))}
+                  </div>
+              )}
             </motion.div>
 
             {/* Toggle between News and Stats */}
@@ -620,7 +742,7 @@ const DashboardPage = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: 0.35 }}
-              className='bg-white rounded-[2rem] p-8 border border-gray-50 shadow-sm'
+              className='bg-white rounded-[2rem] p-8 border border-gray-50 shadow-sm h-full flex flex-col'
             >
               {/* Header with Toggle */}
               <div className='flex items-center justify-between mb-8'>
@@ -632,23 +754,22 @@ const DashboardPage = () => {
                     {showStats ? 'Network Analytics' : 'Latest News'}
                   </h2>
                 </div>
-                
                 <div className='bg-gray-50 p-1 rounded-xl flex gap-1'>
-                  <button
-                    onClick={() => setShowStats(true)}
-                    className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
-                      showStats ? 'bg-white shadow-sm text-[#163146]' : 'text-gray-400 hover:text-gray-600'
-                    }`}
-                  >
-                    Analytics
-                  </button>
                   <button
                     onClick={() => setShowStats(false)}
                     className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
-                      !showStats ? 'bg-white shadow-sm text-[#986a41]' : 'text-gray-400 hover:text-gray-600'
+                      !showStats ? 'bg-white shadow-sm text-[#163146]' : 'text-gray-400 hover:text-gray-600'
                     }`}
                   >
                     News
+                  </button>
+                  <button
+                    onClick={() => setShowStats(true)}
+                    className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                      showStats ? 'bg-white shadow-sm text-[#986a41]' : 'text-gray-400 hover:text-gray-600'
+                    }`}
+                  >
+                    Analytics
                   </button>
                 </div>
               </div>
@@ -755,29 +876,36 @@ const DashboardPage = () => {
                     transition={{ duration: 0.2 }}
                     className='space-y-4'
                   >
-                    {latestNews.map((news, index) => (
-                      <motion.div
-                        key={news.id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.3, delay: index * 0.1 }}
-                        className='group p-4 rounded-3xl border border-gray-50 hover:bg-gray-50 transition-all cursor-pointer'
-                      >
-                        <div className='flex items-center gap-2 mb-2'>
-                          <span className='px-2 py-0.5 bg-[#986a41]/10 text-[#986a41] text-[9px] font-black uppercase tracking-tighter rounded-md'>
-                            {news.category}
-                          </span>
-                          <span className='text-[10px] text-gray-400 font-bold'>{news.timestamp}</span>
-                        </div>
-                        <p className='text-sm font-bold text-gray-900 line-clamp-2 group-hover:text-[#163146] transition-colors'>
-                          {news.title}
-                        </p>
-                        <div className='flex items-center gap-2 mt-3'>
-                           <div className='w-5 h-5 rounded-full bg-gray-200' />
-                           <span className='text-[10px] text-gray-500 font-bold'>{news.source}</span>
-                        </div>
-                      </motion.div>
-                    ))}
+                    {!loadingNews && news.length > 0 ? (
+                      news.slice(0, 3).map((newsItem, index) => (
+                        <motion.div
+                          key={newsItem.id}
+                          onClick={() => window.open(newsItem.url, '_blank')}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.3, delay: index * 0.1 }}
+                          className='group p-4 rounded-3xl border border-gray-50 hover:bg-gray-50 transition-all cursor-pointer'
+                        >
+                          <div className='flex items-center gap-2 mb-2'>
+                            <span className='px-2 py-0.5 bg-[#986a41]/10 text-[#986a41] text-[9px] font-black uppercase tracking-tighter rounded-md'>
+                              {newsItem.category}
+                            </span>
+                            <span className='text-[10px] text-gray-400 font-bold'>{newsItem.timestamp}</span>
+                          </div>
+                          <p className='text-sm font-bold text-gray-900 line-clamp-2 group-hover:text-[#163146] transition-colors'>
+                            {newsItem.title}
+                          </p>
+                          <div className='flex items-center gap-2 mt-3'>
+                             <div className='w-5 h-5 rounded-full bg-gray-200' />
+                             <span className='text-[10px] text-gray-500 font-bold'>{newsItem.source}</span>
+                          </div>
+                        </motion.div>
+                      ))
+                    ) : (
+                      <div className="text-center py-8">
+                        <p className="text-gray-500 text-xs text-center">No latest news available.</p>
+                      </div>
+                    )}
                   </motion.div>
                 )}
               </AnimatePresence>

@@ -16,5 +16,14 @@ export const eventService = {
    */
   getEvent: (id) => {
     return axiosInstance.get(`/events/${id}`)
+  },
+
+  /**
+   * Respond to an event invitation from a message
+   * @param {string} messageId - The message ID containing the event invitation
+   * @param {string} status - 'accepted' or 'declined'
+   */
+  respondToEventInviteFromMessage: (messageId, status) => {
+    return axiosInstance.post(`/events/messages/${messageId}/respond`, { status })
   }
 }
