@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken'
 import mongoose from 'mongoose'
 import { createError } from '../error.js'
 import Notification from '../models/Notification.js'
+import Profile from '../models/Profile.js'
 import User from '../models/User.js'
 
 const signToken = (id) => {
@@ -212,7 +213,7 @@ export const getUserProfile = async (req, res, next) => {
 
 export const updateUser = async (req, res, next) => {
   try {
-    const { role, firstName, lastName, email, phone } = req.body
+    const { role, userType, firstName, lastName, email, phone } = req.body
     const userId = req.params.id
 
     const existingUser = await User.findById(userId)
@@ -243,6 +244,21 @@ export const updateUser = async (req, res, next) => {
 
     const updateData = {}
     if (role) updateData.role = role
+    
+    // Check if userType is changing
+    if (userType !== undefined && userType !== existingUser.userType) {
+        updateData.userType = userType
+        
+        // Delete existing profile to force re-onboarding
+        await Profile.findOneAndDelete({ user: userId })
+
+        // Reset type-specific fields on User model
+        updateData.school = null
+        updateData.sport = null
+        updateData.nilNeeds = []
+    } else if (userType !== undefined) {
+        updateData.userType = userType
+    }
     if (firstName) updateData.firstName = firstName.trim()
     if (lastName) updateData.lastName = lastName.trim()
     if (firstName || lastName) {
@@ -316,14 +332,32 @@ export const getAllUsers = async (req, res, next) => {
     const page = parseInt(req.query.page) || 1
     const limit = parseInt(req.query.limit) || 10
     const skip = (page - 1) * limit
+    const { search, role, userType } = req.query
 
-    const users = await User.find({ isDeleted: false })
+    const query = { isDeleted: false }
+
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+      ]
+    }
+
+    if (role && role !== 'all') {
+      query.role = role
+    }
+
+    if (userType && userType !== 'all') {
+      query.userType = userType
+    }
+
+    const users = await User.find(query)
       .select('-password')
       .skip(skip)
       .limit(limit)
       .sort({ createdAt: -1 })
 
-    const totalUsers = await User.countDocuments({ isDeleted: false })
+    const totalUsers = await User.countDocuments(query)
 
     res.status(200).json({
       status: 'success',

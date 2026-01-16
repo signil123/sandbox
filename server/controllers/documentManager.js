@@ -1,5 +1,4 @@
 // File: server/controllers/documentManager.js
-// File: server/controllers/documentManager.js
 import { createError } from '../error.js'
 import Notification from '../models/Notification.js'
 import Profile from '../models/Profile.js'
@@ -63,7 +62,6 @@ export const submitDocument = async (req, res, next) => {
     const adminUsers = await User.find({ role: 'admin' })
     const notificationPromises = adminUsers.map((admin) =>
       Notification.create({
-        user: admin._id,
         type: 'document_submitted',
         priority: 'high',
         recipient: admin._id,
@@ -189,7 +187,6 @@ export const updateDocument = async (req, res, next) => {
     const adminUsers = await User.find({ role: 'admin' })
     const notificationPromises = adminUsers.map((admin) =>
       Notification.create({
-        user: admin._id,
         type: 'document_resubmitted',
         priority: 'high',
         recipient: admin._id,
@@ -342,7 +339,6 @@ export const approveDocument = async (req, res, next) => {
 
     // Notify advisor
     await Notification.create({
-      user: document.user,
       type: 'document_approved',
       priority: 'high',
       recipient: document.user,
@@ -400,7 +396,6 @@ export const declineDocument = async (req, res, next) => {
 
     // Notify advisor
     await Notification.create({
-      user: document.user,
       type: 'document_declined',
       priority: 'high',
       recipient: document.user,
@@ -448,7 +443,6 @@ export const markDocumentExpired = async (req, res, next) => {
 
     // Notify advisor
     await Notification.create({
-      user: document.user,
       type: 'document_expired',
       priority: 'high',
       recipient: document.user,

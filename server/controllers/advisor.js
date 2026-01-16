@@ -5,7 +5,7 @@ import {
 } from '../models/Content.js'
 import Notification from '../models/Notification.js'
 import Profile from '../models/Profile.js'
-import ProfileView from '../models/ProfileView.js'
+import { ProfileView } from '../models/ProfileView.js'
 import { Connection } from '../models/Relationship.js'
 import User from '../models/User.js'
 import Document from '../models/Verification.js'

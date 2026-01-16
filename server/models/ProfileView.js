@@ -26,4 +26,4 @@ const ProfileViewSchema = new mongoose.Schema(
 ProfileViewSchema.index({ viewer: 1, profileOwner: 1 }, { unique: true })
 ProfileViewSchema.index({ profileOwner: 1, lastViewedAt: -1 })
 
-export default mongoose.model('ProfileView', ProfileViewSchema)
+export const ProfileView = mongoose.model('ProfileView', ProfileViewSchema)

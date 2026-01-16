@@ -1,24 +1,29 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-    Award,
-    Briefcase,
-    Calendar,
-    Check,
-    Clock,
-    Copy,
-    Globe,
-    Mail,
-    MapPin,
-    MessageSquare,
-    MoreHorizontal,
-    PenLine,
-    Phone,
-    Send,
-    Share2,
-    ShieldCheck,
-    UserPlus,
-    Users,
-    X
+  ArrowLeft,
+  Award,
+  BarChart3,
+  Briefcase,
+  Calendar,
+  Check,
+  Clock,
+  Copy,
+  ExternalLink,
+  Globe,
+  Mail,
+  MapPin,
+  MessageSquare,
+  MoreHorizontal,
+  PenLine,
+  Phone,
+  Send,
+  Share2,
+  ShieldCheck,
+  Trophy,
+  UserPlus,
+  Users,
+  X,
+  Zap
 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { useSelector } from 'react-redux'
@@ -26,11 +31,11 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { Toaster, toast } from 'sonner'
 import { Button } from '../../components/ui/button'
 import {
-    Dialog,
-    DialogContent,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from '../../components/ui/dialog'
 import { Textarea } from '../../components/ui/textarea'
 import { getThemeById } from '../../constants/themes'
@@ -39,18 +44,17 @@ import { connectionService } from '../../services/connectionService'
 import { profileService } from '../../services/profileService'
 import DashboardLayout from '../Layout/DashboardLayout'
 
-// Skeleton Component matching ProfilePage
 const PublicProfileSkeleton = () => (
-  <div className='mx-auto px-4 py-6 max-w-7xl w-full animate-pulse'>
-    <div className='mb-6'>
-      <div className='h-8 w-40 bg-slate-200 rounded-lg mb-2' />
-      <div className='h-4 w-60 bg-slate-200 rounded-lg' />
+  <div className='mx-auto px-4 py-8 max-w-7xl w-full animate-pulse'>
+    <div className='mb-8 flex justify-between items-center'>
+      <div className='h-10 w-32 bg-slate-200 rounded-full' />
+      <div className='h-10 w-10 bg-slate-200 rounded-full' />
     </div>
 
-    <div className='grid grid-cols-1 lg:grid-cols-3 gap-4'>
-      <div className='lg:col-span-2 space-y-6'>
-        <div className='bg-white rounded-3xl border border-slate-200 overflow-hidden'>
-          <div className='h-48 bg-slate-200' />
+    <div className='grid grid-cols-1 lg:grid-cols-3 gap-8'>
+      <div className='lg:col-span-2 space-y-8'>
+        <div className='bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm'>
+          <div className='h-32 bg-slate-200' />
           <div className='px-6 pb-6'>
             <div className='-mt-16 mb-4 flex flex-col items-center relative z-10'>
               <div className='w-32 h-32 rounded-full border-4 border-white bg-slate-300 mb-4' />
@@ -60,9 +64,12 @@ const PublicProfileSkeleton = () => (
             </div>
           </div>
         </div>
+        <div className='bg-white rounded-2xl border border-slate-200 p-6 h-48' />
       </div>
       <div className='space-y-4'>
-        <div className='bg-white rounded-3xl border border-slate-200 p-4 h-64' />
+        <div className='bg-white rounded-2xl border border-slate-200 p-6 h-64 shadow-sm' />
+        <div className='bg-white rounded-2xl border border-slate-200 p-6 h-48 shadow-sm' />
+        <div className='bg-slate-900 rounded-2xl p-6 h-64 shadow-lg' />
       </div>
     </div>
   </div>
@@ -280,10 +287,10 @@ const PublicProfilePage = () => {
                 onClick={() => navigate(-1)}
                 className='flex items-center gap-2 text-slate-600 hover:text-slate-900 transition-colors pl-0 hover:bg-transparent group'
             >
-                <div className='p-2.5 rounded-full bg-white border border-slate-200 shadow-sm group-hover:shadow-md transition-all'>
-                    <Clock size={18} className="transform rotate-180 text-slate-700" /> 
+                <div className='p-2.5 rounded-full bg-white border border-slate-200 shadow-sm group-hover:shadow-md group-hover:border-slate-300 transition-all'>
+                    <ArrowLeft size={18} className="text-slate-700" /> 
                 </div>
-                <span className='font-semibold text-sm hidden sm:inline'>Back</span>
+                <span className='font-bold text-sm hidden sm:inline text-slate-700'>Back to search</span>
             </Button>
 
             <div className='flex items-center gap-2'>
@@ -303,16 +310,16 @@ const PublicProfilePage = () => {
             <div className='lg:col-span-2 space-y-6'>
               {/* Profile Card */}
               <motion.div variants={itemVariants}>
-                <div className='bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden'>
+                <div className='bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden'>
                   {/* Hero */}
                   <div
-                    className='h-48 md:h-60 relative z-0 overflow-hidden'
+                    className='h-32 md:h-40 relative z-0 overflow-hidden'
                     style={profileData.bannerImage 
                       ? { backgroundImage: `url(${getImageUrl(profileData.bannerImage)})`, backgroundSize: 'cover', backgroundPosition: 'center' } 
                       : theme.style
                     }
                   >
-                    <div className='absolute inset-0 bg-gradient-to-b from-black/5 to-black/30' />
+                    <div className='absolute inset-0 bg-gradient-to-b from-black/0 via-black/5 to-black/20' />
                     {profileData.verified && (
                       <div className='absolute top-4 right-4 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm border border-emerald-100'>
                         <ShieldCheck size={14} className='text-emerald-500' />
@@ -324,9 +331,9 @@ const PublicProfilePage = () => {
                   {/* Content */}
                   <div className='px-6 pb-8 relative'>
                     {/* Profile Avatar */}
-                    <div className='-mt-20 mb-4 flex justify-center lg:justify-start lg:ml-8 relative z-10'>
+                    <div className='-mt-16 mb-4 flex justify-center lg:justify-start lg:ml-8 relative z-10'>
                       <motion.div
-                        className='w-32 h-32 md:w-40 md:h-40 rounded-full border-[6px] border-white flex-shrink-0 shadow-xl overflow-hidden relative bg-white'
+                        className='w-32 h-32 md:w-36 md:h-36 rounded-full border-4 border-white flex-shrink-0 shadow-xl overflow-hidden relative bg-white'
                         whileHover={{ scale: 1.02 }}
                         transition={{ type: "spring", stiffness: 300, damping: 20 }}
                       >
@@ -382,15 +389,15 @@ const PublicProfilePage = () => {
                         {!isOwnProfile && (
                             <div className='hidden lg:flex flex-col gap-3 min-w-[200px]'>
                                 <Button 
-                                    className={`w-full rounded-xl h-12 text-base font-medium transition-all text-white ${
-                                      connectionStatus !== 'not_connected' ? 'opacity-80' : 'hover:-translate-y-0.5'
+                                    className={`w-full rounded-xl h-12 text-base font-bold transition-all text-white shadow-md ${
+                                      connectionStatus !== 'not_connected' ? 'opacity-90' : 'hover:shadow-lg active:scale-95'
                                     }`}
                                     style={connectionStatus === 'connected' 
                                       ? { background: 'linear-gradient(135deg, #059669 0%, #047857 100%)' }
                                       : connectionStatus === 'pending'
                                         ? { background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)' }
                                         : connectionStatus === 'received'
-                                          ? { background: 'linear-gradient(135deg, #163146 0%, #0f1f27 100%)' }
+                                          ? { background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)' }
                                           : connectButtonStyle}
                                     onClick={connectionStatus === 'received' ? handleAcceptRequest : handleConnect}
                                     disabled={connectionStatus === 'connected' || connectionStatus === 'pending'}
@@ -403,12 +410,12 @@ const PublicProfilePage = () => {
                                     ) : connectionStatus === 'pending' ? (
                                       <>
                                         <Clock size={18} className="mr-2" />
-                                        Request Sent
+                                        Pending
                                       </>
                                     ) : connectionStatus === 'received' ? (
                                        <>
                                         <Check size={18} className="mr-2" />
-                                        Accept Request
+                                        Accept
                                        </>
                                     ) : (
                                       <>
@@ -420,77 +427,81 @@ const PublicProfilePage = () => {
                                 {connectionStatus === 'pending' && (
                                    <Button 
                                       variant="ghost"
-                                      className="w-full rounded-xl h-12 text-base font-medium text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-all"
+                                      className="w-full rounded-xl h-10 text-xs font-bold text-slate-400 hover:text-rose-600 hover:bg-rose-50/50 transition-all"
                                       onClick={handleCancelRequest}
                                   >
-                                      Cancel Request
+                                      Withdraw Request
                                   </Button>
                                 )}
                                 {connectionStatus === 'received' && (
                                    <Button 
                                       variant="outline"
-                                      className="w-full rounded-xl h-12 text-base font-medium border-rose-200 text-rose-600 hover:bg-rose-50 hover:border-rose-300 transition-all"
+                                      className="w-full rounded-xl h-10 text-xs font-bold border-rose-100 text-rose-600 hover:bg-rose-50 hover:border-rose-200 transition-all shadow-sm"
                                       onClick={handleDeclineRequest}
                                   >
-                                      <X size={18} className="mr-2" />
+                                      <X size={14} className="mr-2" />
                                       Decline
                                   </Button>
                                 )}
                                 <Button 
                                     variant="outline"
-                                    className="w-full rounded-xl h-12 text-base font-medium border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all"
+                                    className="w-full rounded-xl h-12 text-sm font-bold border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm group"
                                     onClick={() => navigate('/inbox', { state: { recipientId: user._id } })}
                                 >
-                                    <MessageSquare size={18} className="mr-2" />
-                                    Message
+                                    <MessageSquare size={16} className="mr-2 text-slate-400 group-hover:text-slate-600 transition-colors" />
+                                    Send Message
                                 </Button>
                             </div>
                         )}
                     </div>
 
-                    <div className='mt-8 pt-8 border-t border-slate-100'>
-                        <div className='grid grid-cols-2 md:grid-cols-4 gap-4'>
-                            <div className='flex flex-col items-center p-4 bg-slate-50 rounded-2xl border border-slate-100 transition-colors hover:border-slate-200 group'>
-                                <div className='p-2 bg-white rounded-xl shadow-sm mb-3 group-hover:scale-110 transition-transform'>
-                                    <Mail size={18} className='text-slate-400' />
+                    <div className='mt-10 pt-10 border-t border-slate-100'>
+                        <div className='grid grid-cols-2 md:grid-cols-4 gap-6'>
+                            <div className='flex flex-col items-center p-5 bg-slate-50/50 rounded-3xl border border-slate-100 transition-all hover:bg-white hover:border-slate-200 hover:shadow-sm group cursor-default'>
+                                <div className='p-2.5 bg-white rounded-2xl shadow-sm mb-4 group-hover:scale-110 transition-transform'>
+                                    <Mail size={20} className='text-slate-400 group-hover:text-blue-500 transition-colors' />
                                 </div>
-                                <p className='text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1'>Email</p>
-                                <p className='text-xs font-semibold text-slate-900 truncate w-full text-center px-2'>{user.email || 'Private'}</p>
+                                <p className='text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1.5'>Direct Email</p>
+                                <p className='text-xs font-bold text-slate-800 truncate w-full text-center px-1'>{user.email || 'Encrypted'}</p>
                             </div>
                             
-                            <div className='flex flex-col items-center p-4 bg-slate-50 rounded-2xl border border-slate-100 transition-colors hover:border-slate-200 group'>
-                                <div className='p-2 bg-white rounded-xl shadow-sm mb-3 group-hover:scale-110 transition-transform'>
-                                    <Globe size={18} className='text-slate-400' />
+                            <div className='flex flex-col items-center p-5 bg-slate-50/50 rounded-3xl border border-slate-100 transition-all hover:bg-white hover:border-slate-200 hover:shadow-sm group cursor-default'>
+                                <div className='p-2.5 bg-white rounded-2xl shadow-sm mb-4 group-hover:scale-110 transition-transform'>
+                                    <Globe size={20} className='text-slate-400 group-hover:text-amber-500 transition-colors' />
                                 </div>
-                                <p className='text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1'>Social</p>
-                                <div className='flex gap-2 justify-center'>
+                                <p className='text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1.5'>Presence</p>
+                                <div className='flex gap-2.5 justify-center'>
                                      {profileData.socialMedia?.instagram && (
-                                        <a href={`https://instagram.com/${profileData.socialMedia.instagram.replace('@', '')}`} target="_blank" rel="noreferrer" className='text-xs font-bold text-slate-700 hover:text-emerald-600 transition-colors'>IG</a>
+                                        <a href={`https://instagram.com/${profileData.socialMedia.instagram.replace('@', '')}`} target="_blank" rel="noreferrer" className='p-1 rounded-lg hover:bg-slate-50 transition-colors'>
+                                             <span className='text-xs font-black text-slate-700'>IG</span>
+                                        </a>
                                      )}
                                      {profileData.socialMedia?.twitter && (
-                                        <a href={`https://twitter.com/${profileData.socialMedia.twitter.replace('@', '')}`} target="_blank" rel="noreferrer" className='text-xs font-bold text-slate-700 hover:text-blue-500 transition-colors'>TW</a>
+                                        <a href={`https://twitter.com/${profileData.socialMedia.twitter.replace('@', '')}`} target="_blank" rel="noreferrer" className='p-1 rounded-lg hover:bg-slate-50 transition-colors'>
+                                            <span className='text-xs font-black text-slate-700'>TW</span>
+                                        </a>
                                      )}
-                                     {!profileData.socialMedia?.instagram && !profileData.socialMedia?.twitter && <span className='text-xs font-bold text-slate-400'>-</span>}
+                                     {!profileData.socialMedia?.instagram && !profileData.socialMedia?.twitter && <span className='text-xs font-black text-slate-300'>PRIVATE</span>}
                                 </div>
                             </div>
 
-                            <div className='flex flex-col items-center p-4 bg-slate-50 rounded-2xl border border-slate-100 transition-colors hover:border-slate-200 group'>
-                                <div className='p-2 bg-white rounded-xl shadow-sm mb-3 group-hover:scale-110 transition-transform'>
-                                    {isAthlete ? <Users size={18} className='text-slate-400' /> : <MapPin size={18} className='text-slate-400' />}
+                            <div className='flex flex-col items-center p-5 bg-slate-50/50 rounded-3xl border border-slate-100 transition-all hover:bg-white hover:border-slate-200 hover:shadow-sm group cursor-default'>
+                                <div className='p-2.5 bg-white rounded-2xl shadow-sm mb-4 group-hover:scale-110 transition-transform'>
+                                    {isAthlete ? <Users size={20} className='text-slate-400 group-hover:text-indigo-500 transition-colors' /> : <MapPin size={20} className='text-slate-400 group-hover:text-rose-500 transition-colors' />}
                                 </div>
-                                <p className='text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1'>{isAthlete ? 'Network' : 'Location'}</p>
-                                <p className='text-xs font-semibold text-slate-900 truncate w-full text-center px-2'>
-                                    {isAthlete ? (profileData.connectionsCount || 0) : (profileData.location || 'Remote')}
+                                <p className='text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1.5'>{isAthlete ? 'Connections' : 'Location'}</p>
+                                <p className='text-xs font-bold text-slate-800 truncate w-full text-center px-1'>
+                                    {isAthlete ? (profileData.connectionsCount || 0) : (profileData.location || 'Distributed')}
                                 </p>
                             </div>
 
-                            <div className='flex flex-col items-center p-4 bg-slate-50 rounded-2xl border border-slate-100 transition-colors hover:border-slate-200 group'>
-                                <div className='p-2 bg-white rounded-xl shadow-sm mb-3 group-hover:scale-110 transition-transform'>
-                                    <Award size={18} className='text-slate-400' />
+                            <div className='flex flex-col items-center p-5 bg-slate-50/50 rounded-3xl border border-slate-100 transition-all hover:bg-white hover:border-slate-200 hover:shadow-sm group cursor-default'>
+                                <div className='p-2.5 bg-white rounded-2xl shadow-sm mb-4 group-hover:scale-110 transition-transform'>
+                                    <Trophy size={20} className='text-slate-400 group-hover:text-emerald-500 transition-colors' />
                                 </div>
-                                <p className='text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1'>Member Since</p>
-                                <p className='text-xs font-semibold text-slate-900 truncate w-full text-center px-2'>
-                                    {new Date(user.createdAt || Date.now()).getFullYear()}
+                                <p className='text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1.5'>On Signil</p>
+                                <p className='text-xs font-bold text-slate-800 truncate w-full text-center px-1'>
+                                    Since {new Date(user.createdAt || Date.now()).getFullYear()}
                                 </p>
                             </div>
                         </div>
@@ -502,30 +513,30 @@ const PublicProfilePage = () => {
               {/* Interests Section */}
               {(activeInterests.length > 0 || specialization.length > 0) && (
                 <motion.div variants={itemVariants}>
-                  <div className='bg-white rounded-[2rem] border border-slate-200 p-6 shadow-sm'>
-                    <div className='mb-4 flex items-center gap-3'>
-                      <div className='p-2 rounded-xl bg-orange-50 text-orange-600'>
-                        <Briefcase size={20} />
-                      </div>
-                      <div>
-                          <h3 className='text-lg font-bold text-slate-900'>
-                            {isAthlete ? 'Interests & Focus' : 'Specializations'}
-                          </h3>
-                          <p className='text-xs text-slate-500'>
-                             Areas of expertise and professional focus
-                          </p>
+                  <div className='bg-white rounded-2xl border border-slate-200 p-6 shadow-sm'>
+                    <div className='mb-6 flex items-center justify-between'>
+                      <div className='flex items-center gap-3'>
+                          <div className='p-2 rounded-xl bg-slate-100 text-slate-600'>
+                              <Briefcase size={18} />
+                          </div>
+                          <div>
+                              <h3 className='text-base font-bold text-slate-900'>
+                              {isAthlete ? 'Focus Areas' : 'Core Expertise'}
+                              </h3>
+                              <p className='text-[10px] text-slate-500 font-bold uppercase tracking-wider'>
+                                  Professional Specializations
+                              </p>
+                          </div>
                       </div>
                     </div>
-
-                    <div className='flex flex-wrap gap-2.5'>
+ 
+                    <div className='flex flex-wrap gap-2'>
                        {[...activeInterests, ...specialization].map((interest, idx) => (
                             <span
                                 key={`${interest}-${idx}`}
-                                className='pl-2 pr-3 py-1.5 rounded-full bg-slate-50 border border-slate-100 text-xs font-semibold text-slate-700 flex items-center gap-1.5 hover:bg-slate-100 transition-colors cursor-default'
+                                className='px-3 py-1.5 rounded-full bg-slate-50 border border-slate-100 text-xs font-semibold text-slate-700 flex items-center gap-2 hover:bg-white hover:border-slate-200 transition-all cursor-default group'
                             >
-                                <div className='w-5 h-5 rounded-full flex items-center justify-center' style={{ backgroundColor: `${theme.primary}15` }}>
-                                    <Check size={10} style={{ color: theme.primary }} />
-                                </div>
+                                <Check size={12} className="text-emerald-500" />
                                 {interest.replace(/([A-Z])/g, ' $1').trim()}
                             </span>
                        ))}
@@ -537,52 +548,96 @@ const PublicProfilePage = () => {
 
             {/* Right Sidebar - Desktop */}
             <div className='space-y-4'>
+                {/* Verification Widget */}
+                <motion.div variants={itemVariants} className='bg-white rounded-2xl border border-slate-200 p-5 shadow-sm'>
+                  <h3 className='font-bold text-slate-900 text-sm mb-4'>Profile Trust</h3>
+                  
+                  {profileData.verified ? (
+                     <div className='flex items-center gap-3 p-3 bg-emerald-50 rounded-xl mb-3 border border-emerald-100 transition-colors hover:bg-emerald-100/50 cursor-default'>
+                         <div className='w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center shrink-0'>
+                            <ShieldCheck size={20} className='text-emerald-600' />
+                         </div>
+                         <div>
+                            <p className='text-xs font-bold text-emerald-800'>Fully Verified</p>
+                            <p className='text-[10px] text-emerald-600'>Official professional profile</p>
+                         </div>
+                     </div>
+                  ) : (
+                     <div className='flex items-center gap-3 p-3 bg-slate-50 rounded-xl mb-3 border border-slate-100 cursor-default'>
+                         <div className='w-10 h-10 bg-slate-200 rounded-full flex items-center justify-center shrink-0 text-slate-400'>
+                            <Clock size={20} />
+                         </div>
+                         <div>
+                            <p className='text-xs font-bold text-slate-600 uppercase tracking-tight'>Unverified</p>
+                            <p className='text-[10px] text-slate-500'>Profile details pending review</p>
+                         </div>
+                     </div>
+                  )}
+
+                  <div className='flex items-center justify-between px-1 mt-4'>
+                      <div className='flex -space-x-2'>
+                          {[1,2,3].map(i => (
+                             <div key={i} className='w-6 h-6 rounded-full border-2 border-white bg-slate-200' />
+                          ))}
+                      </div>
+                      <span className='text-[10px] font-bold text-slate-400 uppercase tracking-widest'>30+ Shared Connections</span>
+                  </div>
+                </motion.div>
+
                 {/* Match Score Card */}
                 {profileData.matchScore !== undefined && (
-                   <motion.div variants={itemVariants} className='bg-white rounded-[2rem] border border-slate-200 p-6 shadow-sm relative overflow-hidden'>
-                      <div className='absolute top-0 right-0 p-4 opacity-10'>
-                          <UserPlus size={64} />
+                   <motion.div variants={itemVariants} className='bg-white rounded-2xl border border-slate-200 p-6 shadow-sm group hover:border-slate-300 transition-all'>
+                      <div className='flex items-center justify-between mb-4'>
+                        <h4 className='text-[10px] font-bold text-slate-400 uppercase tracking-wider'>Compatibility</h4>
+                        <div className='w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center group-hover:scale-110 transition-transform'>
+                            <Zap size={14} className="text-blue-500" />
+                        </div>
                       </div>
-                      <h4 className='text-sm font-bold text-slate-400 uppercase tracking-wider mb-4'>AI Compatibility</h4>
                       <div className='flex items-end gap-1 mb-2'>
-                        <span className='text-5xl font-bold tracking-tighter' style={{ color: theme.primary }}>
+                        <span className='text-4xl font-bold tracking-tighter text-slate-900'>
                             {profileData.matchScore}
                         </span>
-                        <span className='text-2xl font-bold text-slate-300 mb-1'>%</span>
+                        <span className='text-xl font-black text-slate-200 mb-1'>%</span>
                       </div>
-                      <div className='h-2 w-full bg-slate-100 rounded-full overflow-hidden mb-3'>
+                      <div className='h-2 w-full bg-slate-100 rounded-full overflow-hidden mb-4'>
                           <motion.div 
                             initial={{ width: 0 }}
                             animate={{ width: `${profileData.matchScore}%` }}
-                            transition={{ duration: 1, delay: 0.5 }}
-                            className='h-full rounded-full'
-                            style={{ backgroundColor: theme.primary }}
+                            transition={{ duration: 1.5, ease: "easeOut" }}
+                            className='h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500'
                           />
                       </div>
-                      <p className='text-xs text-slate-500 font-medium'>
-                          This profile matches {profileData.matchScore}% with your preferences.
+                      <p className='text-[10px] text-slate-500 font-medium leading-relaxed'>
+                          This profile aligns {profileData.matchScore}% with your current professional criteria.
                       </p>
                    </motion.div>
                 )}
 
-                {/* Additional Sidebar Widgets... */}
-                <motion.div variants={itemVariants} className='hidden lg:block bg-gradient-to-br from-[#1e293b] to-[#0f172a] rounded-[2rem] p-6 text-white shadow-lg relative overflow-hidden min-h-[200px]'>
-                    <div className='absolute -bottom-10 -right-10 w-40 h-40 bg-white/5 rounded-full blur-3xl' />
-                    <div className='absolute top-10 left-10 w-20 h-20 bg-emerald-500/20 rounded-full blur-2xl' />
-                    
-                    <div className='relative z-10 h-full flex flex-col justify-between'>
-                        <div>
-                            <div className='w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md flex items-center justify-center mb-4'>
-                                <Clock size={20} className="text-emerald-400" />
+                {/* Quick Stats Widget */}
+                <motion.div variants={itemVariants} className='bg-white rounded-2xl border border-slate-200 p-5 shadow-sm'>
+                    <h4 className='text-xs font-bold text-slate-900 mb-4'>Quick Insights</h4>
+                    <div className='space-y-3 font-medium'>
+                        <div className='flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100 hover:bg-white hover:border-slate-200 transition-all group'>
+                            <div className='flex items-center gap-3'>
+                                <Users size={16} className='text-indigo-500' />
+                                <span className='text-[11px] text-slate-600'>Global Reach</span>
                             </div>
-                            <h4 className='text-lg font-bold mb-1'>Local Time</h4>
-                            <p className='text-3xl font-bold tracking-tight'>
-                                {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </p>
+                            <span className='text-xs font-bold text-slate-900'>{profileData.connectionsCount || 0}</span>
                         </div>
-                        <p className='text-xs text-slate-400 mt-4'>
-                            Usually responds within 24 hours
-                        </p>
+                        <div className='flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100 hover:bg-white hover:border-slate-200 transition-all group'>
+                            <div className='flex items-center gap-3'>
+                                <ShieldCheck size={16} className='text-emerald-500' />
+                                <span className='text-[11px] text-slate-600'>Profile Status</span>
+                            </div>
+                            <span className='text-xs font-bold text-emerald-600'>Vetted</span>
+                        </div>
+                        <div className='flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100 hover:bg-white hover:border-slate-200 transition-all group'>
+                            <div className='flex items-center gap-3'>
+                                <BarChart3 size={16} className='text-rose-500' />
+                                <span className='text-[11px] text-slate-600'>Social Density</span>
+                            </div>
+                            <span className='text-xs font-bold text-slate-900'>High</span>
+                        </div>
                     </div>
                 </motion.div>
             </div>

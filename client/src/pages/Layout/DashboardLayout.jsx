@@ -1,42 +1,43 @@
 // File: client/src/pages/Layout/DashboardLayout.jsx
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  Bell,
-  Bot,
-  Calendar,
-  CheckCircle2,
-  ChevronDown,
-  Compass,
-  Eye,
-  LayoutDashboard,
-  LogOut,
-  Menu,
-  MessageCircle,
-  MessageSquare,
-  Newspaper,
-  Search,
-  Settings,
-  Trash2,
-  User,
-  UserPlus,
-  X,
+    Bell,
+    Bot,
+    Calendar,
+    CheckCircle2,
+    ChevronDown,
+    Compass,
+    Eye,
+    LayoutDashboard,
+    LogOut,
+    Menu,
+    MessageCircle,
+    MessageSquare,
+    Newspaper,
+    Search,
+    Settings,
+    Shield,
+    Trash2,
+    User,
+    UserPlus,
+    X,
 } from 'lucide-react'
 import React, { useEffect, useRef, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
-  clearNotifications,
-  fetchUnreadMessages,
-  incrementUnreadMessagesCount,
-  logoutUser,
-  markNotificationRead,
-  selectActiveConversationId,
-  selectCurrentUser,
-  selectNotifications,
-  selectUnreadCount,
-  selectUnreadMessagesCount,
-  setNotifications,
-  updateProfileImage,
+    clearNotifications,
+    fetchUnreadMessages,
+    incrementUnreadMessagesCount,
+    logoutUser,
+    markNotificationRead,
+    selectActiveConversationId,
+    selectCurrentUser,
+    selectNotifications,
+    selectUnreadCount,
+    selectUnreadMessagesCount,
+    setNotifications,
+    updateProfileImage,
 } from '../../redux/userSlice'
 import { messageService } from '../../services/messageService'
 import { notificationService } from '../../services/notificationService'
@@ -195,6 +196,12 @@ const DashboardLayout = ({ children }) => {
     { id: 'calendar', icon: Calendar, label: 'Calendar', path: '/calendar' },
     { id: 'explore', icon: Compass, label: 'Explore', path: '/explore' },
     { id: 'news', icon: Newspaper, label: 'News', path: '/news' },
+    ...(currentUser?.role === 'admin' ? [{
+      id: 'admin',
+      icon: Shield,
+      label: 'Admin Portal',
+      path: '/admin',
+    }] : []),
     {
       id: 'profile',
       icon: User,
@@ -601,6 +608,18 @@ const DashboardLayout = ({ children }) => {
                             <span className='font-medium'>Settings</span>
                           </motion.div>
                         </Link>
+                        {currentUser?.role === 'admin' && (
+                          <Link to="/admin">
+                            <motion.div
+                              className='flex items-center gap-3 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer md:hidden'
+                              whileHover={{ x: 4 }}
+                              transition={{ duration: 0.1 }}
+                            >
+                              <Shield size={18} className='text-[#986a41]' />
+                              <span className='font-bold'>Admin Portal</span>
+                            </motion.div>
+                          </Link>
+                        )}
                       </div>
                       {/* Logout */}
                       <div className='border-t border-gray-100 py-2'>

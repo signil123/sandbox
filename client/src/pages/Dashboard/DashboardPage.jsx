@@ -212,14 +212,14 @@ const DashboardPage = () => {
   const keyInsights = [
     {
       label: 'Profile Views',
-      value: statsSummary?.profileViews ? statsSummary.profileViews.toString() : '2,451',
-      trend: statsSummary?.viewsTrend || '+12%',
+      value: statsSummary?.profileViews?.toString() || '0',
+      trend: statsSummary?.viewsTrend || '0%',
       icon: Eye,
     },
     {
       label: 'New Messages',
-      value: statsSummary?.unreadMessages ? statsSummary.unreadMessages.toString() : '0',
-      trend: '+5%',
+      value: statsSummary?.unreadMessages?.toString() || '0',
+      trend: '+0%',
       icon: MessageSquare,
     },
     {
@@ -231,7 +231,7 @@ const DashboardPage = () => {
     {
       label: 'Connected Advisors',
       value: ((network.advisors?.length || 0) + (network.roster?.length || 0)).toString(),
-      trend: '+3',
+      trend: '+0%',
       icon: Users,
     },
   ]
@@ -291,43 +291,18 @@ const DashboardPage = () => {
   // Latest News
   // latestNews state managed above
   // Statistics Data
-  const statisticsData = {
-    '1W': [
-      { day: 'Mon', value: 12 },
-      { day: 'Tue', value: 19 },
-      { day: 'Wed', value: 15 },
-      { day: 'Thu', value: 25 },
-      { day: 'Fri', value: 22 },
-      { day: 'Sat', value: 28 },
-      { day: 'Sun', value: 35 },
-    ],
-    '1M': [
-      { week: 'W1', value: 65 },
-      { week: 'W2', value: 78 },
-      { week: 'W3', value: 92 },
-      { week: 'W4', value: 110 },
-    ],
-    '1Y': [
-      { month: 'Jan', value: 120 },
-      { month: 'Feb', value: 150 },
-      { month: 'Mar', value: 180 },
-      { month: 'Apr', value: 210 },
-      { month: 'May', value: 240 },
-      { month: 'Jun', value: 280 },
-      { month: 'Jul', value: 320 },
-      { month: 'Aug', value: 350 },
-      { month: 'Sep', value: 380 },
-      { month: 'Oct', value: 420 },
-      { month: 'Nov', value: 450 },
-      { month: 'Dec', value: 480 },
-    ],
-    ALL: [
-      { year: '2022', value: 150 },
-      { year: '2023', value: 420 },
-      { year: '2024', value: 1200 },
-      { year: '2025', value: 480 },
-    ],
-  }
+  const statisticsData = useMemo(() => {
+    if (statsSummary?.analytics) {
+      return statsSummary.analytics
+    }
+    
+    return {
+      '1W': [],
+      '1M': [],
+      '1Y': [],
+      ALL: [],
+    }
+  }, [statsSummary?.analytics])
   const currentStatsData = statisticsData[timeRange]
   // Advisor Carousel Navigation
   const nextAdvisor = () => {
@@ -799,73 +774,87 @@ const DashboardPage = () => {
                         </button>
                       ))}
                     </div>
-                    {/* Chart */}
-                    <div className='h-64 -ml-4'>
-                      <ResponsiveContainer width='100%' height='100%'>
-                        <RechartsLineChart data={currentStatsData}>
-                          <defs>
-                            <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#163146" stopOpacity={0.1}/>
-                              <stop offset="95%" stopColor="#163146" stopOpacity={0}/>
-                            </linearGradient>
-                          </defs>
-                          <CartesianGrid
-                            strokeDasharray='3 3'
-                            vertical={false}
-                            stroke='#f1f5f9'
-                          />
-                          <XAxis
-                            dataKey={
-                              timeRange === '1W' ? 'day' :
-                              timeRange === '1M' ? 'week' :
-                              timeRange === '1Y' ? 'month' : 'year'
-                            }
-                            stroke='#94a3b8'
-                            axisLine={false}
-                            tickLine={false}
-                            style={{ fontSize: '10px', fontWeight: '700' }}
-                            dy={10}
-                          />
-                          <YAxis
-                            stroke='#94a3b8'
-                            axisLine={false}
-                            tickLine={false}
-                            style={{ fontSize: '10px', fontWeight: '700' }}
-                            dx={-10}
-                          />
-                          <Tooltip
-                            contentStyle={{
-                              backgroundColor: '#163146',
-                              border: 'none',
-                              borderRadius: '16px',
-                              color: 'white',
-                              boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)',
-                              padding: '12px'
-                            }}
-                            itemStyle={{ color: 'white', fontSize: '12px', fontWeight: 'bold' }}
-                            labelStyle={{ color: 'rgba(255,255,255,0.5)', fontSize: '10px', marginBottom: '4px' }}
-                          />
-                          <Line
-                            type='monotone'
-                            dataKey='value'
-                            stroke='#163146'
-                            strokeWidth={4}
-                            dot={false}
-                            activeDot={{ r: 6, fill: '#163146', stroke: '#fff', strokeWidth: 2 }}
-                          />
-                        </RechartsLineChart>
-                      </ResponsiveContainer>
-                    </div>
-                    <div className='mt-8 p-5 bg-gray-50 rounded-3xl border border-gray-100 flex items-center justify-between'>
-                      <div>
-                        <p className='text-[10px] text-gray-400 font-bold uppercase tracking-widest leading-none mb-1.5'>Connection Growth</p>
-                        <p className='text-sm text-gray-900 font-black'>+480 New Connections</p>
+                    
+                    {/* Check if data exists */}
+                    {currentStatsData && currentStatsData.length > 0 && currentStatsData.some(d => d.value > 0) ? (
+                      <>
+                        {/* Chart */}
+                        <div className='h-64 -ml-4'>
+                          <ResponsiveContainer width='100%' height='100%'>
+                            <RechartsLineChart data={currentStatsData}>
+                              <defs>
+                                <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#163146" stopOpacity={0.1}/>
+                                  <stop offset="95%" stopColor="#163146" stopOpacity={0}/>
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid
+                                strokeDasharray='3 3'
+                                vertical={false}
+                                stroke='#f1f5f9'
+                              />
+                              <XAxis
+                                dataKey={
+                                  timeRange === '1W' ? 'day' :
+                                  timeRange === '1M' ? 'week' :
+                                  timeRange === '1Y' ? 'month' : 'year'
+                                }
+                                stroke='#94a3b8'
+                                axisLine={false}
+                                tickLine={false}
+                                style={{ fontSize: '10px', fontWeight: '700' }}
+                                dy={10}
+                              />
+                              <YAxis
+                                stroke='#94a3b8'
+                                axisLine={false}
+                                tickLine={false}
+                                style={{ fontSize: '10px', fontWeight: '700' }}
+                                dx={-10}
+                              />
+                              <Tooltip
+                                contentStyle={{
+                                  backgroundColor: '#163146',
+                                  border: 'none',
+                                  borderRadius: '16px',
+                                  color: 'white',
+                                  boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)',
+                                  padding: '12px'
+                                }}
+                                itemStyle={{ color: 'white', fontSize: '12px', fontWeight: 'bold' }}
+                                labelStyle={{ color: 'rgba(255,255,255,0.5)', fontSize: '10px', marginBottom: '4px' }}
+                              />
+                              <Line
+                                type='monotone'
+                                dataKey='value'
+                                stroke='#163146'
+                                strokeWidth={4}
+                                dot={false}
+                                activeDot={{ r: 6, fill: '#163146', stroke: '#fff', strokeWidth: 2 }}
+                              />
+                            </RechartsLineChart>
+                          </ResponsiveContainer>
+                        </div>
+                        <div className='mt-8 p-5 bg-gray-50 rounded-3xl border border-gray-100 flex items-center justify-between'>
+                          <div>
+                            <p className='text-[10px] text-gray-400 font-bold uppercase tracking-widest leading-none mb-1.5'>Connection Growth</p>
+                            <p className='text-sm text-gray-900 font-black'>+{currentStatsData?.reduce((acc, curr) => acc + curr.value, 0) || 0} New Connections</p>
+                          </div>
+                          <div className='flex items-center gap-1 text-emerald-500 font-black text-xs'>
+                            <TrendingUp size={14} />
+                            {Math.min(100, Math.round(((currentStatsData?.reduce((acc, curr) => acc + curr.value, 0) || 0) / (statsSummary?.acceptedConnections || 1)) * 100))}%
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-64 text-center">
+                        <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center text-gray-300 mb-4">
+                          <LineChart size={24} />
+                        </div>
+                        <p className="text-gray-900 font-bold text-sm">No analytics data yet</p>
+                        <p className="text-gray-400 text-xs mt-1 max-w-[250px]">Your network growth analytics will appear here as you make connections.</p>
                       </div>
-                      <div className='flex items-center gap-1 text-emerald-500 font-black text-xs'>
-                        <TrendingUp size={14} />
-                        12%
-                      </div>
-                    </div>
+                    )}
                   </motion.div>
                 ) : (
                   <motion.div

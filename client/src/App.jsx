@@ -3,8 +3,9 @@
 import { Provider } from 'react-redux'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { PersistGate } from 'redux-persist/integration/react'
-import { PrivateRoute, PublicRoute } from './components/Auth/ProtectedRoutes'
+import { AdminRoute, PrivateRoute, PublicRoute } from './components/Auth/ProtectedRoutes'
 import ScrollToTop from './components/Common/ScrollToTop'
+import AdminDashboard from './pages/Admin/AdminDashboard'
 import AuthPage from './pages/Auth/AuthPage'
 import CalendarPage from './pages/Calendar/CalendarPage'
 import DashboardPage from './pages/Dashboard/DashboardPage'
@@ -46,6 +47,14 @@ const App = () => {
                   <PrivateRoute>
                     <DashboardPage />
                   </PrivateRoute>
+                }
+              />
+              <Route
+                path='/admin'
+                element={
+                  <AdminRoute>
+                    <AdminDashboard />
+                  </AdminRoute>
                 }
               />
               <Route

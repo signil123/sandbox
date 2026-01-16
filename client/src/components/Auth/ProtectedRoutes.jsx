@@ -25,3 +25,18 @@ export const PublicRoute = ({ children }) => {
 
   return children
 }
+
+// Route for admin users only
+export const AdminRoute = ({ children }) => {
+  const currentUser = useSelector(selectCurrentUser)
+
+  if (!currentUser) {
+    return <Navigate to='/auth' replace />
+  }
+
+  if (currentUser.role !== 'admin') {
+    return <Navigate to='/dashboard' replace />
+  }
+
+  return children
+}

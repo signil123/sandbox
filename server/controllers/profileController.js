@@ -2,7 +2,7 @@ import mongoose from 'mongoose'
 import { createError } from '../error.js'
 import Notification from '../models/Notification.js'
 import Profile from '../models/Profile.js'
-import ProfileView from '../models/ProfileView.js'
+import { ProfileView } from '../models/ProfileView.js'
 import { Connection, ConnectionRequest } from '../models/Relationship.js'
 import User from '../models/User.js'
 

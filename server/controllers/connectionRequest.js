@@ -1,8 +1,10 @@
 // File: server/controllers/connectionRequest.js
+import mongoose from 'mongoose'
 import { createError } from '../error.js'
 import { Conversation, Message } from '../models/Message.js'
 import Notification from '../models/Notification.js'
 import Profile from '../models/Profile.js'
+import { ProfileView } from '../models/ProfileView.js'
 import { Connection, ConnectionRequest } from '../models/Relationship.js'
 import User from '../models/User.js'
 import { calculateMatchScore } from './matching.js'
@@ -422,7 +424,23 @@ export const getRequestsSummary = async (req, res, next) => {
   try {
     const { userId } = req.params
 
-    const [pendingCount, sentCount, acceptedCount] = await Promise.all([
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+
+    const [
+      pendingCount,
+      sentCount,
+      acceptedCount,
+      profileViews,
+      recentViews,
+      previousViews,
+      unreadMessages,
+      weeklyStats,
+      monthlyStats,
+      yearlyStats,
+      allTimeStats
+    ] = await Promise.all([
       ConnectionRequest.countDocuments({
         to: userId,
         status: 'pending',
@@ -435,7 +453,138 @@ export const getRequestsSummary = async (req, res, next) => {
         $or: [{ user1: userId }, { user2: userId }],
         status: 'active',
       }),
+      ProfileView.countDocuments({ profileOwner: userId }),
+      ProfileView.countDocuments({
+        profileOwner: userId,
+        lastViewedAt: { $gte: sevenDaysAgo }
+      }),
+      ProfileView.countDocuments({
+        profileOwner: userId,
+        lastViewedAt: { $gte: fourteenDaysAgo, $lt: sevenDaysAgo }
+      }),
+      Message.countDocuments({
+        conversation: {
+          $in: await Conversation.find({
+            $or: [{ participant1: userId }, { participant2: userId }]
+          }).distinct('_id')
+        },
+        sender: { $ne: userId },
+        isRead: false
+      }),
+      // 1W: Daily stats for the last 7 days
+      Connection.aggregate([
+        {
+          $match: {
+            $or: [
+              { user1: new mongoose.Types.ObjectId(userId) },
+              { user2: new mongoose.Types.ObjectId(userId) }
+            ],
+            status: 'active',
+            connectedAt: { $gte: sevenDaysAgo }
+          }
+        },
+        {
+          $group: {
+            _id: { $dateToString: { format: "%Y-%m-%d", date: "$connectedAt" } },
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { "_id": 1 } }
+      ]),
+      // 1M: Weekly stats for the last 30 days
+      Connection.aggregate([
+        {
+          $match: {
+            $or: [
+              { user1: new mongoose.Types.ObjectId(userId) },
+              { user2: new mongoose.Types.ObjectId(userId) }
+            ],
+            status: 'active',
+            connectedAt: { $gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) }
+          }
+        },
+        {
+          $group: {
+            _id: { $isoWeek: "$connectedAt" },
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { "_id": 1 } }
+      ]),
+      // 1Y: Monthly stats for the last year
+      Connection.aggregate([
+        {
+          $match: {
+            $or: [
+              { user1: new mongoose.Types.ObjectId(userId) },
+              { user2: new mongoose.Types.ObjectId(userId) }
+            ],
+            status: 'active',
+            connectedAt: { $gte: new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000) }
+          }
+        },
+        {
+          $group: {
+            _id: { $dateToString: { format: "%Y-%m", date: "$connectedAt" } },
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { "_id": 1 } }
+      ]),
+      // ALL: Yearly stats
+      Connection.aggregate([
+        {
+          $match: {
+            $or: [
+              { user1: new mongoose.Types.ObjectId(userId) },
+              { user2: new mongoose.Types.ObjectId(userId) }
+            ],
+            status: 'active'
+          }
+        },
+        {
+          $group: {
+            _id: { $year: "$connectedAt" },
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { "_id": 1 } }
+      ])
     ])
+
+    // Format analytics data
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+    const analytics = {
+      '1W': days.map((day, i) => {
+        const date = new Date(now)
+        date.setDate(now.getDate() - (6 - i))
+        const dateStr = date.toISOString().split('T')[0]
+        const match = weeklyStats.find(s => s._id === dateStr)
+        return { day, value: match ? match.count : 0 }
+      }),
+      '1M': [1, 2, 3, 4].map(w => {
+        // Simple mapping for 4 weeks
+        const match = monthlyStats[w - 1]
+        return { week: `W${w}`, value: match ? match.count : 0 }
+      }),
+      '1Y': months.map((month, i) => {
+        const yearMonth = `${now.getFullYear()}-${(i + 1).toString().padStart(2, '0')}`
+        const match = yearlyStats.find(s => s._id === yearMonth)
+        return { month, value: match ? match.count : 0 }
+      }),
+      'ALL': allTimeStats.map(s => ({ year: s._id.toString(), value: s.count }))
+    }
+
+    // Calculate trend percentage
+    let viewsTrend = '0%';
+    if (previousViews > 0) {
+      const trend = ((recentViews - previousViews) / previousViews) * 100;
+      viewsTrend = `${trend > 0 ? '+' : ''}${Math.round(trend)}%`;
+    } else if (recentViews > 0) {
+      viewsTrend = '+100%';
+    }
 
     res.status(200).json({
       status: 'success',
@@ -444,6 +593,10 @@ export const getRequestsSummary = async (req, res, next) => {
           pendingRequests: pendingCount,
           sentRequests: sentCount,
           acceptedConnections: acceptedCount,
+          profileViews: profileViews,
+          viewsTrend: viewsTrend,
+          unreadMessages: unreadMessages,
+          analytics: analytics
         },
       },
     })
