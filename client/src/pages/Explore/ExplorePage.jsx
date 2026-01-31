@@ -35,13 +35,17 @@ import {
     X,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useSelector } from 'react-redux'
+import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
+import ProBadge from '../../components/Common/ProBadge'
 import ProfilePopup from '../../components/Dashboard/ProfilePopup'
+import ProfileBlurOverlay from '../../components/Explore/ProfileBlurOverlay'
+import UpgradeModal from '../../components/Subscription/UpgradeModal'
 import SkeletonCard from '../../components/ui/SkeletonCard'
 import { getThemeById, themes } from '../../constants/themes'
-import { selectCurrentUser } from '../../redux/userSlice'
+import { TIERS } from '../../constants/tiers'
+import { selectCurrentUser, selectIsFree, selectIsPro, selectIsVerified, selectUserTier } from '../../redux/userSlice'
 import { connectionService } from '../../services/connectionService'
 import { exploreService } from '../../services/exploreService'
 import DashboardLayout from '../Layout/DashboardLayout'
@@ -658,6 +662,15 @@ function ExplorePageContent() {
   const [showConnectionModal, setShowConnectionModal] = useState(false)
   const [connectionMessage, setConnectionMessage] = useState('')
 
+  // Tier states
+  const userTier = useSelector(selectUserTier)
+  const isPro = useSelector(selectIsPro)
+  const isFree = useSelector(selectIsFree)
+  const isVerified = useSelector(selectIsVerified)
+  const [upgradeModalState, setUpgradeModalState] = useState({ isOpen: false, action: '' })
+
+  const openUpgradeModal = (action) => setUpgradeModalState({ isOpen: true, action })
+
   const ITEMS_PER_PAGE = 9
 
   const fetchExploreData = useCallback(async () => {
@@ -956,7 +969,7 @@ function ExplorePageContent() {
               <div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-3 pt-2'>
                 {/* Areas of Expertise */}
                 <CompactFilterDropdown
-                  title='Areas of Expertise'
+                  title='Athlete Needs'
                   icon={Star}
                   widthClass="sm:w-[520px]"
                   isOpen={openDropdown === 'areasOfExpertise'}
@@ -969,76 +982,96 @@ function ExplorePageContent() {
                   }
                   activeCount={filters.areasOfExpertise.length}
                 >
-                  <div className='w-full'>
-                    {/* Category Tabs */}
-                    <div className='flex gap-1.5 border-b border-gray-100 mb-4 px-1 pb-1'>
-                      {Object.keys(AREAS_OF_EXPERTISE).map((category) => {
-                        const count = AREAS_OF_EXPERTISE[category].filter(item => 
-                          filters.areasOfExpertise.includes(item)
-                        ).length
-                        
-                        const isActive = activeExpertiseCategory === category
-
-                        return (
-                          <button
-                            key={category}
-                            onClick={() => setActiveExpertiseCategory(category)}
-                            className='flex-1 py-2 text-[11px] font-bold uppercase tracking-widest transition-all relative rounded-lg'
-                            style={{
-                              color: isActive ? 'white' : '#6b7280',
-                              background: isActive ? COLORS.primary : 'transparent',
-                            }}
-                          >
-                            <span className="relative z-10 flex items-center justify-center gap-2">
-                              {category}
-                              {count > 0 && (
-                                <span 
-                                  className='w-4 h-4 text-[9px] flex items-center justify-center rounded-full'
-                                  style={{ background: isActive ? 'white' : COLORS.primary, color: isActive ? COLORS.primary : 'white' }}
-                                >
-                                  {count}
-                                </span>
-                              )}
-                            </span>
-                          </button>
-                        )
-                      })}
+                  {!isPro ? (
+                    <div className="p-8 text-center bg-gray-50/50 rounded-2xl border-2 border-dashed border-gray-100">
+                      <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-sm border border-gray-100">
+                        <Lock className="text-[#986a41]" size={20} />
+                      </div>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Premium Filter</p>
+                      <h4 className="text-sm font-bold text-[#163146] mb-2">Filter by Athlete Needs</h4>
+                      <p className="text-[11px] text-gray-500 mb-6 max-w-[200px] mx-auto leading-relaxed">
+                        Pinpoint athletes looking for your specific area of expertise with <span className="text-[#986a41] font-bold">Pro</span>.
+                      </p>
+                      <Button 
+                        size="sm" 
+                        className="bg-[#163146] text-white hover:bg-[#1f4461] rounded-xl text-xs font-bold px-6 h-10 shadow-lg shadow-[#163146]/20 transition-all"
+                        onClick={() => openUpgradeModal('filters')}
+                      >
+                        Upgrade to Pro
+                      </Button>
                     </div>
+                  ) : (
+                    <div className='w-full'>
+                      {/* Category Tabs */}
+                      <div className='flex gap-1.5 border-b border-gray-100 mb-4 px-1 pb-1'>
+                        {Object.keys(AREAS_OF_EXPERTISE).map((category) => {
+                          const count = AREAS_OF_EXPERTISE[category].filter(item => 
+                            filters.areasOfExpertise.includes(item)
+                          ).length
+                          
+                          const isActive = activeExpertiseCategory === category
 
-                    {/* Category Items - Two Column Grid */}
-                    <div className='min-h-[220px] px-2 overflow-hidden'>
-                      <AnimatePresence mode='wait'>
-                        <motion.div
-                          key={activeExpertiseCategory}
-                          initial={{ opacity: 0, y: 5 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -5 }}
-                          transition={{ duration: 0.15 }}
-                          className='grid grid-cols-2 gap-x-8 gap-y-2'
-                        >
-                          {AREAS_OF_EXPERTISE[activeExpertiseCategory].map((item) => (
-                            <label
-                              key={item}
-                              className='flex items-center gap-3 cursor-pointer group py-1 border-b border-transparent hover:border-gray-50 transition-all'
+                          return (
+                            <button
+                              key={category}
+                              onClick={() => setActiveExpertiseCategory(category)}
+                              className='flex-1 py-2 text-[11px] font-bold uppercase tracking-widest transition-all relative rounded-lg'
+                              style={{
+                                color: isActive ? 'white' : '#6b7280',
+                                background: isActive ? COLORS.primary : 'transparent',
+                              }}
                             >
-                              <div className="relative flex items-center justify-center">
-                                <input
-                                  type='checkbox'
-                                  checked={filters.areasOfExpertise.includes(item)}
-                                  onChange={() => toggleAreaOfExpertise(item)}
-                                  className='rounded w-4 h-4 transition-all'
-                                  style={{ accentColor: COLORS.primary }}
-                                />
-                              </div>
-                              <span className='text-[11px] text-gray-600 group-hover:text-gray-900 transition-colors leading-tight font-medium'>
-                                {item}
+                              <span className="relative z-10 flex items-center justify-center gap-2">
+                                {category}
+                                {count > 0 && (
+                                  <span 
+                                    className='w-4 h-4 text-[9px] flex items-center justify-center rounded-full'
+                                    style={{ background: isActive ? 'white' : COLORS.primary, color: isActive ? COLORS.primary : 'white' }}
+                                  >
+                                    {count}
+                                  </span>
+                                )}
                               </span>
-                            </label>
-                          ))}
-                        </motion.div>
-                      </AnimatePresence>
+                            </button>
+                          )
+                        })}
+                      </div>
+
+                      {/* Category Items - Two Column Grid */}
+                      <div className='min-h-[220px] px-2 overflow-hidden'>
+                        <AnimatePresence mode='wait'>
+                          <motion.div
+                            key={activeExpertiseCategory}
+                            initial={{ opacity: 0, y: 5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -5 }}
+                            transition={{ duration: 0.15 }}
+                            className='grid grid-cols-2 gap-x-8 gap-y-2'
+                          >
+                            {AREAS_OF_EXPERTISE[activeExpertiseCategory].map((item) => (
+                              <label
+                                key={item}
+                                className='flex items-center gap-3 cursor-pointer group py-1 border-b border-transparent hover:border-gray-50 transition-all'
+                              >
+                                <div className="relative flex items-center justify-center">
+                                  <input
+                                    type='checkbox'
+                                    checked={filters.areasOfExpertise.includes(item)}
+                                    onChange={() => toggleAreaOfExpertise(item)}
+                                    className='rounded w-4 h-4 transition-all'
+                                    style={{ accentColor: COLORS.primary }}
+                                  />
+                                </div>
+                                <span className='text-[11px] text-gray-600 group-hover:text-gray-900 transition-colors leading-tight font-medium'>
+                                  {item}
+                                </span>
+                              </label>
+                            ))}
+                          </motion.div>
+                        </AnimatePresence>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </CompactFilterDropdown>
 
                 {/* Education & Experience */}
@@ -1055,53 +1088,70 @@ function ExplorePageContent() {
                     filters.education.length + filters.experienceRange.length
                   }
                 >
-                  <div>
-                    <p className='text-xs font-semibold text-gray-700 mb-2'>
-                      Education
-                    </p>
-                    <div className='space-y-2'>
-                      {EDUCATION_OPTIONS.map((edu) => (
-                        <label
-                          key={edu}
-                          className='flex items-center gap-2 cursor-pointer'
-                        >
-                          <input
-                            type='checkbox'
-                            checked={filters.education.includes(edu)}
-                            onChange={() => toggleEducation(edu)}
-                            className='rounded w-4 h-4'
-                            style={{ accentColor: COLORS.primary }}
-                          />
-                          <span className='text-xs text-gray-700'>{edu}</span>
-                        </label>
-                      ))}
+                  {!isPro ? (
+                    <div className="p-4 text-center">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Premium Filter</p>
+                      <p className="text-xs text-gray-600 mb-4">Target specific academic levels with <span className="text-[#986a41] font-bold">Pro</span></p>
+                      <Button 
+                        size="sm" 
+                        variant="soft"
+                        className="w-full bg-[#163146] text-white hover:bg-[#1f4461] rounded-xl text-xs font-bold h-9"
+                        onClick={() => openUpgradeModal('filters')}
+                      >
+                        Unlock Now
+                      </Button>
                     </div>
-                  </div>
+                  ) : (
+                    <>
+                      <div>
+                        <p className='text-xs font-semibold text-gray-700 mb-2'>
+                          Education
+                        </p>
+                        <div className='space-y-2'>
+                          {EDUCATION_OPTIONS.map((edu) => (
+                            <label
+                              key={edu}
+                              className='flex items-center gap-2 cursor-pointer'
+                            >
+                              <input
+                                type='checkbox'
+                                checked={filters.education.includes(edu)}
+                                onChange={() => toggleEducation(edu)}
+                                className='rounded w-4 h-4'
+                                style={{ accentColor: COLORS.primary }}
+                              />
+                              <span className='text-xs text-gray-700'>{edu}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
 
-                  <div className='border-t border-gray-100 pt-3'>
-                    <p className='text-xs font-semibold text-gray-700 mb-2'>
-                      Experience
-                    </p>
-                    <div className='space-y-2'>
-                      {EXPERIENCE_RANGES.map((range) => (
-                        <label
-                          key={range}
-                          className='flex items-center gap-2 cursor-pointer'
-                        >
-                          <input
-                            type='checkbox'
-                            checked={filters.experienceRange.includes(range)}
-                            onChange={() => toggleExperience(range)}
-                            className='rounded w-4 h-4'
-                            style={{ accentColor: COLORS.primary }}
-                          />
-                          <span className='text-xs text-gray-700'>
-                            {range} years
-                          </span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
+                      <div className='border-t border-gray-100 pt-3'>
+                        <p className='text-xs font-semibold text-gray-700 mb-2'>
+                          Experience
+                        </p>
+                        <div className='space-y-2'>
+                          {EXPERIENCE_RANGES.map((range) => (
+                            <label
+                              key={range}
+                              className='flex items-center gap-2 cursor-pointer'
+                            >
+                              <input
+                                type='checkbox'
+                                checked={filters.experienceRange.includes(range)}
+                                onChange={() => toggleExperience(range)}
+                                className='rounded w-4 h-4'
+                                style={{ accentColor: COLORS.primary }}
+                              />
+                              <span className='text-xs text-gray-700'>
+                                {range} years
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </CompactFilterDropdown>
 
                 {/* Sports Specialization */}
@@ -1557,8 +1607,15 @@ function ExplorePageContent() {
           ) : (
             <>
               <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 mb-8'>
-                {paginatedResults.map((user, index) => {
+                {paginatedResults.filter(user => {
+                  if (currentUser?.userType === 'athlete' && (user.type === 'advisor' || user.type === 'agent')) {
+                    return user.tier !== TIERS.FREE
+                  }
+                  return true
+                }).map((user, index) => {
                   const isBestMatch = bestMatchIds.includes(user.id)
+                  const isAthlete = user.userType === 'athlete' || user.type === 'athlete'
+                  const isActuallyBlurred = isFree && isAthlete && (index >= 3 || currentPage > 1)
 
                   return (
                     <motion.div
@@ -1566,8 +1623,11 @@ function ExplorePageContent() {
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.3, delay: index * 0.05 }}
-                      className='border border-gray-200 rounded-2xl overflow-hidden  flex flex-col bg-white h-full'
+                      className={`border border-gray-200 rounded-2xl overflow-hidden flex flex-col bg-white h-full relative ${isActuallyBlurred ? 'pointer-events-none' : ''}`}
                     >
+                      {isActuallyBlurred && (
+                        <ProfileBlurOverlay onClick={() => openUpgradeModal('explore')} />
+                      )}
                       {/* Banner */}
                       <div
                         className='h-32 relative'
@@ -1588,6 +1648,13 @@ function ExplorePageContent() {
                                 } />
                                 {user.matchPercentage >= 90 ? 'Best Match' : `${user.matchPercentage}% Match`}
                              </Badge>
+                          </div>
+                        )}
+
+                        {/* Pro Badge for Pro Advisors */}
+                        {user.tier === TIERS.PRO && (user.type !== 'athlete' && user.userType !== 'athlete') && (
+                          <div className="absolute top-3 right-3 z-10">
+                            <ProBadge />
                           </div>
                         )}
                       </div>
@@ -1677,8 +1744,12 @@ function ExplorePageContent() {
                         <div className='flex gap-2 mt-auto'>
                           <motion.button
                             onClick={() => {
-                              setSelectedUser(user)
-                              setProfilePopupOpen(true)
+                              if (isFree && isAthlete) {
+                                openUpgradeModal('explore')
+                              } else {
+                                setSelectedUser(user)
+                                setProfilePopupOpen(true)
+                              }
                             }}
                             className='flex-1 py-2 px-2 border border-gray-200 text-gray-900 rounded-lg font-medium text-xs hover:bg-gray-50 transition-colors flex items-center justify-center gap-1'
                             whileHover={{ scale: 1.02 }}
@@ -1688,7 +1759,13 @@ function ExplorePageContent() {
                             View
                           </motion.button>
                           <motion.button
-                            onClick={() => handleConnect(user)}
+                            onClick={() => {
+                              if (isFree && isAthlete) {
+                                openUpgradeModal('connect')
+                              } else {
+                                handleConnect(user)
+                              }
+                            }}
                             className='flex-1 py-2 px-2 bg-[#163146] text-white rounded-lg font-medium text-xs hover:bg-[#0f2a36] transition-colors flex items-center justify-center gap-1'
                             whileHover={{ scale: 1.02 }}
                             whileTap={{ scale: 0.98 }}
@@ -1819,6 +1896,12 @@ function ExplorePageContent() {
           currentUserType={currentUser?.userType || 'athlete'}
           onConnect={handleConnect}
           onMessage={(u) => navigate('/inbox', { state: { recipientId: u.id } })}
+        />
+
+        <UpgradeModal 
+          isOpen={upgradeModalState.isOpen} 
+          onClose={() => setUpgradeModalState({ ...upgradeModalState, isOpen: false })} 
+          triggerAction={upgradeModalState.action}
         />
       </div>
     </>

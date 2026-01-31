@@ -38,6 +38,7 @@ import {
     selectUnreadMessagesCount,
     setNotifications,
     updateProfileImage,
+    updateUserStatus,
 } from '../../redux/userSlice'
 import { messageService } from '../../services/messageService'
 import { notificationService } from '../../services/notificationService'
@@ -61,6 +62,8 @@ const DashboardLayout = ({ children }) => {
   const [hoveredTooltip, setHoveredTooltip] = useState(null)
   const [activeTab, setActiveTab] = useState('all')
   const profileRef = useRef(null)
+  const inactivityTimerRef = useRef(null)
+  const isAutoAwayRef = useRef(false)
 
   // Handle click outside for profile dropdown
   useEffect(() => {
@@ -144,6 +147,55 @@ const DashboardLayout = ({ children }) => {
       }
     }
   }, [currentUser, dispatch, activeConversationId])
+
+  // Auto-away logic based on user activity
+  useEffect(() => {
+    if (!currentUser) return
+
+    const IDLE_THRESHOLD = 2 * 60 * 1000 // 2 minutes for quicker feedback during testing
+
+    const handleActivity = () => {
+      // If we were auto-away, switch back to online
+      if (currentUser.status === 'away' && isAutoAwayRef.current) {
+        isAutoAwayRef.current = false
+        dispatch(updateUserStatus('online'))
+      }
+
+      // Reset the inactivity timer
+      if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current)
+      
+      inactivityTimerRef.current = setTimeout(() => {
+        // Only auto-away if currently online
+        if (currentUser.status === 'online') {
+          isAutoAwayRef.current = true
+          dispatch(updateUserStatus('away'))
+        }
+      }, IDLE_THRESHOLD)
+    }
+
+    // Reset auto-away flag if status is manually changed to something else
+    if (currentUser.status !== 'away') {
+      isAutoAwayRef.current = false
+    }
+
+    // Add event listeners for activity
+    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart']
+    events.forEach(event => document.addEventListener(event, handleActivity))
+
+    // Initial timer setup
+    if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current)
+    inactivityTimerRef.current = setTimeout(() => {
+      if (currentUser.status === 'online') {
+        isAutoAwayRef.current = true
+        dispatch(updateUserStatus('away'))
+      }
+    }, IDLE_THRESHOLD)
+
+    return () => {
+      events.forEach(event => document.removeEventListener(event, handleActivity))
+      if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current)
+    }
+  }, [currentUser?.status, dispatch])
 
   React.useEffect(() => {
     const fetchNotifications = async () => {
@@ -545,7 +597,7 @@ const DashboardLayout = ({ children }) => {
                   whileTap={{ scale: 0.95 }}
                   transition={{ duration: 0.12 }}
                 >
-                  <div className='w-8 h-8 bg-gradient-to-br from-[#163146] to-[#0f1f27] rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden'>
+                  <div className='w-8 h-8 bg-gradient-to-br from-[#163146] to-[#0f1f27] rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden relative'>
                     {currentUser?.profileImage ? (
                       <img
                         src={currentUser.profileImage.startsWith('http') ? currentUser.profileImage : `${import.meta.env.VITE_API_URL.replace('/api', '')}${currentUser.profileImage}`}
@@ -558,6 +610,12 @@ const DashboardLayout = ({ children }) => {
                       </div>
                     )}
                   </div>
+                  {/* Status Indicator on Avatar */}
+                  <div className={`absolute bottom-1 right-8 w-2.5 h-2.5 rounded-full border-2 border-white ${
+                    currentUser?.status === 'online' ? 'bg-green-500' : 
+                    currentUser?.status === 'away' ? 'bg-amber-500' : 
+                    currentUser?.status === 'idle' ? 'bg-amber-300' : 'bg-gray-400'
+                  }`} />
                   <ChevronDown
                     size={16}
                     className={`text-gray-400 transition-transform ${
@@ -586,6 +644,48 @@ const DashboardLayout = ({ children }) => {
                           {userEmail}
                         </p>
                       </div>
+
+                      {/* Modern Status Selector */}
+                      <div className='px-4 py-4 border-b border-gray-100 bg-[#fafafa]'>
+                        <div className='flex items-center justify-between mb-3'>
+                          <span className='text-[10px] font-bold text-gray-400 uppercase tracking-widest'>Presence Status</span>
+                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-tighter ${
+                            currentUser?.status === 'online' ? 'bg-green-50 text-green-600' :
+                            currentUser?.status === 'away' ? 'bg-amber-50 text-amber-600' :
+                            currentUser?.status === 'idle' ? 'bg-amber-50 text-amber-500' : 'bg-gray-50 text-gray-500'
+                          }`}>
+                            {currentUser?.status || 'Offline'}
+                          </span>
+                        </div>
+                        <div className='flex items-center gap-2'>
+                            {[
+                                { id: 'online', color: 'bg-green-500', label: 'Online' },
+                                { id: 'away', color: 'bg-amber-500', label: 'Away' },
+                                { id: 'idle', color: 'bg-amber-300', label: 'Idle' }
+                            ].map((s) => (
+                                <motion.button
+                                    key={s.id}
+                                    whileHover={{ y: -1 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        isAutoAwayRef.current = false // Manual status change clears auto-away flag
+                                        dispatch(updateUserStatus(s.id))
+                                    }}
+                                    className={`flex-1 py-2.5 rounded-xl border transition-all duration-200 flex items-center justify-center gap-2 ${
+                                        currentUser?.status === s.id 
+                                          ? 'bg-[#163146] border-transparent text-white shadow-lg shadow-blue-900/10' 
+                                          : 'bg-white border-gray-100 text-gray-400 hover:border-gray-200 hover:text-gray-600'
+                                    }`}
+                                >
+                                    <div className={`w-1.5 h-1.5 rounded-full ${s.id === 'online' ? 'bg-green-500' : s.id === 'away' ? 'bg-amber-500' : 'bg-amber-300'}`} />
+                                    <span className='text-[10px] font-bold tracking-tight'>
+                                        {s.label}
+                                    </span>
+                                </motion.button>
+                            ))}
+                        </div>
+                      </div>
                       {/* Menu Items */}
                       <div className='py-2'>
                         <Link to={profilePath}>
@@ -598,7 +698,7 @@ const DashboardLayout = ({ children }) => {
                             <span className='font-medium'>View Profile</span>
                           </motion.div>
                         </Link>
-                        <Link to={profilePath}>
+                        <Link to="/settings">
                           <motion.div
                             className='flex items-center gap-3 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer'
                             whileHover={{ x: 4 }}

@@ -17,6 +17,8 @@ import ProfilePage from './pages/Profile/ProfilePage'
 import PublicProfilePage from './pages/Profile/PublicProfilePage'
 import { persistor, store } from './redux/store'
 
+import SettingsPage from './pages/Settings/SettingsPage'
+
 const App = () => {
   return (
     <Provider store={store}>
@@ -25,6 +27,15 @@ const App = () => {
           <ScrollToTop />
           <Routes>
             <Route path='/'>
+              {/* ... existing routes ... */}
+              <Route
+                path='/settings'
+                element={
+                  <PrivateRoute>
+                    <SettingsPage />
+                  </PrivateRoute>
+                }
+              />
               <Route
                 index
                 element={

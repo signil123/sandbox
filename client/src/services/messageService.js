@@ -24,9 +24,10 @@ export const messageService = {
     })
   },
 
-  uploadFile: (formData) => 
+  uploadFile: (formData, onUploadProgress) => 
     axiosInstance.post('/upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress
     }),
 
   archiveConversation: (conversationId) =>
@@ -45,4 +46,7 @@ export const messageService = {
 
   unblockUser: (conversationId) =>
     axiosInstance.post(`${API_URL}/conversations/${conversationId}/unblock`),
+
+  deleteMessage: (messageId) =>
+    axiosInstance.delete(`${API_URL}/messages/${messageId}`),
 }

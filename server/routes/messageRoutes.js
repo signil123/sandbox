@@ -3,13 +3,15 @@ import express from 'express'
 import {
     archiveConversation,
     blockUser,
+    deleteMessage,
     getConversations,
     getMessages,
     searchMessages,
     sendMessage,
     startConversation,
     unblockUser,
-    updateSettings
+    updateSettings,
+    updateStatus
 } from '../controllers/message.js'
 import { verifyToken } from '../middleware/authMiddleware.js'
 
@@ -33,8 +35,14 @@ router.get('/conversations/:conversationId/messages', getMessages)
 // Send a message
 router.post('/conversations/:conversationId/messages', sendMessage)
 
+// Delete a message
+router.delete('/messages/:messageId', deleteMessage)
+
 // Update user settings (privacy, etc)
 router.put('/settings', updateSettings)
+
+// Update user status (online, idle, etc)
+router.put('/status', updateStatus)
 
 // Archive/Delete conversation
 router.delete('/conversations/:conversationId', archiveConversation)

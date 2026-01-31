@@ -3,6 +3,7 @@ import { createAsyncThunk, createSlice } from '@reduxjs/toolkit'
 import { authService } from '../services/authService'
 import { connectionService } from '../services/connectionService'
 import { messageService } from '../services/messageService'
+import { profileService } from '../services/profileService'
 
 const initialState = {
   currentUser: null,
@@ -13,6 +14,8 @@ const initialState = {
   unreadCount: 0, // Notification unread count
   unreadMessagesCount: 0, // Message unread count
   activeConversationId: null,
+  tier: 'free', // Default to free
+  verificationStatus: 'not_submitted',
   network: {
     advisors: [],
     roster: [],
@@ -54,6 +57,18 @@ export const updateUserProfile = createAsyncThunk(
       return response.data.user
     } catch (error) {
       return rejectWithValue(error || 'Failed to update profile')
+    }
+  }
+)
+
+export const updateUserStatus = createAsyncThunk(
+  'user/updateStatus',
+  async (status, { rejectWithValue }) => {
+    try {
+      const response = await profileService.updateStatus(status)
+      return response.data.user
+    } catch (error) {
+      return rejectWithValue(error || 'Failed to update status')
     }
   }
 )
@@ -199,6 +214,23 @@ export const userSlice = createSlice({
         state.error = action.payload
       })
 
+    // Update Status
+    builder
+      .addCase(updateUserStatus.pending, (state) => {
+        state.loading = true
+        state.error = null
+      })
+      .addCase(updateUserStatus.fulfilled, (state, action) => {
+        state.loading = false
+        if (state.currentUser) {
+            state.currentUser.status = action.payload.status
+        }
+      })
+      .addCase(updateUserStatus.rejected, (state, action) => {
+        state.loading = false
+        state.error = action.payload
+      })
+
     // Logout
     builder.addCase(logoutUser.fulfilled, (state) => {
       state.currentUser = null
@@ -273,5 +305,13 @@ export const selectIsAdvisor = (state) =>
   state.user.currentUser?.userType === 'advisor'
 export const selectIsAgent = (state) =>
   state.user.currentUser?.userType === 'agent'
+
+export const selectUserTier = (state) => state.user.currentUser?.tier || 'free'
+export const selectVerificationStatus = (state) => state.user.currentUser?.verificationStatus || 'not_submitted'
+
+export const selectIsFree = (state) => selectUserTier(state) === 'free'
+export const selectIsGrowth = (state) => selectUserTier(state) === 'growth'
+export const selectIsPro = (state) => selectUserTier(state) === 'pro'
+export const selectIsVerified = (state) => selectVerificationStatus(state) === 'approved'
 
 export default userSlice.reducer

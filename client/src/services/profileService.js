@@ -337,4 +337,15 @@ export const profileService = {
       handleError(error)
     }
   },
+  /**
+   * Update user status (online, away, idle, etc)
+   */
+  updateStatus: async (status) => {
+    try {
+      const response = await axiosInstance.put('/messages/status', { status })
+      return response.data
+    } catch (error) {
+      handleError(error)
+    }
+  },
 }

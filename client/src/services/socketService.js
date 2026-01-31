@@ -14,7 +14,7 @@ export const socketService = {
     })
 
     socket.on('connect', () => {
-      console.log('Connected to socket server')
+      console.log('Connected to socket server with ID:', socket.id)
     })
 
     socket.on('connect_error', (err) => {
@@ -35,11 +35,19 @@ export const socketService = {
 
   // Handlers
   joinConversation: (conversationId) => {
-    if (socket) socket.emit('join_conversation', conversationId)
+    if (socket) {
+      console.log('SocketService: Joining room', conversationId)
+      socket.emit('join_conversation', conversationId)
+    } else {
+      console.warn('SocketService: joinConversation called but socket is null')
+    }
   },
 
   leaveConversation: (conversationId) => {
-    if (socket) socket.emit('leave_conversation', conversationId)
+    if (socket) {
+      console.log('SocketService: Leaving room', conversationId)
+      socket.emit('leave_conversation', conversationId)
+    }
   },
 
   sendTyping: (conversationId, isTyping) => {

@@ -203,7 +203,7 @@ const UserSchema = new mongoose.Schema(
     // Presence
     status: {
       type: String,
-      enum: ['online', 'away', 'offline'],
+      enum: ['online', 'away', 'offline', 'idle'],
       default: 'offline',
     },
     lastSeen: {

@@ -140,14 +140,21 @@ export const sendMessage = async (req, res, next) => {
 
     // Create notification for recipient
     const sender = await User.findById(senderId)
+    const notificationContent = content 
+      ? (content.length > 50 ? `${content.substring(0, 47)}...` : content)
+      : (attachments && attachments.length > 0 ? `Sent a ${req.body.type || 'file'}` : 'New message')
+
     await Notification.create({
-      user: recipientId,
-      type: 'new_message',
-      priority: 'medium',
       recipient: recipientId,
-      relatedUser: senderId,
+      sender: senderId,
+      type: 'message',
+      priority: 'medium',
       title: `New message from ${sender.name}`,
-      message: content.length > 50 ? `${content.substring(0, 47)}...` : content,
+      description: notificationContent,
+      relatedEntity: {
+        entityType: 'message',
+        entityId: message._id
+      },
       actionUrl: `/messages/conversations/${conversationId}`,
       isRead: false,
     })
@@ -203,10 +210,14 @@ export const getConversations = async (req, res, next) => {
         // Get connection status for the participants
         const connectionInfo = await Connection.getConnectionInfo(userId, otherUser._id)
 
-        // Snippet: first 40 characters
-        const lastMessageSnippet = conv.lastMessage?.content
-          ? conv.lastMessage.content.substring(0, 40) + (conv.lastMessage.content.length > 40 ? '...' : '')
-          : ''
+        // Snippet: first 40 characters or attachment type
+        let lastMessageSnippet = ''
+        if (conv.lastMessage?.content) {
+          lastMessageSnippet = conv.lastMessage.content.substring(0, 40) + (conv.lastMessage.content.length > 40 ? '...' : '')
+        } else if (conv.lastMessage?.attachments && conv.lastMessage.attachments.length > 0) {
+          const type = conv.lastMessage.type === 'image' ? 'image' : 'file'
+          lastMessageSnippet = `Sent a ${type}`
+        }
 
         return {
           ...conv.toObject(),
@@ -296,12 +307,24 @@ export const updateSettings = async (req, res, next) => {
 
     const user = await User.findByIdAndUpdate(
       userId,
-      { $set: { settings: { ...req.user.settings, ...settings } } },
+      { $set: { settings: { ...(req.user.settings || {}), ...settings } } },
       { new: true, runValidators: true }
     )
 
     if (!user) {
       return next(createError(404, 'User not found'))
+    }
+
+    // Emit presence update to reflect new privacy settings immediately
+    try {
+      const io = getIO()
+      io.emit('presence_update', {
+        userId: user._id,
+        status: user.status,
+        lastSeen: user.settings?.showLastSeen ? user.lastSeen : null,
+      })
+    } catch (socketErr) {
+      console.warn('Socket emit failed in updateSettings:', socketErr.message)
     }
 
     res.status(200).json({
@@ -314,7 +337,46 @@ export const updateSettings = async (req, res, next) => {
   }
 }
 /**
- * Archive/Delete a conversation
+ * Update user status (online, away, idle, offline)
+ */
+export const updateStatus = async (req, res, next) => {
+  try {
+    const userId = req.user.id
+    const { status } = req.body
+
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { $set: { status, lastSeen: new Date() } },
+      { new: true, runValidators: true }
+    ).select('status lastSeen settings name email')
+
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    // Emit presence update
+    try {
+      const io = getIO()
+      io.emit('presence_update', {
+        userId: user._id,
+        status: user.status,
+        lastSeen: user.settings?.showLastSeen ? user.lastSeen : null,
+      })
+    } catch (socketErr) {
+      console.warn('Socket emit failed in updateStatus:', socketErr.message)
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: { user },
+    })
+  } catch (error) {
+    console.error('Error in updateStatus:', error)
+    next(error)
+  }
+}
+/**
+ * Delete a conversation and all its messages permanently
  */
 export const archiveConversation = async (req, res, next) => {
   try {
@@ -330,16 +392,28 @@ export const archiveConversation = async (req, res, next) => {
       return next(createError(403, 'You are not a participant in this conversation'))
     }
 
-    // Instead of deleting, we archive it for this user
-    // We can add a field 'archivedBy' to the Conversation model if we want it per-user
-    // But for now let's just use the existing isArchived or simply mark as deleted for this user
-    // The current schema has isArchived. Let's use it.
-    conversation.isArchived = true
-    await conversation.save()
+    // Emit socket event to notify participants
+    try {
+      const io = getIO()
+      io.to(conversationId).emit('conversation_deleted', { conversationId })
+    } catch (socketErr) {
+      console.warn('Socket emit failed in archiveConversation:', socketErr.message)
+    }
+
+    // Permanently delete all messages in this conversation
+    await Message.deleteMany({ conversation: conversationId })
+
+    // Permanently delete the conversation document
+    await Conversation.findByIdAndDelete(conversationId)
+
+    // Also cleanup notifications related to this conversation
+    await Notification.deleteMany({ 
+      actionUrl: { $regex: conversationId } 
+    })
 
     res.status(200).json({
       status: 'success',
-      message: 'Conversation archived successfully',
+      message: 'Conversation and all messages deleted successfully',
     })
   } catch (error) {
     console.error('Error in archiveConversation:', error)
@@ -474,6 +548,45 @@ export const unblockUser = async (req, res, next) => {
     })
   } catch (error) {
     console.error('Error in unblockUser:', error)
+    next(error)
+  }
+}
+
+/**
+ * Delete a message (soft delete)
+ */
+export const deleteMessage = async (req, res, next) => {
+  try {
+    const { messageId } = req.params
+    const userId = req.user.id
+
+    const message = await Message.findById(messageId)
+    if (!message) {
+      return next(createError(404, 'Message not found'))
+    }
+
+    // Verify the user is the sender
+    if (message.sender.toString() !== userId) {
+      return next(createError(403, 'You can only delete your own messages'))
+    }
+
+    // Soft delete the message
+    message.isDeleted = true
+    await message.save()
+
+    // Emit socket event to both users
+    const io = getIO()
+    io.to(message.conversation.toString()).emit('message_deleted', {
+      messageId: message._id,
+      conversationId: message.conversation,
+    })
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Message deleted successfully',
+    })
+  } catch (error) {
+    console.error('Error in deleteMessage:', error)
     next(error)
   }
 }

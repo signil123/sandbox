@@ -39,11 +39,11 @@ export const initSocket = (server) => {
     
     socket.user.status = 'online'
     socket.user.lastSeen = new Date()
-    socket.user.save().then(() => {
+    socket.user.save().then((user) => {
       io.emit('presence_update', {
-        userId: socket.user._id,
+        userId: user._id,
         status: 'online',
-        lastSeen: socket.user.settings?.showLastSeen ? socket.user.lastSeen : null,
+        lastSeen: user.settings?.showLastSeen ? user.lastSeen : null,
       })
     })
 
@@ -65,16 +65,20 @@ export const initSocket = (server) => {
     socket.on('disconnect', async () => {
       if (socket.user) {
         // Use findByIdAndUpdate to avoid version error (ParallelSaveError)
+        // Ensure we project the settings field to have the latest privacy info
         const updatedUser = await User.findByIdAndUpdate(
           socket.user._id,
           { status: 'offline', lastSeen: new Date() },
-          { new: true }
+          { new: true, select: 'status lastSeen settings' }
         )
-        io.emit('presence_update', {
-          userId: socket.user._id,
-          status: 'offline',
-          lastSeen: socket.user.settings?.showLastSeen ? socket.user.lastSeen : null,
-        })
+        
+        if (updatedUser) {
+          io.emit('presence_update', {
+            userId: updatedUser._id,
+            status: 'offline',
+            lastSeen: updatedUser.settings?.showLastSeen ? updatedUser.lastSeen : null,
+          })
+        }
       }
     })
   })
