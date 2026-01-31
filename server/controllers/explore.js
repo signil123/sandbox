@@ -195,6 +195,7 @@ export const exploreUsers = async (req, res, next) => {
           connectionStatus,
           interests,
           nilPreferences: nil,
+          ratings: userProfile.ratings || { averageRating: 0, totalReviews: 0 },
         }
       })
     )

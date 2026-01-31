@@ -118,10 +118,10 @@ export const AdvisorRecommendationCard = ({ advisor, onConnect, onView, isPrimar
           </div>
           <div className='text-center px-1 border-l border-r border-gray-200 min-h-[50px] flex flex-col justify-center overflow-hidden'>
             <p className='text-[10px] text-gray-500 font-medium leading-tight truncate px-1'>
-              {advisor.specialty}
+              Rating
             </p>
             <p className='text-xs font-bold text-gray-900 leading-tight'>
-              Pro
+              {advisor.rating > 0 ? Number(advisor.rating).toFixed(1) : 'N/A'}
             </p>
           </div>
           <div className='text-center px-1 min-h-[50px] flex flex-col justify-center'>

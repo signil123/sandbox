@@ -458,19 +458,51 @@ const SPORTS_OPTIONS = [
   'NIL Generalist',
 ]
 
-const CERTIFICATIONS_OPTIONS = {
-  legal: [
-    { label: 'JD', value: 'JD' },
-    {
-      label: 'NCAA Compliance Officer (former)',
-      value: 'NCAA Compliance Officer (former)',
-    },
+const AREAS_OF_EXPERTISE = {
+  Finance: [
+    'Financial Planning',
+    'Tax Planning',
+    'Bookkeeping & Budgeting',
+    'NIL Income Tracking',
+    'Cash Flow Management',
+    'Investment Basics',
+    'Retirement & Long-Term Planning',
+    'Debt & Credit Strategy',
+    'Entity Setup (LLC/S-Corp basics)',
+    'Payroll & Contractor Payments',
+    'Compliance-Friendly Deductions',
+    'Financial Literacy Coaching',
   ],
-  finance: [
-    { label: 'CPA', value: 'CPA' },
-    { label: 'CFA', value: 'CFA' },
-    { label: 'CFP', value: 'CFP' },
-    { label: 'MBA', value: 'MBA' },
+  Law: [
+    'Contract Review',
+    'Contract Negotiation',
+    'NIL Compliance',
+    'NCAA/Conference Policy Guidance',
+    'Brand Deal Agreements',
+    'Appearance & Event Agreements',
+    'Licensing & IP (name/likeness/merch)',
+    'Trademark Basics',
+    'Agent / Manager Agreements',
+    'Dispute Resolution',
+    'Cease & Desist / Takedowns',
+    'Privacy & Reputation Protection',
+  ],
+  Marketing: [
+    'Brand Strategy',
+    'Brand Building',
+    'Personal Branding',
+    'Social Media Strategy',
+    'Content Strategy',
+    'Posting & Growth Plan',
+    'Audience Development',
+    'Media Kit Creation',
+    'Rate Card & Pricing Strategy',
+    'Pitching & Outreach',
+    'Negotiation Support (non-legal)',
+    'Sponsorship Strategy',
+    'Campaign Planning',
+    'Analytics & Performance Tracking',
+    'Creator Partnerships',
   ],
 }
 
@@ -518,6 +550,7 @@ function CompactFilterDropdown({
   onToggle,
   children,
   activeCount,
+  widthClass = 'sm:w-72',
 }) {
   return (
     <motion.div className='w-full relative'>
@@ -584,7 +617,7 @@ function CompactFilterDropdown({
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: -10 }}
               transition={{ duration: 0.2 }}
-              className='absolute top-full left-0 right-0 mt-2 bg-white border rounded-lg  z-50 mx-0 sm:w-72'
+              className={`absolute top-full left-0 mt-2 bg-white border rounded-xl z-50 mx-0 ${widthClass}`}
               style={{ borderColor: '#e5e7eb' }}
             >
               <div className='p-3 space-y-2'>{children}</div>
@@ -611,10 +644,11 @@ function ExplorePageContent() {
     sortBy: 'bestMatch',
     education: [],
     experienceRange: [],
-    certifications: [],
+    areasOfExpertise: [],
     sportSpecializations: [],
     locationPreference: '',
   })
+  const [activeExpertiseCategory, setActiveExpertiseCategory] = useState('Finance')
 
   // Dropdown states - now only one can be open at a time for cleaner UX
   const [openDropdown, setOpenDropdown] = useState(null)
@@ -639,7 +673,7 @@ function ExplorePageContent() {
         locationPreference: filters.locationPreference,
         education: filters.education.join(','),
         experienceRange: filters.experienceRange.join(','),
-        certifications: filters.certifications.join(','),
+        areasOfExpertise: filters.areasOfExpertise.join(','),
         sportSpecializations: filters.sportSpecializations.join(','),
       }
       
@@ -725,11 +759,11 @@ function ExplorePageContent() {
     handleFilterChange({ ...filters, experienceRange: newExperience })
   }
 
-  const toggleCertification = (cert) => {
-    const newCerts = filters.certifications.includes(cert)
-      ? filters.certifications.filter((c) => c !== cert)
-      : [...filters.certifications, cert]
-    handleFilterChange({ ...filters, certifications: newCerts })
+  const toggleAreaOfExpertise = (area) => {
+    const newAreas = filters.areasOfExpertise.includes(area)
+      ? filters.areasOfExpertise.filter((a) => a !== area)
+      : [...filters.areasOfExpertise, area]
+    handleFilterChange({ ...filters, areasOfExpertise: newAreas })
   }
 
   const toggleSport = (sport) => {
@@ -744,7 +778,7 @@ function ExplorePageContent() {
       sortBy: 'best-match',
       education: [],
       experienceRange: [],
-      certifications: [],
+      areasOfExpertise: [],
       sportSpecializations: [],
     })
     setCurrentPage(1)
@@ -780,7 +814,7 @@ function ExplorePageContent() {
     filters.expertise.length > 0 ||
     filters.education.length > 0 ||
     filters.experienceRange.length > 0 ||
-    filters.certifications.length > 0 ||
+    filters.areasOfExpertise.length > 0 ||
     filters.sportSpecializations.length > 0
 
   return (
@@ -920,6 +954,93 @@ function ExplorePageContent() {
 
               {/* Horizontal Filter Dropdowns Row */}
               <div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-3 pt-2'>
+                {/* Areas of Expertise */}
+                <CompactFilterDropdown
+                  title='Areas of Expertise'
+                  icon={Star}
+                  widthClass="sm:w-[520px]"
+                  isOpen={openDropdown === 'areasOfExpertise'}
+                  onToggle={() =>
+                    setOpenDropdown(
+                      openDropdown === 'areasOfExpertise'
+                        ? null
+                        : 'areasOfExpertise'
+                    )
+                  }
+                  activeCount={filters.areasOfExpertise.length}
+                >
+                  <div className='w-full'>
+                    {/* Category Tabs */}
+                    <div className='flex gap-1.5 border-b border-gray-100 mb-4 px-1 pb-1'>
+                      {Object.keys(AREAS_OF_EXPERTISE).map((category) => {
+                        const count = AREAS_OF_EXPERTISE[category].filter(item => 
+                          filters.areasOfExpertise.includes(item)
+                        ).length
+                        
+                        const isActive = activeExpertiseCategory === category
+
+                        return (
+                          <button
+                            key={category}
+                            onClick={() => setActiveExpertiseCategory(category)}
+                            className='flex-1 py-2 text-[11px] font-bold uppercase tracking-widest transition-all relative rounded-lg'
+                            style={{
+                              color: isActive ? 'white' : '#6b7280',
+                              background: isActive ? COLORS.primary : 'transparent',
+                            }}
+                          >
+                            <span className="relative z-10 flex items-center justify-center gap-2">
+                              {category}
+                              {count > 0 && (
+                                <span 
+                                  className='w-4 h-4 text-[9px] flex items-center justify-center rounded-full'
+                                  style={{ background: isActive ? 'white' : COLORS.primary, color: isActive ? COLORS.primary : 'white' }}
+                                >
+                                  {count}
+                                </span>
+                              )}
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+
+                    {/* Category Items - Two Column Grid */}
+                    <div className='min-h-[220px] px-2 overflow-hidden'>
+                      <AnimatePresence mode='wait'>
+                        <motion.div
+                          key={activeExpertiseCategory}
+                          initial={{ opacity: 0, y: 5 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -5 }}
+                          transition={{ duration: 0.15 }}
+                          className='grid grid-cols-2 gap-x-8 gap-y-2'
+                        >
+                          {AREAS_OF_EXPERTISE[activeExpertiseCategory].map((item) => (
+                            <label
+                              key={item}
+                              className='flex items-center gap-3 cursor-pointer group py-1 border-b border-transparent hover:border-gray-50 transition-all'
+                            >
+                              <div className="relative flex items-center justify-center">
+                                <input
+                                  type='checkbox'
+                                  checked={filters.areasOfExpertise.includes(item)}
+                                  onChange={() => toggleAreaOfExpertise(item)}
+                                  className='rounded w-4 h-4 transition-all'
+                                  style={{ accentColor: COLORS.primary }}
+                                />
+                              </div>
+                              <span className='text-[11px] text-gray-600 group-hover:text-gray-900 transition-colors leading-tight font-medium'>
+                                {item}
+                              </span>
+                            </label>
+                          ))}
+                        </motion.div>
+                      </AnimatePresence>
+                    </div>
+                  </div>
+                </CompactFilterDropdown>
+
                 {/* Education & Experience */}
                 <CompactFilterDropdown
                   title='Education & Experience'
@@ -976,75 +1097,6 @@ function ExplorePageContent() {
                           />
                           <span className='text-xs text-gray-700'>
                             {range} years
-                          </span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                </CompactFilterDropdown>
-
-                {/* Certifications */}
-                <CompactFilterDropdown
-                  title='Certifications'
-                  icon={Star}
-                  isOpen={openDropdown === 'certifications'}
-                  onToggle={() =>
-                    setOpenDropdown(
-                      openDropdown === 'certifications'
-                        ? null
-                        : 'certifications'
-                    )
-                  }
-                  activeCount={filters.certifications.length}
-                >
-                  <div>
-                    <p className='text-xs font-semibold text-gray-700 mb-2'>
-                      Legal/Compliance
-                    </p>
-                    <div className='space-y-2'>
-                      {CERTIFICATIONS_OPTIONS.legal.map((cert) => (
-                        <label
-                          key={cert.value}
-                          className='flex items-center gap-2 cursor-pointer'
-                        >
-                          <input
-                            type='checkbox'
-                            checked={filters.certifications.includes(
-                              cert.value
-                            )}
-                            onChange={() => toggleCertification(cert.value)}
-                            className='rounded w-4 h-4'
-                            style={{ accentColor: COLORS.primary }}
-                          />
-                          <span className='text-xs text-gray-700'>
-                            {cert.label}
-                          </span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className='border-t border-gray-100 pt-3'>
-                    <p className='text-xs font-semibold text-gray-700 mb-2'>
-                      Finance/Business
-                    </p>
-                    <div className='space-y-2'>
-                      {CERTIFICATIONS_OPTIONS.finance.map((cert) => (
-                        <label
-                          key={cert.value}
-                          className='flex items-center gap-2 cursor-pointer'
-                        >
-                          <input
-                            type='checkbox'
-                            checked={filters.certifications.includes(
-                              cert.value
-                            )}
-                            onChange={() => toggleCertification(cert.value)}
-                            className='rounded w-4 h-4'
-                            style={{ accentColor: COLORS.primary }}
-                          />
-                          <span className='text-xs text-gray-700'>
-                            {cert.label}
                           </span>
                         </label>
                       ))}
@@ -1188,10 +1240,10 @@ function ExplorePageContent() {
                       <X size={12} />
                     </motion.button>
                   ))}
-                  {filters.certifications.map((cert) => (
+                  {filters.areasOfExpertise.map((area) => (
                     <motion.button
-                      key={`cert-${cert}`}
-                      onClick={() => toggleCertification(cert)}
+                      key={`area-${area}`}
+                      onClick={() => toggleAreaOfExpertise(area)}
                       className='inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium'
                       style={{
                         background: `${COLORS.lightAccent}`,
@@ -1200,7 +1252,7 @@ function ExplorePageContent() {
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                     >
-                      {cert}
+                      {area}
                       <X size={12} />
                     </motion.button>
                   ))}
@@ -1361,44 +1413,83 @@ function ExplorePageContent() {
                      
                      <div className="h-px bg-gray-100"></div>
 
-                     {/* Certifications Section */}
+                     {/* Areas of Expertise Section */}
                      <section>
-                        <h3 className="text-sm font-bold text-gray-900 mb-3 uppercase tracking-wider">Certifications</h3>
-                        <div className='space-y-6 pl-1'>
-                           <div>
-                              <p className='text-xs font-bold text-slate-500 mb-3'>LEGAL & COMPLIANCE</p>
-                              <div className='space-y-3'>
-                                 {CERTIFICATIONS_OPTIONS.legal.map((cert) => (
-                                 <label key={cert.value} className='flex items-center gap-3 cursor-pointer py-1'>
-                                    <input
-                                       type='checkbox'
-                                       checked={filters.certifications.includes(cert.value)}
-                                       onChange={() => toggleCertification(cert.value)}
-                                       className='rounded w-5 h-5'
-                                       style={{ accentColor: COLORS.primary }}
-                                    />
-                                    <span className='text-sm text-gray-700'>{cert.label}</span>
-                                 </label>
+                        <div className="flex items-center justify-between mb-4">
+                           <h3 className="text-[13px] font-bold text-gray-900 uppercase tracking-widest">Areas of Expertise</h3>
+                           {filters.areasOfExpertise.length > 0 && (
+                              <button 
+                                 onClick={() => handleFilterChange({...filters, areasOfExpertise: []})} 
+                                 className="text-[11px] font-bold text-[#986a41] px-2 py-1 rounded-lg bg-[#f4e8d8]/50"
+                              >
+                                 Clear
+                              </button>
+                           )}
+                        </div>
+                        
+                        {/* Mobile Category Tabs */}
+                        <div className='flex gap-2.5 mb-5 overflow-x-auto pb-2 no-scrollbar px-1'>
+                           {Object.keys(AREAS_OF_EXPERTISE).map((category) => {
+                              const count = AREAS_OF_EXPERTISE[category].filter(item => 
+                                 filters.areasOfExpertise.includes(item)
+                              ).length
+
+                              return (
+                                 <button
+                                    key={category}
+                                    onClick={() => setActiveExpertiseCategory(category)}
+                                    className='px-5 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all shadow-sm'
+                                    style={{
+                                       background: activeExpertiseCategory === category ? COLORS.primary : 'white',
+                                       color: activeExpertiseCategory === category ? 'white' : '#6b7280',
+                                       border: `1px solid ${activeExpertiseCategory === category ? COLORS.primary : '#f3f4f6'}`
+                                    }}
+                                 >
+                                    <div className="flex items-center gap-2">
+                                       {category}
+                                       {count > 0 && (
+                                          <span 
+                                             className='w-4 h-4 flex items-center justify-center rounded-full text-[9px]'
+                                             style={{ 
+                                                background: activeExpertiseCategory === category ? 'white' : COLORS.primary, 
+                                                color: activeExpertiseCategory === category ? COLORS.primary : 'white' 
+                                             }}
+                                          >
+                                             {count}
+                                          </span>
+                                       )}
+                                    </div>
+                                 </button>
+                              )
+                           })}
+                        </div>
+
+                        <div className='bg-gray-50/50 p-4 rounded-2xl border border-gray-100 min-h-[280px]'>
+                           <AnimatePresence mode='wait'>
+                              <motion.div
+                                 key={activeExpertiseCategory}
+                                 initial={{ opacity: 0, y: 5 }}
+                                 animate={{ opacity: 1, y: 0 }}
+                                 exit={{ opacity: 0, y: -5 }}
+                                 transition={{ duration: 0.2 }}
+                                 className='space-y-3'
+                              >
+                                 {AREAS_OF_EXPERTISE[activeExpertiseCategory].map((item) => (
+                                    <label key={item} className='flex items-center gap-3.5 cursor-pointer py-1.5 group'>
+                                       <div className="relative flex items-center justify-center">
+                                          <input
+                                             type='checkbox'
+                                             checked={filters.areasOfExpertise.includes(item)}
+                                             onChange={() => toggleAreaOfExpertise(item)}
+                                             className='rounded w-5 h-5 transition-all'
+                                             style={{ accentColor: COLORS.primary }}
+                                          />
+                                       </div>
+                                       <span className='text-sm text-gray-700 font-medium group-active:text-gray-900'>{item}</span>
+                                    </label>
                                  ))}
-                              </div>
-                           </div>
-                           <div>
-                              <p className='text-xs font-bold text-slate-500 mb-3'>FINANCE & BUSINESS</p>
-                              <div className='space-y-3'>
-                                 {CERTIFICATIONS_OPTIONS.finance.map((cert) => (
-                                 <label key={cert.value} className='flex items-center gap-3 cursor-pointer py-1'>
-                                    <input
-                                       type='checkbox'
-                                       checked={filters.certifications.includes(cert.value)}
-                                       onChange={() => toggleCertification(cert.value)}
-                                       className='rounded w-5 h-5'
-                                       style={{ accentColor: COLORS.primary }}
-                                    />
-                                    <span className='text-sm text-gray-700'>{cert.label}</span>
-                                 </label>
-                                 ))}
-                              </div>
-                           </div>
+                              </motion.div>
+                           </AnimatePresence>
                         </div>
                      </section>
 
@@ -1566,10 +1657,10 @@ function ExplorePageContent() {
                           </div>
                           <div className='text-center px-1 border-l border-r border-gray-200 flex flex-col justify-center'>
                             <p className='text-[10px] text-gray-500 font-medium leading-tight truncate px-1'>
-                              Stars
+                              Rating
                             </p>
                             <p className='text-xs font-bold text-gray-900'>
-                              {user.rating && user.reviewCount >= 5 ? user.rating : 'New'}
+                              {user.rating > 0 ? Number(user.rating).toFixed(1) : 'N/A'}
                             </p>
                           </div>
                           <div className='text-center px-1 flex flex-col justify-center'>
