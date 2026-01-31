@@ -122,7 +122,12 @@ export const getDocument = async (req, res, next) => {
       return next(createError(404, 'Document not found'))
     }
 
-    if (document.user.toString() !== advisorId) {
+    // Handle populated user field
+    const documentUserId = document.user._id
+      ? document.user._id.toString()
+      : document.user.toString()
+
+    if (documentUserId !== advisorId) {
       return next(createError(403, 'You cannot access this document'))
     }
 
@@ -156,7 +161,12 @@ export const updateDocument = async (req, res, next) => {
       return next(createError(404, 'Document not found'))
     }
 
-    if (document.user.toString() !== advisorId) {
+    // Handle populated user field
+    const documentUserId = document.user._id
+      ? document.user._id.toString()
+      : document.user.toString()
+
+    if (documentUserId !== advisorId) {
       return next(createError(403, 'You cannot update this document'))
     }
 
@@ -223,8 +233,18 @@ export const deleteDocument = async (req, res, next) => {
       return next(createError(404, 'Document not found'))
     }
 
-    if (document.user.toString() !== advisorId) {
-      return next(createError(403, 'You cannot delete this document'))
+    // Handle populated user field
+    const documentUserId = document.user._id
+      ? document.user._id.toString()
+      : document.user.toString()
+
+    if (documentUserId !== advisorId) {
+      return next(
+        createError(
+          403,
+          `You cannot delete this document. Owner: ${documentUserId}, Requesting: ${advisorId}`
+        )
+      )
     }
 
     if (document.status === 'verified') {
