@@ -185,6 +185,10 @@ export const exploreUsers = async (req, res, next) => {
         // Calculate match score
         const matchScore = await calculateMatchScore(userId, profile.user)
         const connectionStatus = await Connection.getConnectionStatus(userId, profile.user)
+        const totalConnections = await Connection.find({
+          $or: [{ user1: profile.user }, { user2: profile.user }],
+          status: 'active',
+        }).countDocuments()
 
         return {
           userId: profile.user,
@@ -193,6 +197,7 @@ export const exploreUsers = async (req, res, next) => {
           profile: profile, // Return the full profile object for consistency
           matchScore,
           connectionStatus,
+          totalConnections,
           interests,
           nilPreferences: nil,
           ratings: userProfile.ratings || { averageRating: 0, totalReviews: 0 },
@@ -273,6 +278,10 @@ export const getTrendingUsers = async (req, res, next) => {
         const trendingUser = await User.findById(profile.user)
         const matchScore = await calculateMatchScore(userId, profile.user)
         const connectionStatus = await Connection.getConnectionStatus(userId, profile.user)
+        const totalConnections = await Connection.find({
+          $or: [{ user1: profile.user }, { user2: profile.user }],
+          status: 'active',
+        }).countDocuments()
 
         return {
           userId: profile.user,
@@ -280,6 +289,7 @@ export const getTrendingUsers = async (req, res, next) => {
           profile: profile,
           matchScore,
           connectionStatus,
+          totalConnections,
         }
       })
     )

@@ -292,6 +292,10 @@ export const getRecommendations = async (req, res, next) => {
         const interests = await Interest.find({ user: match.user._id })
         const nil = await NILPreference.findOne({ user: match.user._id })
         const connectionStatus = await Connection.getConnectionStatus(userId, match.user._id)
+        const totalConnections = await Connection.find({
+          $or: [{ user1: match.user._id }, { user2: match.user._id }],
+          status: 'active',
+        }).countDocuments()
 
         return {
           userId: match.user._id,
@@ -301,6 +305,7 @@ export const getRecommendations = async (req, res, next) => {
           matchScore: match.matchScore,
           isBestMatch: match.matchScore >= 90,
           connectionStatus,
+          totalConnections,
           profile: matchProfile,
           interests,
           nilPreferences: nil,

@@ -279,6 +279,11 @@ UserSchema.methods.correctPassword = async function (
   return await bcrypt.compare(candidatePassword, userPassword)
 }
 
+UserSchema.methods.canLeaveReview = async function (targetUserId) {
+  const Connection = mongoose.model('Connection')
+  return await Connection.areConnected(this._id, targetUserId)
+}
+
 UserSchema.methods.createPasswordResetToken = function () {
   const resetToken = crypto.randomBytes(32).toString('hex')
   this.passwordResetToken = crypto

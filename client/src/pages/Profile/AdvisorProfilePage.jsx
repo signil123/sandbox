@@ -8,17 +8,19 @@ import {
     Eye,
     FileBadge,
     Globe,
+    Linkedin,
     Lock,
     Mail,
     MapPin,
     Phone,
     Plus,
     ShieldCheck,
+    Twitter,
     Upload,
     User,
     X,
 } from 'lucide-react'
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import { Toaster, toast } from 'sonner'
@@ -30,17 +32,6 @@ import { profileService } from '../../services/profileService'
 import DashboardLayout from '../Layout/DashboardLayout'
 
 // Professional specific options
-const expertiseOptions = [
-  'Legal & Compliance',
-  'Contract Negotiation',
-  'Brand Management',
-  'Financial Planning',
-  'Public Relations',
-  'Content Strategy',
-  'NIL Education',
-  'Career Development',
-]
-
 const experienceOptions = [
   '1-3 Years',
   '3-5 Years',
@@ -83,13 +74,31 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
   const [savingSpecializations, setSavingSpecializations] = useState(false)
   const [specializationsModalOpen, setSpecializationsModalOpen] = useState(false)
 
+  // Mobile & Scroll Lock Logic
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  useEffect(() => {
+    const isAnyModalOpen = editModalOpen || preferencesModalOpen || documentManagerOpen || themeModalOpen || previewModalOpen || completeProfileModalOpen
+    if (isAnyModalOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = 'unset'
+    }
+    return () => { document.body.style.overflow = 'unset' }
+  }, [editModalOpen, preferencesModalOpen, documentManagerOpen, themeModalOpen, previewModalOpen, completeProfileModalOpen])
+
   // Profile data
   const [profileData, setProfileData] = useState({
     name: '',
     photo: null,
     organization: '',
     role: '',
-    expertise: [],
     experience: '',
     aboutMe: '',
     email: '',
@@ -121,7 +130,6 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
     organization: '',
     role: '',
     experience: '',
-    expertise: [],
     aboutMe: ''
   })
 
@@ -136,13 +144,11 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
 
   const currentTheme = getThemeById(selectedThemeId)
 
-  const fetchProfileData = async () => {
+  const fetchProfileData = useCallback(async () => {
     try {
       setLoading(true)
       if (currentUser?._id) {
-        console.log("Fetching profile for ID:", currentUser._id, "UserType:", currentUser.userType)
         const response = await profileService.getAdvisorProfile(currentUser._id)
-        console.log("Profile response:", response)
         if (response?.status === 'success' && response.data?.advisor) {
           const { profile, nilPreferences, verificationStatus } = response.data.advisor
           
@@ -155,7 +161,6 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
                 : null,
             organization: profile.agencyName || '',
             role: profile.title || (type === 'advisor' ? 'NIL Advisor' : 'Sports Agent'),
-            expertise: profile.specialization || [],
             experience: profile.experience || '',
             aboutMe: profile.aboutMe || '',
             email: profile.user?.email || '',
@@ -169,7 +174,8 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
             contactVisible: profile.contactVisible ?? true,
             verified: profile.verified || false,
             verificationStatus: verificationStatus || 'not_submitted',
-            banner: profile.bannerImage || null
+            banner: profile.bannerImage || null,
+            connections: profile.user?.totalConnections || 0,
           }
 
           setProfileData(mappedProfile)
@@ -188,17 +194,14 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
             })
           }
 
-
-
           // Check if profile is complete
-          const isComplete = mappedProfile.name && mappedProfile.experience && mappedProfile.aboutMe && (mappedProfile.expertise.length > 0)
+          const isComplete = mappedProfile.name && mappedProfile.experience && mappedProfile.aboutMe
           if (!isComplete) {
             setCompleteProfileData({
               name: mappedProfile.name,
               organization: mappedProfile.organization,
               role: mappedProfile.role,
               experience: mappedProfile.experience,
-              expertise: mappedProfile.expertise,
               aboutMe: mappedProfile.aboutMe
             })
             setCompleteProfileModalOpen(true)
@@ -211,11 +214,11 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
     } finally {
       setLoading(false)
     }
-  }
+  }, [currentUser?._id, currentUser?.userType, type])
 
   useEffect(() => {
     fetchProfileData()
-  }, [currentUser, type])
+  }, [fetchProfileData])
 
   const handleEditProfile = async () => {
     try {
@@ -236,7 +239,6 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
 
       // 2. Update Professional Info
       await profileService.updateAdvisorProfessionalInfo(advisorId, {
-        specialization: editFormData.expertise,
         experience: editFormData.experience,
         agencyName: editFormData.organization,
         title: editFormData.role
@@ -245,8 +247,8 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
       setProfileData(editFormData)
       setEditModalOpen(false)
       toast.success('Profile updated successfully!')
-    } catch (err) {
-      toast.error(typeof err === 'string' ? err : 'Failed to update profile')
+    } catch {
+      toast.error('Failed to update profile')
     } finally {
       setSavingProfile(false)
     }
@@ -264,7 +266,6 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
       })
 
       await profileService.updateAdvisorProfessionalInfo(advisorId, {
-        specialization: completeProfileData.expertise,
         experience: completeProfileData.experience,
         agencyName: completeProfileData.organization,
         title: completeProfileData.role
@@ -273,7 +274,7 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
       toast.success('Profile completed! Welcome to Signil.')
       setCompleteProfileModalOpen(false)
       fetchProfileData() // Refresh
-    } catch (err) {
+    } catch {
       toast.error('Failed to complete profile')
     } finally {
       setSavingProfile(false)
@@ -285,7 +286,7 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
       setSavingProfile(true)
       const selectedServices = Object.entries(preferences.serviceTypes)
         .filter(([_, enabled]) => enabled)
-        .map(([key, _]) => serviceTypeOptions.find(opt => opt.key === key)?.label)
+        .map(([key]) => serviceTypeOptions.find(opt => opt.key === key)?.label)
 
       await profileService.updateAdvisorNILPreferences(currentUser._id, {
         dealSize: preferences.preferredDealSize,
@@ -294,45 +295,14 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
 
       setPreferencesModalOpen(false)
       toast.success('Preferences updated successfully!')
-    } catch (err) {
+    } catch {
       toast.error('Failed to update preferences')
     } finally {
       setSavingProfile(false)
     }
   }
 
-  const handleSaveSpecializations = async () => {
-    try {
-      setSavingSpecializations(true)
-      const advisorId = currentUser._id
 
-      await profileService.updateAdvisorProfessionalInfo(advisorId, {
-        specialization: profileData.expertise,
-        experience: profileData.experience,
-        agencyName: profileData.organization,
-        title: profileData.role
-      })
-
-      setSpecializationsModalOpen(false)
-      toast.success('Specializations updated successfully!')
-      fetchProfileData()
-    } catch (err) {
-      console.error('Error updating specializations:', err)
-      toast.error(err.message || 'Failed to update specializations')
-    } finally {
-      setSavingSpecializations(false)
-    }
-  }
-
-  const handleToggleSpecialization = (opt) => {
-    const exists = profileData.expertise.includes(opt)
-    setProfileData(prev => ({
-      ...prev,
-      expertise: exists 
-        ? prev.expertise.filter(e => e !== opt)
-        : [...prev.expertise, opt]
-    }))
-  }
 
   const handleThemeChange = async (themeId) => {
     try {
@@ -369,41 +339,12 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
         dispatch(updateProfileImage(photoUrl))
         toast.success('Profile photo updated successfully!')
       }
-    } catch (err) {
-      console.error('Photo upload failed:', err)
+    } catch (error) {
+      console.error('Photo upload failed:', error)
       toast.error('Failed to upload profile photo')
     } finally {
       setSavingProfile(false)
     }
-  }
-
-  const handleBannerUpload = async (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-
-    try {
-      setSavingProfile(true)
-      const uploadResponse = await profileService.uploadFile(file)
-      
-      if (uploadResponse?.url) {
-        const url = uploadResponse.url
-        await profileService.updateBasicProfile({
-          bannerImage: url
-        })
-        
-        setProfileData(prev => ({ ...prev, banner: url }))
-        toast.success('Cover photo updated successfully!')
-      }
-    } catch (err) {
-      console.error('Banner upload failed:', err)
-      toast.error('Failed to upload cover photo')
-    } finally {
-      setSavingProfile(false)
-    }
-  }
-
-  const getActiveSpecializationsCount = () => {
-    return profileData.expertise.length
   }
 
   const getInitials = (name) => {
@@ -591,7 +532,7 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
                             {profileData.role} {profileData.organization ? `@ ${profileData.organization}` : ''}
                           </p>
                           <p className='text-xs text-slate-500'>
-                            {profileData.experience || 'Experience not set'} • {profileData.expertise.length > 0 ? profileData.expertise.join(', ') : 'Specializations not set'}
+                            {profileData.experience || 'Experience not set'} Professional Experience
                           </p>
                         </div>
                       </div>
@@ -631,7 +572,7 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
                            setProfileData({ ...profileData, contactVisible: newStatus });
                            try {
                              await profileService.updateBasicProfile({ contactVisible: newStatus });
-                           } catch (e) {
+                           } catch (error) {
                              toast.error("Failed to update visibility")
                            }
                         }}
@@ -649,58 +590,7 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
                 </div>
               </motion.div>
 
-              {/* NIL Specializations Section */}
-              <motion.div variants={itemVariants}>
-                <div className='bg-white rounded-2xl border border-slate-200 p-5 shadow-sm'>
-                  <div className='flex items-center justify-between mb-4'>
-                    <div>
-                      <h3 className='text-lg font-bold text-slate-900'>
-                        NIL Specializations
-                      </h3>
-                      <p className='text-xs text-slate-500 mt-0.5'>
-                        {getActiveSpecializationsCount()} areas selected
-                      </p>
-                    </div>
-                    <motion.button
-                      whileHover={{ scale: 1.08 }}
-                      whileTap={{ scale: 0.92 }}
-                      onClick={() => setSpecializationsModalOpen(true)}
-                      className='p-2 rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors'
-                    >
-                      <Edit3 size={14} className='text-slate-600' />
-                    </motion.button>
-                  </div>
 
-                  {getActiveSpecializationsCount() === 0 ? (
-                    <div className='text-center py-6 border border-dashed border-slate-200 rounded-xl'>
-                      <p className='text-sm text-slate-500 mb-2'>
-                        No specializations selected
-                      </p>
-                      <motion.button
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => setSpecializationsModalOpen(true)}
-                        className='text-xs font-medium text-slate-700 flex items-center gap-1 mx-auto'
-                      >
-                        <Plus size={14} />
-                        Add specializations
-                      </motion.button>
-                    </div>
-                  ) : (
-                    <div className='flex flex-wrap gap-2'>
-                      {profileData.expertise.map((opt) => (
-                          <span
-                            key={opt}
-                            className='px-3 py-1.5 rounded-full bg-slate-100 text-xs font-medium text-slate-700 flex items-center gap-1.5'
-                          >
-                            <Check size={12} className='text-[#986a41]' />
-                            {opt}
-                          </span>
-                        ))}
-                    </div>
-                  )}
-                </div>
-              </motion.div>
             </div>
 
             {/* Right Sidebar */}
@@ -810,127 +700,245 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
        {/* Edit Profile Modal */}
        <AnimatePresence>
         {editModalOpen && (
-          <div className='fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm'>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className='fixed inset-0 bg-black/30 z-50 flex items-end md:items-center justify-center md:p-4 backdrop-blur-sm'
+            onClick={() => setEditModalOpen(false)}
+          >
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className='bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]'
+              initial={isMobile ? { y: '100%' } : { scale: 0.95, opacity: 0 }}
+              animate={isMobile ? { y: 0 } : { scale: 1, opacity: 1 }}
+              exit={isMobile ? { y: '100%' } : { scale: 0.95, opacity: 0 }}
+              transition={{ type: isMobile ? 'spring' : 'tween', damping: 25, stiffness: 300 }}
+              onClick={(e) => e.stopPropagation()}
+              className='bg-white rounded-t-[32px] md:rounded-2xl w-full md:max-w-sm md:w-full p-6 max-h-[90vh] overflow-y-auto'
             >
-               <div className='p-6 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0'>
-                 <div>
-                   <h3 className='text-lg font-bold text-slate-900'>Edit Professional Profile</h3>
-                   <p className='text-[10px] text-slate-500 uppercase tracking-wider font-medium'>Update your info across the platform</p>
-                 </div>
-                 <button onClick={() => setEditModalOpen(false)} className='p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors'>
-                   <X size={20} />
-                 </button>
-               </div>
-               
-               <div className='p-6 overflow-y-auto space-y-6'>
-                 <div className='grid grid-cols-1 md:grid-cols-2 gap-5'>
-                    <div className='col-span-1'>
-                     <label className='block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 pl-1'>Full Name</label>
-                     <input
-                       type='text'
-                       placeholder="e.g. Sarah Jenkins"
-                       value={editFormData.name}
-                       onChange={e => setEditFormData({...editFormData, name: e.target.value})}
-                       className='w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-slate-900 focus:outline-none transition-all'
-                     />
-                    </div>
+              <div className='flex items-center justify-between mb-4'>
+                <h2 className='text-lg font-bold text-slate-900'>
+                  Edit Profile
+                </h2>
+                <motion.button
+                  whileHover={{ scale: 1.08 }}
+                  whileTap={{ scale: 0.92 }}
+                  onClick={() => setEditModalOpen(false)}
+                  className='p-1 rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors'
+                >
+                  <X size={16} className='text-slate-600' />
+                </motion.button>
+              </div>
 
-                    <div className='col-span-1'>
-                     <label className='block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 pl-1'>Professional Role</label>
-                     <input
-                       type='text'
-                       placeholder="e.g. Senior NIL Agent"
-                       value={editFormData.role}
-                       onChange={e => setEditFormData({...editFormData, role: e.target.value})}
-                       className='w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-slate-900 focus:outline-none transition-all'
-                     />
-                    </div>
-                    
-                    <div>
-                     <label className='block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 pl-1'>Organization / Agency</label>
-                     <input
-                       type='text'
-                       placeholder="Where do you work?"
-                       value={editFormData.organization}
-                       onChange={e => setEditFormData({...editFormData, organization: e.target.value})}
-                       className='w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-slate-900 focus:outline-none transition-all'
-                     />
-                    </div>
+              <div className='space-y-3 mb-4'>
+                <div>
+                  <label className='block text-xs font-semibold text-slate-900 mb-1.5'>
+                    Full Name
+                  </label>
+                  <input
+                    type='text'
+                    placeholder='Your name'
+                    value={editFormData.name}
+                    onChange={(e) =>
+                      setEditFormData({ ...editFormData, name: e.target.value })
+                    }
+                    className='w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-400 transition'
+                  />
+                </div>
 
-                    <div>
-                     <label className='block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 pl-1'>Years Experience</label>
-                      <select
-                       value={editFormData.experience}
-                       onChange={e => setEditFormData({...editFormData, experience: e.target.value})}
-                       className='w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-slate-900 focus:outline-none transition-all'
-                     >
-                       <option value="">Select experience...</option>
-                       {experienceOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                     </select>
-                    </div>
-                 </div>
-
-                 <div>
-                    <label className='block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 pl-1'>Areas of Expertise</label>
-                    <div className='flex flex-wrap gap-2'>
-                      {expertiseOptions.map(opt => (
-                        <button
-                          key={opt}
-                          onClick={() => {
-                            const exists = editFormData.expertise.includes(opt)
-                            setEditFormData({
-                              ...editFormData,
-                              expertise: exists 
-                                ? editFormData.expertise.filter(e => e !== opt)
-                                : [...editFormData.expertise, opt]
-                            })
-                          }}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                            editFormData.expertise.includes(opt)
-                              ? 'bg-slate-900 text-white border-slate-900'
-                              : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
-                          }`}
-                        >
-                          {opt}
-                        </button>
-                      ))}
-                    </div>
-                 </div>
-
-                 <div>
-                    <label className='block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 pl-1'>Bio / About Me</label>
-                    <textarea
-                      rows={4}
-                      placeholder="Tell athletes about your track record and how you can help them..."
-                      value={editFormData.aboutMe}
-                      onChange={e => setEditFormData({...editFormData, aboutMe: e.target.value})}
-                      className='w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-slate-900 focus:outline-none transition-all min-h-[100px]'
+                <div className='grid grid-cols-2 gap-2'>
+                  <div>
+                    <label className='block text-xs font-semibold text-slate-900 mb-1.5'>
+                      Professional Role
+                    </label>
+                    <input
+                      type='text'
+                      placeholder='e.g. Senior NIL Agent'
+                      value={editFormData.role}
+                      onChange={(e) =>
+                        setEditFormData({
+                          ...editFormData,
+                          role: e.target.value,
+                        })
+                      }
+                      className='w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-400 transition'
                     />
-                 </div>
-               </div>
+                  </div>
+                  <div>
+                    <label className='block text-xs font-semibold text-slate-900 mb-1.5'>
+                      Years Experience
+                    </label>
+                    <select
+                      value={editFormData.experience}
+                      onChange={(e) =>
+                        setEditFormData({
+                          ...editFormData,
+                          experience: e.target.value,
+                        })
+                      }
+                      className='w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-400 transition bg-white'
+                    >
+                      <option value="">Select...</option>
+                      {experienceOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
+                  </div>
+                </div>
 
-               <div className='p-5 border-t border-slate-100 bg-slate-50 flex justify-end gap-3'>
-                 <button
-                   onClick={() => setEditModalOpen(false)}
-                   className='px-6 py-2 text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors'
-                 >
-                   Discard
-                 </button>
-                 <button
-                   onClick={handleEditProfile}
-                   disabled={savingProfile}
-                   className='px-8 py-2.5 bg-slate-900 text-white text-sm font-bold rounded-xl hover:bg-slate-800 transition-all shadow-md active:scale-95 disabled:opacity-50'
-                 >
-                   {savingProfile ? 'Saving Changes...' : 'Save & Update'}
-                 </button>
-               </div>
+                <div>
+                  <label className='block text-xs font-semibold text-slate-900 mb-1.5'>
+                    Organization / Agency
+                  </label>
+                  <input
+                    type='text'
+                    placeholder='Where do you work?'
+                    value={editFormData.organization}
+                    onChange={(e) =>
+                      setEditFormData({
+                        ...editFormData,
+                        organization: e.target.value,
+                      })
+                    }
+                    className='w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-400 transition'
+                  />
+                </div>
+
+                <div>
+                  <label className='block text-xs font-semibold text-slate-900 mb-1.5'>
+                    Email
+                  </label>
+                  <div 
+                    onClick={() => navigate('/settings')}
+                    className='cursor-pointer group'
+                  >
+                    <div className='flex items-center justify-between w-full px-3 py-2 text-xs border border-slate-200 bg-slate-50 rounded-lg group-hover:border-slate-300 transition'>
+                      <span className='text-slate-500'>{editFormData.email}</span>
+                      <Lock size={12} className='text-slate-400' />
+                    </div>
+                  </div>
+                  <p className='text-[10px] text-slate-500 mt-1 pl-1'>Click to change in settings</p>
+                </div>
+
+                <div>
+                  <label className='block text-xs font-semibold text-slate-900 mb-1.5'>
+                    Phone
+                  </label>
+                  <input
+                    type='tel'
+                    placeholder='Phone'
+                    value={editFormData.phone}
+                    onChange={(e) =>
+                      setEditFormData({
+                        ...editFormData,
+                        phone: e.target.value,
+                      })
+                    }
+                    className='w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-400 transition'
+                  />
+                </div>
+
+                <div>
+                  <label className='block text-xs font-semibold text-slate-900 mb-1.5'>
+                    About Me
+                  </label>
+                  <textarea
+                    placeholder='Tell athletes about your track record...'
+                    value={editFormData.aboutMe}
+                    onChange={(e) =>
+                      setEditFormData({
+                        ...editFormData,
+                        aboutMe: e.target.value,
+                      })
+                    }
+                    className='w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-400 resize-none transition'
+                    rows='3'
+                  />
+                </div>
+
+                <div>
+                  <label className='block text-xs font-semibold text-slate-900 mb-1.5'>
+                    Social Links
+                  </label>
+                  <div className='space-y-2'>
+                    <div className='flex items-center gap-2'>
+                      <div className='w-20 text-[10px] font-bold text-slate-400 uppercase'>LinkedIn</div>
+                      <input
+                        type='text'
+                        placeholder='LinkedIn URL'
+                        value={editFormData.socialMedia?.linkedin || ''}
+                        onChange={(e) =>
+                          setEditFormData({
+                            ...editFormData,
+                            socialMedia: {
+                              ...editFormData.socialMedia,
+                              linkedin: e.target.value,
+                            },
+                          })
+                        }
+                        className='flex-1 px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-400 transition'
+                      />
+                    </div>
+                    <div className='flex items-center gap-2'>
+                      <div className='w-20 text-[10px] font-bold text-slate-400 uppercase'>Twitter</div>
+                      <input
+                        type='text'
+                        placeholder='Twitter URL'
+                        value={editFormData.socialMedia?.twitter || ''}
+                        onChange={(e) =>
+                          setEditFormData({
+                            ...editFormData,
+                            socialMedia: {
+                              ...editFormData.socialMedia,
+                              twitter: e.target.value,
+                            },
+                          })
+                        }
+                        className='flex-1 px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-400 transition'
+                      />
+                    </div>
+                    <div className='flex items-center gap-2'>
+                      <div className='w-20 text-[10px] font-bold text-slate-400 uppercase'>Website</div>
+                      <input
+                        type='text'
+                        placeholder='Portfolio / Website'
+                        value={editFormData.socialMedia?.website || ''}
+                        onChange={(e) =>
+                          setEditFormData({
+                            ...editFormData,
+                            socialMedia: {
+                              ...editFormData.socialMedia,
+                              website: e.target.value,
+                            },
+                          })
+                        }
+                        className='flex-1 px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-400 transition'
+                      />
+                    </div>
+                  </div>
+                </div>
+
+
+              </div>
+
+              <div className='flex gap-2 pt-2'>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleEditProfile}
+                  disabled={savingProfile}
+                  className='flex-1 py-3 rounded-xl font-bold text-sm text-white bg-slate-900 hover:bg-slate-800 transition disabled:opacity-50 shadow-lg shadow-slate-200'
+                >
+                  {savingProfile ? 'Saving...' : 'Save Changes'}
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setEditModalOpen(false)}
+                  className='flex-1 py-3 rounded-xl font-bold text-sm border border-slate-300 text-slate-900 hover:bg-slate-50 transition'
+                >
+                  Cancel
+                </motion.button>
+              </div>
             </motion.div>
-          </div>
+          </motion.div>
         )}
        </AnimatePresence>
 
@@ -1004,32 +1012,7 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
                       </div>
                     </div>
 
-                    <div>
-                      <label className='text-[10px] font-bold uppercase text-slate-500 tracking-wider pl-1'>Expertise</label>
-                      <div className='flex flex-wrap gap-2 mt-2'>
-                        {expertiseOptions.map(opt => (
-                          <button
-                            key={opt}
-                            onClick={() => {
-                              const exists = completeProfileData.expertise.includes(opt)
-                              setCompleteProfileData({
-                                ...completeProfileData,
-                                expertise: exists 
-                                  ? completeProfileData.expertise.filter(e => e !== opt)
-                                  : [...completeProfileData.expertise, opt]
-                              })
-                            }}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                              completeProfileData.expertise.includes(opt)
-                                ? 'bg-[#163146] text-white border-[#163146]'
-                                : 'bg-white text-slate-600 border-slate-200 hover:border-[#986a41] hover:text-[#986a41]'
-                            }`}
-                          >
-                            {opt}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+
 
                     <div>
                       <label className='text-[10px] font-bold uppercase text-slate-500 tracking-wider pl-1'>Bio / About You</label>
@@ -1052,7 +1035,7 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
                     </button>
                     <button
                       onClick={handleCompleteProfile}
-                      disabled={savingProfile || !completeProfileData.name || !completeProfileData.experience || !completeProfileData.aboutMe || completeProfileData.expertise.length === 0}
+                      disabled={savingProfile || !completeProfileData.name || !completeProfileData.experience || !completeProfileData.aboutMe}
                       className='flex-[2] py-2.5 bg-[#163146] text-white rounded-xl font-bold text-sm hover:bg-[#163146]/90 transition-all shadow-lg active:scale-[0.98] disabled:opacity-30'
                     >
                       {savingProfile ? 'Setting up...' : 'Save & Continue'}
@@ -1135,94 +1118,7 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
           )}
        </AnimatePresence>
 
-       {/* NIL Specializations Modal */}
-       <AnimatePresence>
-        {specializationsModalOpen && (
-          <div className='fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm'>
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              onClick={(e) => e.stopPropagation()}
-              className='bg-white rounded-[28px] max-w-md w-full p-6 max-h-[90vh] overflow-y-auto'
-            >
-              <div className='flex items-center justify-between mb-5'>
-                <div>
-                  <h2 className='text-lg font-bold text-slate-900'>
-                    NIL Specializations
-                  </h2>
-                  <p className='text-xs text-slate-500 mt-0.5'>
-                    Toggle your primary areas of focus
-                  </p>
-                </div>
-                <motion.button
-                  whileHover={{ scale: 1.08 }}
-                  whileTap={{ scale: 0.92 }}
-                  onClick={() => setSpecializationsModalOpen(false)}
-                  className='p-1 rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors'
-                >
-                  <X size={16} className='text-slate-600' />
-                </motion.button>
-              </div>
 
-              <div className='space-y-2 mb-6'>
-                {expertiseOptions.map((option) => (
-                  <motion.button
-                    key={option}
-                    onClick={() => handleToggleSpecialization(option)}
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.99 }}
-                    className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all ${
-                      profileData.expertise.includes(option)
-                        ? 'border-[#163146] bg-[#163146]/10'
-                        : 'border-slate-200 bg-white hover:bg-slate-50'
-                    }`}
-                  >
-                    <span
-                      className={`text-sm font-medium ${
-                        profileData.expertise.includes(option)
-                          ? 'text-[#163146]'
-                          : 'text-slate-700'
-                      }`}
-                    >
-                      {option}
-                    </span>
-                    <div
-                      className={`w-5 h-5 rounded-full flex items-center justify-center ${
-                        profileData.expertise.includes(option) ? 'bg-[#163146]' : 'bg-slate-200'
-                      }`}
-                    >
-                      {profileData.expertise.includes(option) && (
-                        <Check size={12} className='text-white' />
-                      )}
-                    </div>
-                  </motion.button>
-                ))}
-              </div>
-
-              <div className='flex gap-2'>
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={handleSaveSpecializations}
-                  disabled={savingSpecializations}
-                  className='flex-1 py-2.5 rounded-xl font-bold text-sm text-white bg-slate-900 hover:bg-slate-800 transition disabled:opacity-50 shadow-sm'
-                >
-                  {savingSpecializations ? 'Saving...' : 'Save Specializations'}
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => setSpecializationsModalOpen(false)}
-                  className='flex-1 py-2.5 rounded-xl font-bold text-sm border border-slate-300 text-slate-900 hover:bg-slate-50 transition'
-                >
-                  Cancel
-                </motion.button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
       {/* Preview Modal */}
       <AnimatePresence>
@@ -1254,14 +1150,13 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
                  <p className='text-sm text-gray-500'>This is how your card appears to others on the dashboard</p>
                </div>
 
-               <UserPreviewCard 
+                <UserPreviewCard 
                  userData={{
                    name: profileData.name,
                    title: profileData.role,
                    location: profileData.organization || 'Remote',
-                   specialties: profileData.expertise,
                    experience: parseInt(profileData.experience) || 0,
-                   specialty: profileData.expertise?.[0] || 'Advisor',
+                   specialty: 'Advisor',
                    connections: 0,
                    banner: profileData.banner 
                      ? { backgroundImage: `url(${profileData.banner.startsWith('http') ? profileData.banner : `${import.meta.env.VITE_API_URL.replace('/api', '')}${profileData.banner}`})`, backgroundSize: 'cover', backgroundPosition: 'center' } 
@@ -1385,10 +1280,6 @@ const ContactItem = ({ icon: Icon, label, value }) => (
   </div>
 )
 
-const CheckCircleBadge = () => (
-  <div className='bg-blue-500 rounded-full p-0.5'>
-    <Check size={10} className='text-white' strokeWidth={3} />
-  </div>
-)
+
 
 export default AdvisorProfilePage

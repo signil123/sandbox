@@ -2,37 +2,38 @@
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
-    Dialog,
-    DialogContent,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-    ChevronDown,
-    ChevronLeft,
-    ChevronRight,
-    ExternalLink,
-    MapPin,
-    MessageCircle,
-    Search,
-    Settings,
-    Sliders,
-    Star,
-    TrendingUp,
-    UserPlus,
-    Users,
-    X,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  Lock,
+  MapPin,
+  MessageCircle,
+  Search,
+  Settings,
+  Sliders,
+  Star,
+  TrendingUp,
+  UserPlus,
+  Users,
+  X,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
@@ -721,6 +722,7 @@ function ExplorePageContent() {
             school: profile.school,
             position: profile.position,
             sport: profile.sport,
+            connections: u.totalConnections || 0,
             initials: u.name.split(' ').map(n => n[0]).join(''),
           }
         })
@@ -973,35 +975,20 @@ function ExplorePageContent() {
                   icon={Star}
                   widthClass="sm:w-[520px]"
                   isOpen={openDropdown === 'areasOfExpertise'}
-                  onToggle={() =>
+                  onToggle={() => {
+                    if (!isPro) {
+                      openUpgradeModal('filters')
+                      return
+                    }
                     setOpenDropdown(
                       openDropdown === 'areasOfExpertise'
                         ? null
                         : 'areasOfExpertise'
                     )
-                  }
+                  }}
                   activeCount={filters.areasOfExpertise.length}
                 >
-                  {!isPro ? (
-                    <div className="p-8 text-center bg-gray-50/50 rounded-2xl border-2 border-dashed border-gray-100">
-                      <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-sm border border-gray-100">
-                        <Lock className="text-[#986a41]" size={20} />
-                      </div>
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Premium Filter</p>
-                      <h4 className="text-sm font-bold text-[#163146] mb-2">Filter by Athlete Needs</h4>
-                      <p className="text-[11px] text-gray-500 mb-6 max-w-[200px] mx-auto leading-relaxed">
-                        Pinpoint athletes looking for your specific area of expertise with <span className="text-[#986a41] font-bold">Pro</span>.
-                      </p>
-                      <Button 
-                        size="sm" 
-                        className="bg-[#163146] text-white hover:bg-[#1f4461] rounded-xl text-xs font-bold px-6 h-10 shadow-lg shadow-[#163146]/20 transition-all"
-                        onClick={() => openUpgradeModal('filters')}
-                      >
-                        Upgrade to Pro
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className='w-full'>
+                  <div className='w-full'>
                       {/* Category Tabs */}
                       <div className='flex gap-1.5 border-b border-gray-100 mb-4 px-1 pb-1'>
                         {Object.keys(AREAS_OF_EXPERTISE).map((category) => {
@@ -1071,7 +1058,7 @@ function ExplorePageContent() {
                         </AnimatePresence>
                       </div>
                     </div>
-                  )}
+
                 </CompactFilterDropdown>
 
                 {/* Education & Experience */}
@@ -1079,29 +1066,19 @@ function ExplorePageContent() {
                   title='Education & Experience'
                   icon={Settings}
                   isOpen={openDropdown === 'education'}
-                  onToggle={() =>
+                  onToggle={() => {
+                    if (!isPro) {
+                      openUpgradeModal('filters')
+                      return
+                    }
                     setOpenDropdown(
                       openDropdown === 'education' ? null : 'education'
                     )
-                  }
+                  }}
                   activeCount={
                     filters.education.length + filters.experienceRange.length
                   }
                 >
-                  {!isPro ? (
-                    <div className="p-4 text-center">
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Premium Filter</p>
-                      <p className="text-xs text-gray-600 mb-4">Target specific academic levels with <span className="text-[#986a41] font-bold">Pro</span></p>
-                      <Button 
-                        size="sm" 
-                        variant="soft"
-                        className="w-full bg-[#163146] text-white hover:bg-[#1f4461] rounded-xl text-xs font-bold h-9"
-                        onClick={() => openUpgradeModal('filters')}
-                      >
-                        Unlock Now
-                      </Button>
-                    </div>
-                  ) : (
                     <>
                       <div>
                         <p className='text-xs font-semibold text-gray-700 mb-2'>
@@ -1151,7 +1128,7 @@ function ExplorePageContent() {
                         </div>
                       </div>
                     </>
-                  )}
+
                 </CompactFilterDropdown>
 
                 {/* Sports Specialization */}
@@ -1424,9 +1401,12 @@ function ExplorePageContent() {
                      <div className="h-px bg-gray-100"></div>
 
                      {/* Education Section */}
-                     <section>
-                        <h3 className="text-sm font-bold text-gray-900 mb-3 uppercase tracking-wider">Education</h3>
-                        <div className='space-y-3 pl-1'>
+                     <section className="relative">
+                        <h3 className="text-sm font-bold text-gray-900 mb-3 uppercase tracking-wider flex items-center gap-2">
+                          Education
+                          {!isPro && <Lock size={12} className="text-amber-500" />}
+                        </h3>
+                        <div className={`space-y-3 pl-1 ${!isPro ? 'opacity-50 pointer-events-none' : ''}`}>
                         {EDUCATION_OPTIONS.map((edu) => (
                            <label key={edu} className='flex items-center gap-3 cursor-pointer py-1'>
                               <input
@@ -1440,12 +1420,21 @@ function ExplorePageContent() {
                            </label>
                         ))}
                         </div>
+                        {!isPro && (
+                          <div 
+                            className="absolute inset-0 z-10" 
+                            onClick={() => openUpgradeModal('filters')}
+                          />
+                        )}
                      </section>
 
                      {/* Experience Section */}
-                     <section>
-                        <h3 className="text-sm font-bold text-gray-900 mb-3 uppercase tracking-wider">Experience</h3>
-                        <div className='space-y-3 pl-1'>
+                     <section className="relative">
+                        <h3 className="text-sm font-bold text-gray-900 mb-3 uppercase tracking-wider flex items-center gap-2">
+                          Experience
+                          {!isPro && <Lock size={12} className="text-amber-500" />}
+                        </h3>
+                        <div className={`space-y-3 pl-1 ${!isPro ? 'opacity-50 pointer-events-none' : ''}`}>
                         {EXPERIENCE_RANGES.map((range) => (
                            <label key={range} className='flex items-center gap-3 cursor-pointer py-1'>
                               <input
@@ -1459,14 +1448,23 @@ function ExplorePageContent() {
                            </label>
                         ))}
                         </div>
+                        {!isPro && (
+                          <div 
+                            className="absolute inset-0 z-10" 
+                            onClick={() => openUpgradeModal('filters')}
+                          />
+                        )}
                      </section>
                      
                      <div className="h-px bg-gray-100"></div>
 
                      {/* Areas of Expertise Section */}
-                     <section>
+                     <section className="relative">
                         <div className="flex items-center justify-between mb-4">
-                           <h3 className="text-[13px] font-bold text-gray-900 uppercase tracking-widest">Areas of Expertise</h3>
+                           <h3 className="text-[13px] font-bold text-gray-900 uppercase tracking-widest flex items-center gap-2">
+                             Areas of Expertise
+                             {!isPro && <Lock size={12} className="text-amber-500" />}
+                           </h3>
                            {filters.areasOfExpertise.length > 0 && (
                               <button 
                                  onClick={() => handleFilterChange({...filters, areasOfExpertise: []})} 
@@ -1477,70 +1475,78 @@ function ExplorePageContent() {
                            )}
                         </div>
                         
-                        {/* Mobile Category Tabs */}
-                        <div className='flex gap-2.5 mb-5 overflow-x-auto pb-2 no-scrollbar px-1'>
-                           {Object.keys(AREAS_OF_EXPERTISE).map((category) => {
-                              const count = AREAS_OF_EXPERTISE[category].filter(item => 
-                                 filters.areasOfExpertise.includes(item)
-                              ).length
-
-                              return (
-                                 <button
-                                    key={category}
-                                    onClick={() => setActiveExpertiseCategory(category)}
-                                    className='px-5 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all shadow-sm'
-                                    style={{
-                                       background: activeExpertiseCategory === category ? COLORS.primary : 'white',
-                                       color: activeExpertiseCategory === category ? 'white' : '#6b7280',
-                                       border: `1px solid ${activeExpertiseCategory === category ? COLORS.primary : '#f3f4f6'}`
-                                    }}
-                                 >
-                                    <div className="flex items-center gap-2">
-                                       {category}
-                                       {count > 0 && (
-                                          <span 
-                                             className='w-4 h-4 flex items-center justify-center rounded-full text-[9px]'
-                                             style={{ 
-                                                background: activeExpertiseCategory === category ? 'white' : COLORS.primary, 
-                                                color: activeExpertiseCategory === category ? COLORS.primary : 'white' 
-                                             }}
-                                          >
-                                             {count}
-                                          </span>
-                                       )}
-                                    </div>
-                                 </button>
-                              )
-                           })}
+                        <div className={!isPro ? 'opacity-50 pointer-events-none' : ''}>
+                          {/* Mobile Category Tabs */}
+                          <div className='flex gap-2.5 mb-5 overflow-x-auto pb-2 no-scrollbar px-1'>
+                             {Object.keys(AREAS_OF_EXPERTISE).map((category) => {
+                                const count = AREAS_OF_EXPERTISE[category].filter(item => 
+                                   filters.areasOfExpertise.includes(item)
+                                ).length
+  
+                                return (
+                                   <button
+                                      key={category}
+                                      onClick={() => setActiveExpertiseCategory(category)}
+                                      className='px-5 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all shadow-sm'
+                                      style={{
+                                         background: activeExpertiseCategory === category ? COLORS.primary : 'white',
+                                         color: activeExpertiseCategory === category ? 'white' : '#6b7280',
+                                         border: `1px solid ${activeExpertiseCategory === category ? COLORS.primary : '#f3f4f6'}`
+                                      }}
+                                   >
+                                      <div className="flex items-center gap-2">
+                                         {category}
+                                         {count > 0 && (
+                                            <span 
+                                               className='w-4 h-4 flex items-center justify-center rounded-full text-[9px]'
+                                               style={{ 
+                                                  background: activeExpertiseCategory === category ? 'white' : COLORS.primary, 
+                                                  color: activeExpertiseCategory === category ? COLORS.primary : 'white' 
+                                               }}
+                                            >
+                                               {count}
+                                            </span>
+                                         )}
+                                      </div>
+                                   </button>
+                                )
+                             })}
+                          </div>
+  
+                          <div className='bg-gray-50/50 p-4 rounded-2xl border border-gray-100 min-h-[280px]'>
+                             <AnimatePresence mode='wait'>
+                                <motion.div
+                                   key={activeExpertiseCategory}
+                                   initial={{ opacity: 0, y: 5 }}
+                                   animate={{ opacity: 1, y: 0 }}
+                                   exit={{ opacity: 0, y: -5 }}
+                                   transition={{ duration: 0.2 }}
+                                   className='space-y-3'
+                                >
+                                   {AREAS_OF_EXPERTISE[activeExpertiseCategory].map((item) => (
+                                      <label key={item} className='flex items-center gap-3.5 cursor-pointer py-1.5 group'>
+                                         <div className="relative flex items-center justify-center">
+                                            <input
+                                               type='checkbox'
+                                               checked={filters.areasOfExpertise.includes(item)}
+                                               onChange={() => toggleAreaOfExpertise(item)}
+                                               className='rounded w-5 h-5 transition-all'
+                                               style={{ accentColor: COLORS.primary }}
+                                            />
+                                         </div>
+                                         <span className='text-sm text-gray-700 font-medium group-active:text-gray-900'>{item}</span>
+                                      </label>
+                                   ))}
+                                </motion.div>
+                             </AnimatePresence>
+                          </div>
                         </div>
-
-                        <div className='bg-gray-50/50 p-4 rounded-2xl border border-gray-100 min-h-[280px]'>
-                           <AnimatePresence mode='wait'>
-                              <motion.div
-                                 key={activeExpertiseCategory}
-                                 initial={{ opacity: 0, y: 5 }}
-                                 animate={{ opacity: 1, y: 0 }}
-                                 exit={{ opacity: 0, y: -5 }}
-                                 transition={{ duration: 0.2 }}
-                                 className='space-y-3'
-                              >
-                                 {AREAS_OF_EXPERTISE[activeExpertiseCategory].map((item) => (
-                                    <label key={item} className='flex items-center gap-3.5 cursor-pointer py-1.5 group'>
-                                       <div className="relative flex items-center justify-center">
-                                          <input
-                                             type='checkbox'
-                                             checked={filters.areasOfExpertise.includes(item)}
-                                             onChange={() => toggleAreaOfExpertise(item)}
-                                             className='rounded w-5 h-5 transition-all'
-                                             style={{ accentColor: COLORS.primary }}
-                                          />
-                                       </div>
-                                       <span className='text-sm text-gray-700 font-medium group-active:text-gray-900'>{item}</span>
-                                    </label>
-                                 ))}
-                              </motion.div>
-                           </AnimatePresence>
-                        </div>
+                        {!isPro && (
+                          <div 
+                            className="absolute inset-0 z-10" 
+                            onClick={() => openUpgradeModal('filters')}
+                          />
+                        )}
                      </section>
 
                      <div className="h-px bg-gray-100"></div>
@@ -1671,11 +1677,13 @@ function ExplorePageContent() {
                         </div>
 
                         {/* Location */}
-                        <div className='absolute top-2 right-2 text-right'>
-                          <p className='text-[11px] font-semibold text-gray-900'>
-                            {user.location}
-                          </p>
-                        </div>
+                        {user.location && (
+                          <div className='absolute top-2 right-2 text-right'>
+                            <p className='text-[11px] font-semibold text-gray-900'>
+                              {user.location}
+                            </p>
+                          </div>
+                        )}
 
                         {/* Name and Title Container (Standardized Height) */}
                         <div className='min-h-[3.5rem]'>
@@ -1719,17 +1727,30 @@ function ExplorePageContent() {
                               Experience
                             </p>
                             <p className='text-xs font-bold text-gray-900'>
-                              {user.yearsExperience || 0}y
+                              {user.yearsExperience ? `${user.yearsExperience} years` : 'N/A'}
                             </p>
                           </div>
-                          <div className='text-center px-1 border-l border-r border-gray-200 flex flex-col justify-center'>
-                            <p className='text-[10px] text-gray-500 font-medium leading-tight truncate px-1'>
-                              Rating
-                            </p>
-                            <p className='text-xs font-bold text-gray-900'>
-                              {user.rating > 0 ? Number(user.rating).toFixed(1) : 'N/A'}
-                            </p>
-                          </div>
+                          
+                          {(user.rating > 0 && user.rating !== 'N/A') ? (
+                            <div className='text-center px-1 border-l border-r border-gray-200 flex flex-col justify-center'>
+                              <p className='text-[10px] text-gray-500 font-medium leading-tight truncate px-1'>
+                                Rating
+                              </p>
+                              <p className='text-xs font-bold text-gray-900'>
+                                {Number(user.rating).toFixed(1)}
+                              </p>
+                            </div>
+                          ) : (
+                             <div className='text-center px-1 border-l border-r border-gray-200 flex flex-col justify-center'>
+                                <p className='text-[10px] text-gray-500 font-medium leading-tight truncate px-1'>
+                                  Rating
+                                </p>
+                                <p className='text-xs font-bold text-gray-400'>
+                                  N/A
+                                </p>
+                             </div>
+                          )}
+
                           <div className='text-center px-1 flex flex-col justify-center'>
                             <p className='text-[10px] text-gray-500 font-medium leading-tight truncate px-1'>
                               Connections

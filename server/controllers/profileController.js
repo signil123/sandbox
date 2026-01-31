@@ -99,9 +99,18 @@ export const getUserProfile = async (req, res, next) => {
       }
     }
 
+    const totalConnections = await Connection.find({
+      $or: [{ user1: userId }, { user2: userId }],
+      status: 'active',
+    }).countDocuments()
+
     res.status(200).json({
       status: 'success',
-      data: { profile, connectionStatus: req.user ? await Connection.getConnectionStatus(req.user.id, userId) : 'not_connected' },
+      data: { 
+        profile, 
+        connectionStatus: req.user ? await Connection.getConnectionStatus(req.user.id, userId) : 'not_connected',
+        totalConnections 
+      },
     })
   } catch (error) {
     console.error('Error in getUserProfile:', error)
@@ -540,13 +549,19 @@ export const getProfileByUserId = async (req, res, next) => {
       }
     }
 
+    const totalConnections = await Connection.find({
+      $or: [{ user1: userId }, { user2: userId }],
+      status: 'active',
+    }).countDocuments()
+
     res.status(200).json({
       status: 'success',
       data: { 
         profile, 
         connectionStatus,
         connectionRequestId,
-        connectionRequestMessage
+        connectionRequestMessage,
+        totalConnections
       },
     })
   } catch (error) {

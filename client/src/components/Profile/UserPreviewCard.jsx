@@ -58,11 +58,13 @@ const UserPreviewCard = ({ userData }) => {
         </div>
 
         {/* Location - Top Right */}
-        <div className='absolute top-2 right-2 text-right'>
-          <p className='text-[11px] font-semibold text-gray-900'>
-            {location || 'Remote'}
-          </p>
-        </div>
+        {location && (
+          <div className='absolute top-2 right-2 text-right'>
+            <p className='text-[11px] font-semibold text-gray-900'>
+              {location}
+            </p>
+          </div>
+        )}
 
         {/* Name and Title */}
         <div className='min-h-[3.5rem]'>
@@ -98,7 +100,9 @@ const UserPreviewCard = ({ userData }) => {
               Experience
             </p>
             <p className='text-xs font-bold text-gray-900 leading-tight'>
-              {experience}y
+              {String(experience).match(/\d/) ? (
+                  String(experience).toLowerCase().includes('year') ? experience : `${experience} years`
+              ) : 'N/A'}
             </p>
           </div>
           <div className='text-center px-1 border-l border-r border-gray-200 min-h-[50px] flex flex-col justify-center overflow-hidden'>

@@ -63,11 +63,13 @@ export const AdvisorRecommendationCard = ({ advisor, onConnect, onView, isPrimar
         </div>
 
         {/* Location - Top Right */}
-        <div className='absolute top-2 right-2 text-right'>
-          <p className='text-[11px] font-semibold text-gray-900'>
-            {advisor.location}
-          </p>
-        </div>
+        {advisor.location && (
+          <div className='absolute top-2 right-2 text-right'>
+            <p className='text-[11px] font-semibold text-gray-900'>
+              {advisor.location}
+            </p>
+          </div>
+        )}
 
         {/* Name and Title */}
         <div className='min-h-[4rem]'>
@@ -113,14 +115,16 @@ export const AdvisorRecommendationCard = ({ advisor, onConnect, onView, isPrimar
               Experience
             </p>
             <p className='text-xs font-bold text-gray-900 leading-tight'>
-              {advisor.experience}y
+              {advisor.experience ? (
+                  String(advisor.experience).toLowerCase().includes('year') ? advisor.experience : `${advisor.experience} years`
+              ) : 'N/A'}
             </p>
           </div>
           <div className='text-center px-1 border-l border-r border-gray-200 min-h-[50px] flex flex-col justify-center overflow-hidden'>
             <p className='text-[10px] text-gray-500 font-medium leading-tight truncate px-1'>
               Rating
             </p>
-            <p className='text-xs font-bold text-gray-900 leading-tight'>
+            <p className={`text-xs font-bold leading-tight ${advisor.rating > 0 ? 'text-gray-900' : 'text-gray-400'}`}>
               {advisor.rating > 0 ? Number(advisor.rating).toFixed(1) : 'N/A'}
             </p>
           </div>

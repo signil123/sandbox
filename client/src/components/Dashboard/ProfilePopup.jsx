@@ -257,10 +257,12 @@ const ProfilePopup = ({
                         {profile.title}
                     </p>
                     <div className='flex items-center gap-4 text-gray-500 text-sm mt-2'>
-                        <div className='flex items-center gap-1.5'>
-                            <MapPin size={14} />
-                            {profile.location}
-                        </div>
+                        {profile.location && (
+                            <div className='flex items-center gap-1.5'>
+                                <MapPin size={14} />
+                                {profile.location}
+                            </div>
+                        )}
                         {hasRating && (
                             <div className='flex items-center gap-1.5 text-gray-700 font-medium'>
                                 <Star size={14} className='fill-amber-400 text-amber-400' />
@@ -282,22 +284,26 @@ const ProfilePopup = ({
 
                   {/* Stats Grid */}
                   <div className='grid grid-cols-3 gap-2 mt-8'>
-                    <StatCard 
-                        label="Experience" 
-                        value={`${profile.experience}y`} 
-                        icon={Briefcase}
-                    />
+                    {profile.experience && (
+                        <StatCard 
+                            label="Experience" 
+                            value={String(profile.experience).toLowerCase().includes('year') ? profile.experience : `${profile.experience} years`} 
+                            icon={Briefcase}
+                        />
+                    )}
                     <StatCard 
                         label="Specialty" 
                         value={profile.specialty || 'General'} 
                         icon={Award}
                     />
-                    <StatCard 
-                        label="Network" 
-                        value={profile.connections} 
-                        icon={UserPlus}
-                        subValue="connections"
-                    />
+                    {profile.connections !== undefined && (
+                        <StatCard 
+                            label="Network" 
+                            value={profile.connections} 
+                            icon={UserPlus}
+                            subValue="connections"
+                        />
+                    )}
                   </div>
 
                   {/* About Section */}
@@ -356,7 +362,7 @@ const ProfilePopup = ({
               {/* Bottom Sticky Action Bar */}
               <div className='border-t border-gray-100 bg-white/90 backdrop-blur-md p-3 md:p-4 absolute bottom-0 left-0 right-0 z-20'>
                 <div className='flex gap-2 md:gap-3'>
-                  {canMessage && (
+                  {canMessage && profile.connectionStatus === 'connected' && (
                       <motion.button
                         className='flex-1 py-2.5 md:py-3 px-2 md:px-4 border-2 border-[#163146] text-[#163146] font-bold text-xs md:text-sm rounded-xl hover:bg-[#163146] hover:text-white transition-all flex items-center justify-center gap-1.5 md:gap-2'
                         whileHover={{ scale: 1.02 }}

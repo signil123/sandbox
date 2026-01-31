@@ -1,22 +1,25 @@
 // File: client/src/pages/Profile/ProfilePage.jsx
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  Edit3,
-  ExternalLink,
-  Eye,
-  Lock,
-  Mail,
-  MapPin,
-  MessageSquare,
-  Phone,
-  Plus,
-  TrendingUp,
-  Upload,
-  UserPlus,
-  X,
+    Check,
+    ChevronLeft,
+    ChevronRight,
+    Edit3,
+    ExternalLink,
+    Eye,
+    Globe,
+    Linkedin,
+    Lock,
+    Mail,
+    MapPin,
+    MessageSquare,
+    Phone,
+    Plus,
+    TrendingUp,
+    Twitter,
+    Upload,
+    UserPlus,
+    X,
 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { useDispatch } from 'react-redux'
@@ -237,7 +240,7 @@ const ProfileSkeleton = () => (
     aboutMe: '',
     email: '',
     phone: '',
-    socialMedia: { instagram: '', twitter: '', tiktok: '' },
+    socialMedia: { linkedin: '', twitter: '', website: '' },
     contactVisible: true,
   })
 
@@ -314,6 +317,7 @@ const ProfileSkeleton = () => (
           },
           contactVisible: profile.contactVisible !== false,
           banner: profile.bannerImage || null,
+          connections: user.totalConnections || 0,
         }
 
         setProfileData(profileInfo)
@@ -763,21 +767,17 @@ const ProfileSkeleton = () => (
                         </p>
                       </div>
                       <div className='flex flex-col items-center p-3 bg-slate-50 rounded-xl'>
-                        <MapPin size={16} className='text-slate-400 mb-1.5' />
+                        <div className='flex items-center gap-1.5 mb-1.5'>
+                          {profileData.socialMedia?.linkedin && <Linkedin size={14} className='text-slate-400' />}
+                          {profileData.socialMedia?.twitter && <Twitter size={14} className='text-slate-400' />}
+                          {profileData.socialMedia?.website && <Globe size={14} className='text-slate-400' />}
+                          {!profileData.socialMedia?.linkedin && !profileData.socialMedia?.twitter && !profileData.socialMedia?.website && <Globe size={14} className='text-slate-400' />}
+                        </div>
                         <p className='text-[10px] text-slate-500 font-semibold uppercase tracking-wide mb-1'>
-                          School
+                          Socials
                         </p>
                         <p className='text-xs text-slate-900 font-medium text-center truncate w-full'>
-                          {profileData.school || 'University'}
-                        </p>
-                      </div>
-                      <div className='flex flex-col items-center p-3 bg-slate-50 rounded-xl'>
-                        <Mail size={16} className='text-slate-400 mb-1.5' />
-                        <p className='text-[10px] text-slate-500 font-semibold uppercase tracking-wide mb-1'>
-                          Social
-                        </p>
-                        <p className='text-xs text-slate-900 font-medium text-center truncate w-full'>
-                          {profileData.socialMedia?.instagram || '@handle'}
+                          {Object.values(profileData.socialMedia || {}).filter(Boolean).length > 0 ? `${Object.values(profileData.socialMedia || {}).filter(Boolean).length} Links` : 'No links'}
                         </p>
                       </div>
                     </div>
@@ -1329,23 +1329,64 @@ const ProfileSkeleton = () => (
 
                 <div>
                   <label className='block text-xs font-semibold text-slate-900 mb-1.5'>
-                    Instagram Handle
+                    Social Links
                   </label>
-                  <input
-                    type='text'
-                    placeholder='@username'
-                    value={editFormData.socialMedia?.instagram || ''}
-                    onChange={(e) =>
-                      setEditFormData({
-                        ...editFormData,
-                        socialMedia: {
-                          ...editFormData.socialMedia,
-                          instagram: e.target.value,
-                        },
-                      })
-                    }
-                    className='w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-400 transition'
-                  />
+                  <div className='space-y-2'>
+                    <div className='flex items-center gap-2'>
+                      <div className='w-16 text-[10px] font-bold text-slate-400 uppercase'>LinkedIn</div>
+                      <input
+                        type='text'
+                        placeholder='LinkedIn URL'
+                        value={editFormData.socialMedia?.linkedin || ''}
+                        onChange={(e) =>
+                          setEditFormData({
+                            ...editFormData,
+                            socialMedia: {
+                              ...editFormData.socialMedia,
+                              linkedin: e.target.value,
+                            },
+                          })
+                        }
+                        className='flex-1 px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-400 transition'
+                      />
+                    </div>
+                    <div className='flex items-center gap-2'>
+                      <div className='w-16 text-[10px] font-bold text-slate-400 uppercase'>Twitter</div>
+                      <input
+                        type='text'
+                        placeholder='Twitter URL'
+                        value={editFormData.socialMedia?.twitter || ''}
+                        onChange={(e) =>
+                          setEditFormData({
+                            ...editFormData,
+                            socialMedia: {
+                              ...editFormData.socialMedia,
+                              twitter: e.target.value,
+                            },
+                          })
+                        }
+                        className='flex-1 px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-400 transition'
+                      />
+                    </div>
+                    <div className='flex items-center gap-2'>
+                      <div className='w-16 text-[10px] font-bold text-slate-400 uppercase'>Website</div>
+                      <input
+                        type='text'
+                        placeholder='Website / Portfolio'
+                        value={editFormData.socialMedia?.website || ''}
+                        onChange={(e) =>
+                          setEditFormData({
+                            ...editFormData,
+                            socialMedia: {
+                              ...editFormData.socialMedia,
+                              website: e.target.value,
+                            },
+                          })
+                        }
+                        className='flex-1 px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-400 transition'
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 

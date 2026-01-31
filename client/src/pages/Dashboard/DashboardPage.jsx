@@ -250,7 +250,7 @@ const DashboardPage = () => {
           specialty: u.profile?.specialization?.[0] || u.profile?.sport || (u.userType.charAt(0).toUpperCase() + u.userType.slice(1)),
           specialties: u.profile?.specialization || u.profile?.specialties || [],
           experience: parseInt(u.profile?.experience) || 0,
-          connections: 0,
+          connections: u.totalConnections || 0,
           initials: (u.name || 'A').split(' ').map(n => n[0]).join(''),
           verified: u.profile?.verified || false,
           bestMatch: u.matchScore > 80,
