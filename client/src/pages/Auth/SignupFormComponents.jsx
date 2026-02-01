@@ -305,3 +305,7 @@ export const QuestionField = ({ question, value, onChange, error }) => {
     </div>
   )
 }
+
+export const UserNav = () => {
+  return null;
+};

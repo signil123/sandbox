@@ -6,10 +6,13 @@ import { PersistGate } from 'redux-persist/integration/react'
 import { AdminRoute, PrivateRoute, PublicRoute } from './components/Auth/ProtectedRoutes'
 import ScrollToTop from './components/Common/ScrollToTop'
 import AdminDashboard from './pages/Admin/AdminDashboard'
+import AdvisorsPage from './pages/Advisors/AdvisorsPage'
+import AthletesPage from './pages/Athletes/AthletesPage'
 import AuthPage from './pages/Auth/AuthPage'
 import CalendarPage from './pages/Calendar/CalendarPage'
 import DashboardPage from './pages/Dashboard/DashboardPage'
 import ExplorePage from './pages/Explore/ExplorePage'
+import HomePage from './pages/Home/HomePage'
 import MessagePage from './pages/Message/MessagePage'
 import NewsPage from './pages/News/NewsPage'
 import AdvisorProfilePage from './pages/Profile/AdvisorProfilePage'
@@ -17,15 +20,34 @@ import ProfilePage from './pages/Profile/ProfilePage'
 import PublicProfilePage from './pages/Profile/PublicProfilePage'
 import { persistor, store } from './redux/store'
 
+import { useDispatch, useSelector } from 'react-redux'
 import SettingsPage from './pages/Settings/SettingsPage'
+import { closeAuthModal, selectAuthModalInitialStep, selectIsAuthModalOpen } from './redux/uiSlice'
 
 const App = () => {
   return (
     <Provider store={store}>
       <PersistGate loading={null} persistor={persistor}>
-        <BrowserRouter>
-          <ScrollToTop />
-          <Routes>
+        <AppContent />
+      </PersistGate>
+    </Provider>
+  )
+}
+
+const AppContent = () => {
+  const dispatch = useDispatch()
+  const isAuthModalOpen = useSelector(selectIsAuthModalOpen)
+  const authModalInitialStep = useSelector(selectAuthModalInitialStep)
+
+  return (
+    <BrowserRouter>
+      <ScrollToTop />
+      <AuthPage 
+        isOpen={isAuthModalOpen} 
+        initialStep={authModalInitialStep}
+        onClose={() => dispatch(closeAuthModal())}
+      />
+      <Routes>
             <Route path='/'>
               {/* ... existing routes ... */}
               <Route
@@ -38,11 +60,15 @@ const App = () => {
               />
               <Route
                 index
-                element={
-                  <PublicRoute>
-                    <AuthPage />
-                  </PublicRoute>
-                }
+                element={<HomePage />}
+              />
+              <Route
+                path='/advisors'
+                element={<AdvisorsPage />}
+              />
+              <Route
+                path='/athletes'
+                element={<AthletesPage />}
               />
               <Route
                 path='/auth'
@@ -134,9 +160,8 @@ const App = () => {
               />
             </Route>
           </Routes>
-        </BrowserRouter>
-      </PersistGate>
-    </Provider>
+    </BrowserRouter>
   )
 }
+
 export default App
