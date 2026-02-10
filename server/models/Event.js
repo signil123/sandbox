@@ -80,6 +80,10 @@ const EventSchema = new mongoose.Schema(
       type: Date,
       required: true,
     },
+    timeZone: {
+      type: String,
+      default: 'UTC',
+    },
     eventImage: String,
     capacity: Number,
     registeredCount: {

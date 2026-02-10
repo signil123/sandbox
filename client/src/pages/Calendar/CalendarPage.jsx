@@ -139,6 +139,13 @@ const CalendarPage = () => {
   const [timeFormat, setTimeFormat] = useState(
     localStorage.getItem('calendarTimeFormat') || '12'
   )
+  const [timeZone, setTimeZone] = useState(() => {
+    return (
+      localStorage.getItem('calendarTimeZone') ||
+      Intl.DateTimeFormat().resolvedOptions().timeZone ||
+      'UTC'
+    )
+  })
   
   // Form states for validation
   const [formStartTime, setFormStartTime] = useState('09:00')
@@ -303,6 +310,81 @@ const CalendarPage = () => {
     localStorage.setItem('calendarTimeFormat', timeFormat)
   }, [timeFormat])
 
+  useEffect(() => {
+    localStorage.setItem('calendarTimeZone', timeZone)
+  }, [timeZone])
+
+  const timeZoneOptions = useMemo(() => {
+    if (typeof Intl.supportedValuesOf === 'function') {
+      const options = Intl.supportedValuesOf('timeZone')
+      return options.includes(timeZone) ? options : [timeZone, ...options]
+    }
+    const fallback = [
+      'UTC',
+      'America/Los_Angeles',
+      'America/Denver',
+      'America/Chicago',
+      'America/New_York',
+      'Europe/London',
+      'Europe/Paris',
+      'Asia/Tokyo',
+      'Asia/Shanghai',
+      'Asia/Kolkata',
+      'Australia/Sydney',
+    ]
+    return fallback.includes(timeZone) ? fallback : [timeZone, ...fallback]
+  }, [timeZone])
+
+  const getTimeZoneOffset = useCallback((tz, date) => {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      hour12: false,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+      .formatToParts(date)
+      .reduce((acc, part) => {
+        acc[part.type] = part.value
+        return acc
+      }, {})
+    const asUTC = Date.UTC(
+      Number(parts.year),
+      Number(parts.month) - 1,
+      Number(parts.day),
+      Number(parts.hour),
+      Number(parts.minute),
+      Number(parts.second)
+    )
+    return (asUTC - date.getTime()) / 60000
+  }, [])
+
+  const zonedTimeToUtc = useCallback(
+    (dateStr, timeStr, tz) => {
+      const [year, month, day] = dateStr.split('-').map(Number)
+      const [hour, minute] = timeStr.split(':').map(Number)
+      const utcDate = new Date(Date.UTC(year, month - 1, day, hour, minute, 0))
+      const offsetMinutes = getTimeZoneOffset(tz, utcDate)
+      return new Date(utcDate.getTime() - offsetMinutes * 60000)
+    },
+    [getTimeZoneOffset]
+  )
+
+  const formatTimeZoneLabel = useCallback(
+    (tz, date = new Date()) => {
+      const offsetMinutes = Math.round(getTimeZoneOffset(tz, date))
+      const sign = offsetMinutes >= 0 ? '+' : '-'
+      const abs = Math.abs(offsetMinutes)
+      const hours = String(Math.floor(abs / 60)).padStart(2, '0')
+      const minutes = String(abs % 60).padStart(2, '0')
+      return `${tz} • UTC${sign}${hours}:${minutes}`
+    },
+    [getTimeZoneOffset]
+  )
+
   // Lock background scroll when any modal is open
   useEffect(() => {
     const isModalOpen = isAddEventOpen || showEventDetails || showSuccessModal;
@@ -407,6 +489,19 @@ const CalendarPage = () => {
       hour12: timeFormat === '12',
     })
   }
+
+  const formatTimeLabel = useCallback(
+    (time) => {
+      const [h, m] = time.split(':').map(Number)
+      const date = new Date(2000, 0, 1, h, m, 0, 0)
+      return date.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: timeFormat === '12',
+      })
+    },
+    [timeFormat]
+  )
 
   const formatTimeSlotLabel = (time) => {
     const [h, m] = time.split(':').map(Number)
@@ -1283,8 +1378,8 @@ const CalendarPage = () => {
                 
                 try {
                   // Reconstruct dates from split fields
-                  const startDateTime = `${data.startDate}T${formStartTime}`;
-                  const endDateTime = formEndTime ? `${data.startDate}T${formEndTime}` : startDateTime;
+                  const startDateTime = zonedTimeToUtc(data.startDate, formStartTime, timeZone);
+                  const endDateTime = formEndTime ? zonedTimeToUtc(data.startDate, formEndTime, timeZone) : startDateTime;
 
                   // Validation: Start time must be before End time
                   if (formStartTime >= formEndTime) {
@@ -1322,8 +1417,9 @@ const CalendarPage = () => {
                     locationType: data.locationType,
                     location: data.locationType === 'In-Person' ? { address: data.location } : undefined,
                     virtualLocation: data.locationType !== 'In-Person' ? { link: data.location } : undefined,
-                    startDate: startDateTime,
-                    endDate: endDateTime,
+                    startDate: startDateTime.toISOString(),
+                    endDate: endDateTime.toISOString(),
+                    timeZone,
                     inviteeIds: selectedInvitees.map(i => i._id),
                   }), {
                     loading: 'Creating event...',
@@ -1405,6 +1501,55 @@ const CalendarPage = () => {
                 </div>
 
                 <div className='grid grid-cols-2 gap-4'>
+                  <div className='space-y-1.5'>
+                    <label className='text-[10px] font-bold text-stone-400 uppercase tracking-widest'>Time Format</label>
+                    <motion.button
+                      type="button"
+                      onClick={() =>
+                        setTimeFormat((prev) => (prev === '12' ? '24' : '12'))
+                      }
+                      className='relative w-full h-10 rounded-xl bg-stone-50 border border-stone-100 flex items-center px-1.5 transition-colors hover:bg-white'
+                      aria-pressed={timeFormat === '24'}
+                      whileHover={{ scale: 1.01 }}
+                      whileTap={{ scale: 0.99 }}
+                    >
+                      <span
+                        className={`absolute top-1 left-1 w-[calc(50%-0.25rem)] h-8 rounded-lg bg-[#163146] transition-transform ${
+                          timeFormat === '24' ? 'translate-x-[calc(100%+0.5rem)]' : ''
+                        }`}
+                      />
+                      <span
+                        className={`relative z-10 w-1/2 text-center text-[11px] font-bold transition-colors ${
+                          timeFormat === '12' ? 'text-white' : 'text-gray-600'
+                        }`}
+                      >
+                        12h
+                      </span>
+                      <span
+                        className={`relative z-10 w-1/2 text-center text-[11px] font-bold transition-colors ${
+                          timeFormat === '24' ? 'text-white' : 'text-gray-600'
+                        }`}
+                      >
+                        24h
+                      </span>
+                    </motion.button>
+                  </div>
+                  <div className='space-y-1.5'>
+                    <label className='text-[10px] font-bold text-stone-400 uppercase tracking-widest'>Time Zone</label>
+                    <select
+                      name='timeZone'
+                      value={timeZone}
+                      onChange={(e) => setTimeZone(e.target.value)}
+                      className='w-full px-4 py-2.5 bg-stone-50 border border-stone-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#163146] transition-all text-sm appearance-none'
+                    >
+                      {timeZoneOptions.map((tz) => (
+                        <option key={tz} value={tz}>{formatTimeZoneLabel(tz)}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className='grid grid-cols-2 gap-4'>
                    <div className='space-y-1.5'>
                     <label className='text-[10px] font-bold text-stone-400 uppercase tracking-widest'>Starts</label>
                     <div className="relative flex items-center">
@@ -1436,7 +1581,11 @@ const CalendarPage = () => {
                           const hour = Math.floor(i / 2);
                           const minute = i % 2 === 0 ? '00' : '30';
                           const time = `${hour.toString().padStart(2, '0')}:${minute}`;
-                          return <option key={time} value={time}>{time}</option>;
+                          return (
+                            <option key={time} value={time}>
+                              {formatTimeLabel(time)}
+                            </option>
+                          );
                         })}
                       </select>
                     </div>
@@ -1462,7 +1611,7 @@ const CalendarPage = () => {
                               disabled={time <= formStartTime}
                               className={time <= formStartTime ? 'text-stone-300' : ''}
                             >
-                              {time}
+                              {formatTimeLabel(time)}
                             </option>
                           );
                         })}
@@ -1665,8 +1814,11 @@ const CalendarPage = () => {
                     </div>
                     <div className="flex items-center gap-2 text-sm text-[#163146] font-medium">
                        <Clock size={14} className="text-[#986a41]" />
-                       {new Date(selectedEvent.startDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                       {formatTime(selectedEvent.startDate)}
                     </div>
+                    <p className="text-[10px] text-stone-400 font-medium">
+                      Time Zone: {formatTimeZoneLabel(selectedEvent.timeZone || timeZone, new Date(selectedEvent.startDate))}
+                    </p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-[10px] text-stone-400 font-bold uppercase">Location</p>

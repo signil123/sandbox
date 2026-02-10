@@ -20,6 +20,7 @@ export const createEvent = async (req, res, next) => {
       virtualLocation,
       startDate,
       endDate,
+      timeZone,
       attachments,
       inviteeIds, // Changed to array for consistency with plan
     } = req.body;
@@ -39,6 +40,7 @@ export const createEvent = async (req, res, next) => {
       virtualLocation,
       startDate: new Date(startDate),
       endDate: new Date(endDate),
+      timeZone: timeZone || 'UTC',
       attachments,
     });
 
@@ -83,7 +85,8 @@ export const createEvent = async (req, res, next) => {
             endTime: new Date(endDate),
             location: location?.address || virtualLocation?.link || '',
             link: virtualLocation?.link || '',
-            invitationStatus: 'pending'
+            invitationStatus: 'pending',
+            timeZone: timeZone || 'UTC',
           }
         });
 
