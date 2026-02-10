@@ -2,34 +2,34 @@
 import axios from 'axios'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-    Calendar,
-    ChevronLeft,
-    ChevronRight,
-    Clock,
-    ExternalLink,
-    Eye,
-    LineChart,
-    MessageSquare,
-    Newspaper,
-    PenLine,
-    Plus,
-    Search,
-    Send,
-    TrendingUp,
-    UserPlus,
-    Users,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  ExternalLink,
+  Eye,
+  LineChart,
+  MessageSquare,
+  Newspaper,
+  PenLine,
+  Plus,
+  Search,
+  Send,
+  TrendingUp,
+  UserPlus,
+  Users,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import {
-    CartesianGrid,
-    Line,
-    LineChart as RechartsLineChart,
-    ResponsiveContainer,
-    Tooltip,
-    XAxis,
-    YAxis,
+  CartesianGrid,
+  Line,
+  LineChart as RechartsLineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
 } from 'recharts'
 import { toast } from 'sonner'
 import api from '../../config'
@@ -39,11 +39,11 @@ import { AdvisorRoster, CurrentAdvisors } from '../../components/Dashboard/Netwo
 import ProfilePopup from '../../components/Dashboard/ProfilePopup'
 import { Button } from '../../components/ui/button'
 import {
-    Dialog,
-    DialogContent,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from '../../components/ui/dialog'
 import SkeletonCard from '../../components/ui/SkeletonCard'
 import { Textarea } from '../../components/ui/textarea'
@@ -51,48 +51,8 @@ import { getThemeById, themes } from '../../constants/themes'
 import { fetchUserNetwork, selectCurrentUser } from '../../redux/userSlice'
 import { connectionService } from '../../services/connectionService'
 import { exploreService } from '../../services/exploreService'
+import { getBannerStyle, getImageUrl } from '../../utils/imageUtils'
 import DashboardLayout from '../Layout/DashboardLayout'
-
-// Helper to construct full image URL for local uploads
-const getImageUrl = (path) => {
-  if (!path) return null
-  if (path.startsWith('http')) return path
-  const baseUrl = import.meta.env.VITE_API_URL.replace('/api', '')
-  return `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`
-}
-
-// Helper to determine banner style (gradient or custom image)
-const getBannerStyle = (profile) => {
-  if (profile?.bannerImage) {
-    // If it's already a gradient or URL, return as is
-    if (profile.bannerImage.startsWith('linear-gradient') || 
-        profile.bannerImage.startsWith('radial-gradient') ||
-        profile.bannerImage.startsWith('url')) {
-      return { background: profile.bannerImage }
-    }
-    
-    // If it's a file path, wrap in url()
-    if (profile.bannerImage.startsWith('/') || profile.bannerImage.includes('uploads')) {
-      const url = getImageUrl(profile.bannerImage)
-      return { backgroundImage: `url(${url})`, backgroundSize: 'cover', backgroundPosition: 'center' }
-    }
-    
-    // Check if it's a theme ID
-    const theme = getThemeById(profile.bannerImage)
-    if (theme?.style) return theme.style
-    
-    // Fallback: treat as a color/path and let CSS handle it
-    return { background: profile.bannerImage }
-  }
-  
-  // Fallback to themeId if bannerImage is not set
-  if (profile?.themeId) {
-    const theme = getThemeById(profile.themeId)
-    if (theme?.style) return theme.style
-  }
-  
-  return { background: 'linear-gradient(135deg, #163146 0%, #986a41 100%)' }
-}
 
 const DashboardPage = () => {
   const navigate = useNavigate()
@@ -255,7 +215,11 @@ const DashboardPage = () => {
           verified: u.profile?.verified || false,
           bestMatch: u.matchScore > 80,
           matchPercentage: u.matchScore,
-          banner: getBannerStyle(u.profile),
+          banner: getBannerStyle({
+            bannerImage: u?.profile?.bannerImage,
+            themeId: u?.profile?.themeId,
+            getThemeById,
+          }),
           profileImg: (u.profile?.profileImage && !u.profile.profileImage.includes('unsplash.com')) 
             ? getImageUrl(u.profile.profileImage) 
             : (u.profile?.photo && !u.profile.photo.includes('unsplash.com'))

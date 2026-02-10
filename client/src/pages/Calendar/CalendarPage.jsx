@@ -136,6 +136,9 @@ const CalendarPage = () => {
   const [isCreatingEvent, setIsCreatingEvent] = useState(false)
   const [processingInviteId, setProcessingInviteId] = useState(null)
   const [showSuccessModal, setShowSuccessModal] = useState(false)
+  const [timeFormat, setTimeFormat] = useState(
+    localStorage.getItem('calendarTimeFormat') || '12'
+  )
   
   // Form states for validation
   const [formStartTime, setFormStartTime] = useState('09:00')
@@ -296,6 +299,10 @@ const CalendarPage = () => {
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
+  useEffect(() => {
+    localStorage.setItem('calendarTimeFormat', timeFormat)
+  }, [timeFormat])
+
   // Lock background scroll when any modal is open
   useEffect(() => {
     const isModalOpen = isAddEventOpen || showEventDetails || showSuccessModal;
@@ -340,6 +347,72 @@ const CalendarPage = () => {
       default:
         return <Info size={16} className="text-stone-400" />
     }
+  }
+
+  const downloadEventIcs = (event) => {
+    if (!event?._id) return
+    const formatIcalDate = (dateInput) => {
+      const d = new Date(dateInput)
+      if (Number.isNaN(d.getTime())) return ''
+      return d.toISOString().replace(/-|:|\.\d+/g, '')
+    }
+    const escapeText = (value) =>
+      String(value || '')
+        .replace(/\\/g, '\\\\')
+        .replace(/\n/g, '\\n')
+        .replace(/,/g, '\\,')
+        .replace(/;/g, '\\;')
+
+    const location =
+      event.location?.address || event.virtualLocation?.link || ''
+    const lines = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//Signil//Event Calendar//EN',
+      'CALSCALE:GREGORIAN',
+      'METHOD:PUBLISH',
+      'BEGIN:VEVENT',
+      `UID:${event._id}@signil.com`,
+      `DTSTAMP:${formatIcalDate(new Date())}`,
+      `DTSTART:${formatIcalDate(event.startDate)}`,
+      `DTEND:${formatIcalDate(event.endDate || event.startDate)}`,
+      `SUMMARY:${escapeText(event.title)}`,
+      event.description
+        ? `DESCRIPTION:${escapeText(event.description)}`
+        : null,
+      location ? `LOCATION:${escapeText(location)}` : null,
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ].filter(Boolean)
+
+    const blob = new Blob([lines.join('\r\n')], {
+      type: 'text/calendar;charset=utf-8',
+    })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `event-${event._id}.ics`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  }
+
+  const formatTime = (dateInput) => {
+    const date = new Date(dateInput)
+    if (Number.isNaN(date.getTime())) return ''
+    return date.toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: timeFormat === '12',
+    })
+  }
+
+  const formatTimeSlotLabel = (time) => {
+    const [h, m] = time.split(':').map(Number)
+    const date = new Date(currentDate)
+    date.setHours(h, m, 0, 0)
+    return formatTime(date)
   }
 
   const getWeekDates = () => {
@@ -451,6 +524,41 @@ const CalendarPage = () => {
               ))}
             </div>
 
+            <div className='hidden md:flex items-center gap-2'>
+              <span className='text-[10px] font-semibold text-gray-500 uppercase tracking-wider'>
+                Time
+              </span>
+              <motion.button
+                onClick={() =>
+                  setTimeFormat((prev) => (prev === '12' ? '24' : '12'))
+                }
+                className='relative w-24 h-9 rounded-full bg-stone-50 border border-stone-200 flex items-center px-1.5 transition-colors hover:bg-white'
+                aria-pressed={timeFormat === '24'}
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+              >
+                <span
+                  className={`absolute top-1 left-1 w-11 h-7 rounded-full bg-[#163146] transition-transform ${
+                    timeFormat === '24' ? 'translate-x-11' : ''
+                  }`}
+                />
+                <span
+                  className={`relative z-10 w-1/2 text-center text-[11px] font-bold transition-colors ${
+                    timeFormat === '12' ? 'text-white' : 'text-gray-600'
+                  }`}
+                >
+                  12h
+                </span>
+                <span
+                  className={`relative z-10 w-1/2 text-center text-[11px] font-bold transition-colors ${
+                    timeFormat === '24' ? 'text-white' : 'text-gray-600'
+                  }`}
+                >
+                  24h
+                </span>
+              </motion.button>
+            </div>
+
             <motion.button
               onClick={() => setIsAddEventOpen(true)}
               className='flex items-center gap-2 px-3 md:px-4 py-2 bg-[#163146] text-white rounded-lg font-medium hover:bg-[#0f2a36] transition-colors'
@@ -555,7 +663,7 @@ const CalendarPage = () => {
                           currentDate.getMonth(),
                           day
                         ).toDateString()
-                        const dayEvents = events.filter(
+                        const dayEvents = filteredEvents.filter(
                           (e) => e.date.toDateString() === dateStr
                         )
                         const isSelected = day === currentDate.getDate()
@@ -618,10 +726,20 @@ const CalendarPage = () => {
                       <div className="space-y-3">
                          <a 
                            href={syncInfo.syncUrl}
+                           target="_blank"
+                           rel="noreferrer"
                            className="flex items-center justify-center gap-2 w-full py-2.5 bg-[#986a41] text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-[#855a36] transition-all shadow-md hover:shadow-lg active:scale-[0.98]"
                          >
                            <Share size={14} />
                            Sync My Schedule
+                         </a>
+                         <a
+                           href={syncInfo.downloadUrl}
+                           download="calendar.ics"
+                           className="flex items-center justify-center gap-2 w-full py-2.5 bg-white text-[#986a41] rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-stone-50 transition-all border border-[#986a41]/30"
+                         >
+                           <Download size={14} />
+                           Download .ics
                          </a>
                          <p className="text-[8px] text-stone-400 text-center leading-relaxed px-1">
                            One-click sync to your native system calendar.
@@ -643,20 +761,28 @@ const CalendarPage = () => {
                       {[
                         {
                           id: 'all',
+                          value: 'All Events',
                           label: 'All Events',
                           color: 'bg-gray-500',
                         },
                         {
                           id: 'video',
+                          value: 'Video Call',
                           label: 'Video Call',
                           color: 'bg-blue-500',
                         },
                         {
                           id: 'in-person',
+                          value: 'In-Person',
                           label: 'In-Person',
                           color: 'bg-green-500',
                         },
-                        { id: 'call', label: 'Call', color: 'bg-yellow-500' },
+                        {
+                          id: 'phone',
+                          value: 'Phone Call',
+                          label: 'Phone Call',
+                          color: 'bg-yellow-500',
+                        },
                       ].map((filter) => (
                         <label
                           key={filter.id}
@@ -665,8 +791,8 @@ const CalendarPage = () => {
                           <input
                             type='radio'
                             name='filter'
-                            value={filter.id}
-                            checked={selectedFilter === filter.id}
+                            value={filter.value}
+                            checked={selectedFilter === filter.value}
                             onChange={(e) => setSelectedFilter(e.target.value)}
                             className='w-4 h-4'
                           />
@@ -719,7 +845,7 @@ const CalendarPage = () => {
                                 </span>
                                 <span className="w-0.5 h-0.5 bg-stone-300 rounded-full"></span>
                                 <span className="text-[10px] text-stone-500 font-medium">
-                                  {new Date(event.startDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  {formatTime(event.startDate)}
                                 </span>
                               </div>
                             </div>
@@ -879,13 +1005,13 @@ const CalendarPage = () => {
                                 setShowEventDetails(true)
                               }}
                               className={`w-full p-3 rounded-lg text-left text-xs border-l-4 ${getEventColor(
-                                event.type
+                                event.locationType
                               )}`}
                               whileTap={{ scale: 0.98 }}
                             >
                               <p className='font-semibold'>{event.title}</p>
                               <p className='text-xs opacity-75 mt-1'>
-                                {new Date(event.startDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} — {new Date(event.endDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                {formatTime(event.startDate)} — {formatTime(event.endDate)}
                               </p>
                               <p className='text-xs opacity-75'>
                                 {event.creator?.name || 'Unknown'}
@@ -908,14 +1034,14 @@ const CalendarPage = () => {
                 <div className='grid grid-cols-8 gap-1 relative w-full'>
                   {/* Time Column */}
                   <div className='sticky left-0 bg-white z-10'>
-                    {timeSlots.map((time) => (
-                      <div
-                        key={time}
-                        className='h-16 text-xs text-gray-500 font-semibold pt-1 pb-16 border-b border-gray-100'
-                      >
-                        {time}
-                      </div>
-                    ))}
+                        {timeSlots.map((time) => (
+                          <div
+                            key={time}
+                            className='h-16 text-xs text-gray-500 font-semibold border-b border-gray-100 flex items-start pt-1'
+                          >
+                            {formatTimeSlotLabel(time)}
+                          </div>
+                        ))}
                   </div>
 
                   {/* Days Grid */}
@@ -942,7 +1068,7 @@ const CalendarPage = () => {
                                 setShowEventDetails(true)
                               }}
                               className={`absolute left-0.5 right-0.5 p-2 rounded-lg text-left text-xs pointer-events-auto cursor-pointer ${getEventColor(
-                                event.type
+                                event.locationType
                               )}`}
                               style={{
                                 top: `${topPercent}%`,
@@ -951,7 +1077,7 @@ const CalendarPage = () => {
                               whileHover={{ scale: 1.05, zIndex: 10 }}
                             >
                               <p className='font-semibold truncate'>
-                                {new Date(event.startDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                {formatTime(event.startDate)}
                               </p>
                               <p className='font-medium truncate'>
                                 {event.title}
@@ -997,7 +1123,7 @@ const CalendarPage = () => {
                         setShowEventDetails(true)
                       }}
                       className={`w-full p-4 rounded-lg border-l-4 text-left ${getEventColor(
-                        event.type
+                        event.locationType
                       )}`}
                       whileHover={{ scale: 1.02 }}
                     >
@@ -1008,7 +1134,7 @@ const CalendarPage = () => {
                             {event.title}
                           </p>
                           <p className='text-sm opacity-75 mt-1'>
-                            {new Date(event.startDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} — {new Date(event.endDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {formatTime(event.startDate)} — {formatTime(event.endDate)}
                           </p>
                           <p className='text-sm opacity-75'>
                             {event.creator?.name || 'Unknown'}
@@ -1626,17 +1752,14 @@ const CalendarPage = () => {
                      <img src="https://outlook.live.com/favicon.ico" className="w-3 h-3 grayscale group-hover:grayscale-0" alt="" />
                      Outlook
                    </a>
-                   {syncInfo && (
-                     <a 
-                       href={syncInfo.downloadUrl + `?eventId=${selectedEvent._id}`}
-                       download={`event-${selectedEvent._id}.ics`}
-                       className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-[#163146] hover:bg-[#0f2a36] border border-[#163146] rounded-xl text-[10px] font-bold text-white transition-colors"
-                       title="Add to Phone Calendar"
-                     >
-                       <Smartphone size={12} />
-                       Add to Phone
-                     </a>
-                   )}
+                   <button
+                     onClick={() => downloadEventIcs(selectedEvent)}
+                     className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-[#163146] hover:bg-[#0f2a36] border border-[#163146] rounded-xl text-[10px] font-bold text-white transition-colors"
+                     title="Save to Calendar"
+                   >
+                     <Smartphone size={12} />
+                     Save to Calendar
+                   </button>
                 </div>
 
                 {selectedEvent.attachments?.length > 0 && (

@@ -8,6 +8,7 @@ import {
     getRequestsSummary,
     getSentRequests,
     getUserConnections,
+    removeConnection,
     sendConnectionRequest,
 } from '../controllers/connectionRequest.js'
 import {
@@ -76,6 +77,13 @@ router.get(
   '/network/:userId',
   checkOwnershipOrAdmin('userId'),
   getUserConnections
+)
+
+// Remove active connection (unfollow)
+router.delete(
+  '/remove/:userId/:connectionId',
+  checkOwnershipOrAdmin('userId'),
+  removeConnection
 )
 
 export default router

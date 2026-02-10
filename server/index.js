@@ -2,6 +2,8 @@
 import cookieParser from 'cookie-parser'
 import cors from 'cors'
 import dotenv from 'dotenv'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import express from 'express'
 import mongoose from 'mongoose'
 
@@ -19,7 +21,9 @@ import profileRoutes from './routes/profileRoutes.js'
 import uploadRoutes from './routes/uploadRoutes.js'
 
 const app = express()
-dotenv.config({ quiet: true })
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+dotenv.config({ path: path.resolve(__dirname, '.env'), quiet: true })
 
 app.use(cookieParser())
 app.use(express.json())
@@ -53,8 +57,11 @@ app.use('/api/documents', documentManagerRoutes)
 
 // Error handler middleware
 app.use((err, req, res, next) => {
-  const statusCode = err.statusCode || 500
-  const message = err.message || 'Something went wrong!'
+  const isFileTooLarge = err?.code === 'LIMIT_FILE_SIZE'
+  const statusCode = isFileTooLarge ? 413 : err.statusCode || 500
+  const message = isFileTooLarge
+    ? 'File too large. Please upload a smaller file.'
+    : err.message || 'Something went wrong!'
   console.error(`[Error] ${statusCode} - ${message}`)
   res.status(statusCode).json({
     success: false,

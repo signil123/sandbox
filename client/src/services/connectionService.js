@@ -28,6 +28,9 @@ export const connectionService = {
   // Network
   getNetwork: (userId) => 
     axiosInstance.get(`${API_URL}/network/${userId}`),
+
+  removeConnection: (userId, connectionId) =>
+    axiosInstance.delete(`${API_URL}/remove/${userId}/${connectionId}`),
     
   // Role specific network
   getAthletesAdvisors: (athleteId) => 

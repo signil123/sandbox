@@ -42,10 +42,11 @@ import { getThemeById } from '../../constants/themes'
 import { selectCurrentUser } from '../../redux/userSlice'
 import { connectionService } from '../../services/connectionService'
 import { profileService } from '../../services/profileService'
+import { getImageUrl } from '../../utils/imageUtils'
 import DashboardLayout from '../Layout/DashboardLayout'
 
 const PublicProfileSkeleton = () => (
-  <div className='mx-auto px-4 py-8 max-w-7xl w-full animate-pulse'>
+  <div className='mx-auto px-4 py-8 max-w-8xl w-full animate-pulse'>
     <div className='mb-8 flex justify-between items-center'>
       <div className='h-10 w-32 bg-slate-200 rounded-full' />
       <div className='h-10 w-10 bg-slate-200 rounded-full' />
@@ -204,13 +205,6 @@ const PublicProfilePage = () => {
     }
   }
 
-  const getImageUrl = (path) => {
-    if (!path) return null
-    if (path.startsWith('http')) return path
-    const baseUrl = import.meta.env.VITE_API_URL.replace('/api', '')
-    return `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`
-  }
-
   const getInitials = (name) => {
     if (!name) return '?'
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
@@ -275,7 +269,7 @@ const PublicProfilePage = () => {
       
       <div className='w-full h-full max-w-8xl mx-auto flex flex-col bg-slate-50/50 min-h-screen pb-24 lg:pb-0'>
         <motion.div
-          className='mx-auto px-4 py-6 max-w-7xl w-full'
+          className='mx-auto px-4 py-6 max-w-8xl w-full'
           variants={containerVariants}
           initial='hidden'
           animate='visible'

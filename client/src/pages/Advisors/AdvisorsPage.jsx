@@ -150,7 +150,7 @@ const AdvisorsPage = () => {
 
             {/* Hero Section */}
             <section className="relative pt-[clamp(8rem,16vh,12rem)] pb-[clamp(3rem,6vh,6rem)] px-[clamp(1rem,5vw,2rem)] z-10 transition-all duration-700">
-                <div className="max-w-7xl mx-auto flex flex-col items-center text-center">
+                <div className="max-w-8xl mx-auto flex flex-col items-center text-center">
 
                     {/* Elite Eyebrow */}
                     <motion.div
@@ -220,7 +220,7 @@ const AdvisorsPage = () => {
                     </div>
 
                     {/* Elite Bento Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-12 auto-rows-[clamp(16rem,28vh,20rem)] gap-[clamp(1rem,2vw,1.5rem)] w-full max-w-7xl mx-auto px-0">
+                    <div className="grid grid-cols-1 md:grid-cols-12 auto-rows-[clamp(16rem,28vh,20rem)] gap-[clamp(1rem,2vw,1.5rem)] w-full max-w-8xl mx-auto px-0">
                         <AnimatePresence mode='wait'>
                             {content[activeTab].cards.map((card, idx) => (
                                 <motion.div
@@ -272,7 +272,7 @@ const AdvisorsPage = () => {
                 <div className="absolute -top-40 -right-40 w-96 h-96 bg-[#986a41]/20 rounded-full blur-[100px] opacity-40" />
                 <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-white/5 rounded-full blur-[100px] opacity-20" />
 
-                <div className="relative z-10 max-w-7xl mx-auto px-[clamp(1.5rem,3vw,3rem)] items-center flex flex-col">
+                <div className="relative z-10 max-w-8xl mx-auto px-[clamp(1.5rem,3vw,3rem)] items-center flex flex-col">
 
                     <div className="text-center mb-[clamp(3rem,6vh,5rem)] space-y-[clamp(1rem,2vh,1.5rem)]">
                         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/20 backdrop-blur-lg max-sm:backdrop-blur-none max-sm:bg-white/20">

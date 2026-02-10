@@ -52,7 +52,7 @@ const HomePage = () => {
           />
         </div>
 
-        <div className="relative z-10 max-w-7xl w-full mx-auto">
+        <div className="relative z-10 max-w-8xl w-full mx-auto">
           <div className="grid lg:grid-cols-12 gap-16 items-center">
             
             {/* Left Content Column (7 cols) */}

@@ -5,6 +5,7 @@ import { Event, Invitation } from '../models/Event.js'
 import Profile from '../models/Profile.js'
 import { Connection } from '../models/Relationship.js'
 import User from '../models/User.js'
+import { deleteCloudinaryAsset } from '../utils/cloudinaryCleanup.js'
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ATHLETE PROFILE ENDPOINTS
@@ -113,8 +114,18 @@ export const updatePersonalInfo = async (req, res, next) => {
 
     // Update profile fields
     if (phone) profile.phone = phone
-    if (profileImage) profile.profileImage = profileImage
-    if (bannerImage) profile.bannerImage = bannerImage
+    if (profileImage) {
+      if (profile.profileImage && profileImage !== profile.profileImage) {
+        await deleteCloudinaryAsset(profile.profileImage)
+      }
+      profile.profileImage = profileImage
+    }
+    if (bannerImage) {
+      if (profile.bannerImage && bannerImage !== profile.bannerImage) {
+        await deleteCloudinaryAsset(profile.bannerImage)
+      }
+      profile.bannerImage = bannerImage
+    }
     if (aboutMe) profile.aboutMe = aboutMe.trim()
     if (socialLinks) {
       profile.socialLinks = {

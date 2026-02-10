@@ -671,3 +671,35 @@ export const getUserConnections = async (req, res, next) => {
     next(error)
   }
 }
+
+/**
+ * Remove an active connection (unfollow)
+ */
+export const removeConnection = async (req, res, next) => {
+  try {
+    const { userId, connectionId } = req.params
+
+    const connection = await Connection.findById(connectionId)
+    if (!connection) {
+      return next(createError(404, 'Connection not found'))
+    }
+
+    const isParticipant =
+      connection.user1.toString() === userId ||
+      connection.user2.toString() === userId
+
+    if (!isParticipant) {
+      return next(createError(403, 'Not authorized to remove this connection'))
+    }
+
+    await Connection.findByIdAndDelete(connectionId)
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Connection removed',
+    })
+  } catch (error) {
+    console.error('Error in removeConnection:', error)
+    next(error)
+  }
+}

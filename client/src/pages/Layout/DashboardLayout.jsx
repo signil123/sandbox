@@ -7,6 +7,8 @@ import {
     CheckCircle2,
     ChevronDown,
     Compass,
+    Clock,
+    CreditCard,
     Eye,
     LayoutDashboard,
     LogOut,
@@ -44,6 +46,7 @@ import { messageService } from '../../services/messageService'
 import { notificationService } from '../../services/notificationService'
 import { profileService } from '../../services/profileService'
 import { socketService } from '../../services/socketService'
+import { getImageUrl } from '../../utils/imageUtils'
 
 const DashboardLayout = ({ children }) => {
   const navigate = useNavigate()
@@ -237,7 +240,7 @@ const DashboardLayout = ({ children }) => {
       id: 'dashboard',
       icon: LayoutDashboard,
       label: 'Dashboard',
-      path: '/',
+      path: '/dashboard',
     },
     {
       id: 'messages',
@@ -430,18 +433,6 @@ const DashboardLayout = ({ children }) => {
       <div className='hidden md:flex fixed left-6 top-1/2 transform -translate-y-1/2 z-40'>
         <div className='bg-white rounded-full p-3 border border-gray-200'>
           <div className='flex flex-col gap-2'>
-            {/* Logo */}
-            <Link to='/'>
-              <motion.div
-                className='flex items-center justify-center w-11 h-11 bg-gradient-to-br from-[#163146] to-[#0f1f27] rounded-full text-white font-bold text-base cursor-pointer'
-                whileHover={{ scale: 1.15 }}
-                whileTap={{ scale: 0.88 }}
-                transition={{ duration: 0.15 }}
-              >
-                S
-              </motion.div>
-            </Link>
-            <div className='h-px bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200'></div>
             {/* Navigation Bubbles */}
             <div className='flex flex-col gap-2.5'>
               {navItems.map((item) => {
@@ -600,7 +591,7 @@ const DashboardLayout = ({ children }) => {
                   <div className='w-8 h-8 bg-gradient-to-br from-[#163146] to-[#0f1f27] rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden relative'>
                     {currentUser?.profileImage ? (
                       <img
-                        src={currentUser.profileImage.startsWith('http') ? currentUser.profileImage : `${import.meta.env.VITE_API_URL.replace('/api', '')}${currentUser.profileImage}`}
+                        src={getImageUrl(currentUser.profileImage)}
                         alt='Profile'
                         className='w-full h-full object-cover'
                       />
@@ -645,57 +636,60 @@ const DashboardLayout = ({ children }) => {
                         </p>
                       </div>
 
-                      {/* Modern Status Selector */}
-                      <div className='px-4 py-4 border-b border-gray-100 bg-[#fafafa]'>
+                      {/* Presence Selector (Reworked) */}
+                      <div className='px-4 py-4 border-b border-gray-100 bg-white'>
                         <div className='flex items-center justify-between mb-3'>
-                          <span className='text-[10px] font-bold text-gray-400 uppercase tracking-widest'>Presence Status</span>
-                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-tighter ${
-                            currentUser?.status === 'online' ? 'bg-green-50 text-green-600' :
-                            currentUser?.status === 'away' ? 'bg-amber-50 text-amber-600' :
-                            currentUser?.status === 'idle' ? 'bg-amber-50 text-amber-500' : 'bg-gray-50 text-gray-500'
-                          }`}>
-                            {currentUser?.status || 'Offline'}
+                          <div className='flex items-center gap-2'>
+                            <div className={`w-2 h-2 rounded-full ${
+                              currentUser?.status === 'online' ? 'bg-green-500' :
+                              currentUser?.status === 'away' ? 'bg-amber-500' :
+                              currentUser?.status === 'idle' ? 'bg-amber-300' : 'bg-gray-400'
+                            }`} />
+                            <span className='text-[10px] font-bold text-gray-400 uppercase tracking-widest'>Presence</span>
+                          </div>
+                          <span className='text-[10px] font-semibold text-gray-700 capitalize'>
+                            {currentUser?.status || 'offline'}
                           </span>
                         </div>
-                        <div className='flex items-center gap-2'>
-                            {[
-                                { id: 'online', color: 'bg-green-500', label: 'Online' },
-                                { id: 'away', color: 'bg-amber-500', label: 'Away' },
-                                { id: 'idle', color: 'bg-amber-300', label: 'Idle' }
-                            ].map((s) => (
-                                <motion.button
-                                    key={s.id}
-                                    whileHover={{ y: -1 }}
-                                    whileTap={{ scale: 0.98 }}
-                                    onClick={(e) => {
-                                        e.stopPropagation()
-                                        isAutoAwayRef.current = false // Manual status change clears auto-away flag
-                                        dispatch(updateUserStatus(s.id))
-                                    }}
-                                    className={`flex-1 py-2.5 rounded-xl border transition-all duration-200 flex items-center justify-center gap-2 ${
-                                        currentUser?.status === s.id 
-                                          ? 'bg-[#163146] border-transparent text-white shadow-lg shadow-blue-900/10' 
-                                          : 'bg-white border-gray-100 text-gray-400 hover:border-gray-200 hover:text-gray-600'
-                                    }`}
-                                >
-                                    <div className={`w-1.5 h-1.5 rounded-full ${s.id === 'online' ? 'bg-green-500' : s.id === 'away' ? 'bg-amber-500' : 'bg-amber-300'}`} />
-                                    <span className='text-[10px] font-bold tracking-tight'>
-                                        {s.label}
-                                    </span>
-                                </motion.button>
-                            ))}
+                        <div className='grid grid-cols-3 gap-2'>
+                          {[
+                            { id: 'online', label: 'Online', icon: CheckCircle2 },
+                            { id: 'away', label: 'Away', icon: Clock },
+                            { id: 'idle', label: 'Idle', icon: Eye }
+                          ].map((s) => (
+                            <motion.button
+                              key={s.id}
+                              whileHover={{ y: -1 }}
+                              whileTap={{ scale: 0.98 }}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                isAutoAwayRef.current = false
+                                dispatch(updateUserStatus(s.id))
+                              }}
+                              className={`group relative py-2.5 rounded-2xl border text-center transition-all ${
+                                currentUser?.status === s.id
+                                  ? 'bg-[#163146] border-transparent text-white'
+                                  : 'bg-stone-50 border-stone-100 text-gray-600 hover:border-stone-200 hover:bg-white'
+                              }`}
+                            >
+                              <span className='flex items-center justify-center gap-1'>
+                                <s.icon size={12} className='opacity-90' />
+                                <span className='text-[10px] font-bold tracking-tight'>{s.label}</span>
+                              </span>
+                            </motion.button>
+                          ))}
                         </div>
                       </div>
                       {/* Menu Items */}
                       <div className='py-2'>
-                        <Link to={profilePath}>
+                        <Link to="/settings">
                           <motion.div
                             className='flex items-center gap-3 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer'
                             whileHover={{ x: 4 }}
                             transition={{ duration: 0.1 }}
                           >
-                            <User size={18} className='text-gray-400' />
-                            <span className='font-medium'>View Profile</span>
+                            <CreditCard size={18} className='text-gray-400' />
+                            <span className='font-medium'>Subscription</span>
                           </motion.div>
                         </Link>
                         <Link to="/settings">
@@ -1025,7 +1019,7 @@ const DashboardLayout = ({ children }) => {
       <div className='md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40'>
         <div className='flex items-center justify-around h-20 px-2 gap-1'>
           {/* Dashboard */}
-          <Link to='/' className='flex-1 min-w-0'>
+          <Link to='/dashboard' className='flex-1 min-w-0'>
             <motion.div className='relative flex flex-col items-center justify-center h-full'>
               <motion.button
                 className={`relative w-10 h-10 rounded-full flex items-center justify-center transition-all flex-shrink-0 font-semibold ${

@@ -10,6 +10,7 @@ import {
     Globe,
     Linkedin,
     Lock,
+    Loader2,
     Mail,
     MapPin,
     MessageSquare,
@@ -19,46 +20,21 @@ import {
     Twitter,
     Upload,
     UserPlus,
+    Users,
     X,
 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { useDispatch } from 'react-redux'
 import { Toaster, toast } from 'sonner'
+import ConnectionsModal from '../../components/Connections/ConnectionsModal'
 import { AdvisorRecommendationCard } from '../../components/Dashboard/AdvisorRecommendationCard'
 import ProfilePopup from '../../components/Dashboard/ProfilePopup'
 import UserPreviewCard from '../../components/Profile/UserPreviewCard'
 import { updateProfileImage } from '../../redux/userSlice'
+import { connectionService } from '../../services/connectionService'
 import { profileService } from '../../services/profileService'
+import { getBannerStyle, getImageUrl } from '../../utils/imageUtils'
 import DashboardLayout from '../Layout/DashboardLayout'
-
-const getImageUrl = (path) => {
-  if (!path) return null
-  if (path.startsWith('http')) return path
-  const baseUrl = import.meta.env.VITE_API_URL.replace('/api', '')
-  return `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`
-}
-
-const getBannerStyle = (profile) => {
-  if (profile?.bannerImage) {
-    if (profile.bannerImage.startsWith('linear-gradient') || 
-        profile.bannerImage.startsWith('radial-gradient') ||
-        profile.bannerImage.startsWith('url')) {
-      return { background: profile.bannerImage }
-    }
-    if (profile.bannerImage.startsWith('/') || profile.bannerImage.includes('uploads')) {
-      const url = getImageUrl(profile.bannerImage)
-      return { backgroundImage: `url(${url})`, backgroundSize: 'cover', backgroundPosition: 'center' }
-    }
-    const theme = getThemeById(profile.bannerImage)
-    if (theme?.style) return theme.style
-    return { background: profile.bannerImage }
-  }
-  if (profile?.themeId) {
-    const theme = getThemeById(profile.themeId)
-    if (theme?.style) return theme.style
-  }
-  return { background: 'linear-gradient(135deg, #163146 0%, #986a41 100%)' }
-}
 
 import { getThemeById, themes } from '../../constants/themes'
 
@@ -149,8 +125,11 @@ const ProfilePage = () => {
   
   const [loading, setLoading] = useState(true)
   const [savingProfile, setSavingProfile] = useState(false)
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false)
   const [selectedProfile, setSelectedProfile] = useState(null)
   const [profilePopupOpen, setProfilePopupOpen] = useState(false)
+  const [connectionsModalOpen, setConnectionsModalOpen] = useState(false)
+  const [currentUserId, setCurrentUserId] = useState(null)
 
   // Mobile & Scroll Lock Logic
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
@@ -162,17 +141,17 @@ const ProfilePage = () => {
   }, [])
 
   useEffect(() => {
-    const isAnyModalOpen = editModalOpen || preferencesModalOpen || interestsModalOpen || themeModalOpen || previewModalOpen || profilePopupOpen
+    const isAnyModalOpen = editModalOpen || preferencesModalOpen || interestsModalOpen || themeModalOpen || previewModalOpen || profilePopupOpen || connectionsModalOpen
     if (isAnyModalOpen) {
       document.body.style.overflow = 'hidden'
     } else {
       document.body.style.overflow = 'unset'
     }
     return () => { document.body.style.overflow = 'unset' }
-  }, [editModalOpen, preferencesModalOpen, interestsModalOpen, themeModalOpen, previewModalOpen, profilePopupOpen])
+  }, [editModalOpen, preferencesModalOpen, interestsModalOpen, themeModalOpen, previewModalOpen, profilePopupOpen, connectionsModalOpen])
 
 const ProfileSkeleton = () => (
-  <div className='mx-auto px-4 py-6 max-w-7xl w-full animate-pulse'>
+  <div className='mx-auto px-4 py-6 max-w-8xl w-full animate-pulse'>
     {/* Header Skeleton */}
     <div className='mb-6'>
       <div className='h-8 w-40 bg-slate-200 rounded-lg mb-2' />
@@ -295,6 +274,7 @@ const ProfileSkeleton = () => (
           nilPreferences,
           completion,
         } = bundleResponse.data
+        setCurrentUserId(user?._id || user?.id || null)
 
         const profileInfo = {
           name: profile.user?.name || user.name || '',
@@ -360,6 +340,19 @@ const ProfileSkeleton = () => (
            }
            setSelectedThemeId(oldThemeMap[profile.themeColor] || 'ocean')
         }
+
+        // Refresh connections count from network endpoint
+        if (user?._id || user?.id) {
+          try {
+            const networkResponse = await connectionService.getNetwork(user?._id || user?.id)
+            if (networkResponse.data?.status === 'success') {
+              const totalConnections = (networkResponse.data.data?.connections || []).length
+              setProfileData((prev) => ({ ...prev, connections: totalConnections }))
+            }
+          } catch (error) {
+            console.warn('Error fetching connections count:', error)
+          }
+        }
       }
 
       // Fetch advisors
@@ -381,7 +374,11 @@ const ProfileSkeleton = () => (
               verified: u.verified || false,
               bestMatch: (u.matchScore || u.matchPercentage) > 80,
               matchPercentage: u.matchScore || u.matchPercentage || 0,
-              banner: getBannerStyle(u),
+              banner: getBannerStyle({
+                bannerImage: u?.bannerImage,
+                themeId: u?.themeId,
+                getThemeById,
+              }),
               profileImg: (u.profileImage && !u.profileImage.includes('unsplash.com')) 
                 ? getImageUrl(u.profileImage) 
                 : (u.photo && !u.photo.includes('unsplash.com'))
@@ -495,6 +492,7 @@ const ProfileSkeleton = () => (
     if (!file) return
 
     try {
+      setIsUploadingPhoto(true)
       setSavingProfile(true)
       const uploadResponse = await profileService.uploadFile(file)
       
@@ -513,6 +511,7 @@ const ProfileSkeleton = () => (
       toast.error('Failed to upload profile photo')
     } finally {
       setSavingProfile(false)
+      setIsUploadingPhoto(false)
     }
   }
 
@@ -588,6 +587,16 @@ const ProfileSkeleton = () => (
     return Object.values(interests).filter(Boolean).length
   }
 
+  const handleConnectionsCountUpdate = (valueOrUpdater) => {
+    setProfileData((prev) => ({
+      ...prev,
+      connections:
+        typeof valueOrUpdater === 'function'
+          ? valueOrUpdater(prev.connections || 0)
+          : valueOrUpdater,
+    }))
+  }
+
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -615,7 +624,7 @@ const ProfileSkeleton = () => (
 
       <div className='w-full h-full max-w-8xl mx-auto flex flex-col bg-gradient-to-br from-slate-50 to-slate-100 min-h-screen'>
         <motion.div
-          className='mx-auto px-4 py-6 max-w-7xl w-full'
+          className='mx-auto px-4 py-6 max-w-8xl w-full'
           variants={containerVariants}
           initial='hidden'
           animate='visible'
@@ -653,7 +662,7 @@ const ProfileSkeleton = () => (
                   <div
                     className='h-32 relative z-0 group/banner overflow-hidden'
                     style={profileData.banner 
-                      ? { backgroundImage: `url(${profileData.banner.startsWith('http') ? profileData.banner : `${import.meta.env.VITE_API_URL.replace('/api', '')}${profileData.banner}`})`, backgroundSize: 'cover', backgroundPosition: 'center' } 
+                      ? { backgroundImage: `url(${getImageUrl(profileData.banner)})`, backgroundSize: 'cover', backgroundPosition: 'center' } 
                       : currentTheme.style
                     }
                   >
@@ -681,7 +690,7 @@ const ProfileSkeleton = () => (
                       >
                         {profileData.photo ? (
                           <img
-                            src={profileData.photo.startsWith('http') ? profileData.photo : `${import.meta.env.VITE_API_URL.replace('/api', '')}${profileData.photo}`}
+                            src={getImageUrl(profileData.photo)}
                             alt={profileData.name}
                             className='w-full h-full object-cover'
                           />
@@ -695,14 +704,25 @@ const ProfileSkeleton = () => (
                         )}
                         
                         {/* Upload Overlay */}
-                        <label className='absolute inset-0 bg-black/40 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer'>
-                          <Upload size={20} className='text-white' />
+                        <label
+                          className={`absolute inset-0 bg-black/40 flex flex-col items-center justify-center transition-opacity cursor-pointer ${
+                            isUploadingPhoto ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                          }`}
+                        >
+                          {isUploadingPhoto ? (
+                            <>
+                              <Loader2 size={22} className='text-white animate-spin' />
+                              <span className='text-[11px] text-white mt-2 font-semibold'>Uploading...</span>
+                            </>
+                          ) : (
+                            <Upload size={20} className='text-white' />
+                          )}
                           <input 
                             type="file" 
                             className="hidden" 
                             accept="image/*"
                             onChange={handlePhotoUpload}
-                            disabled={savingProfile}
+                            disabled={savingProfile || isUploadingPhoto}
                           />
                         </label>
                       </motion.div>
@@ -983,6 +1003,39 @@ const ProfileSkeleton = () => (
 
             {/* Right Sidebar */}
             <div className='space-y-4'>
+              {/* My Network */}
+              <motion.div
+                variants={itemVariants}
+                className='bg-white rounded-2xl border border-slate-200 p-4'
+              >
+                <div className='flex items-center justify-between mb-3'>
+                  <h3 className='text-sm font-semibold text-slate-900'>
+                    My Network
+                  </h3>
+                  <div className='w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center'>
+                    <Users size={14} />
+                  </div>
+                </div>
+                <div className='bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center justify-between gap-3'>
+                  <div>
+                    <p className='text-xs font-semibold text-slate-700'>
+                      {profileData.connections || 0} connections
+                    </p>
+                    <p className='text-[11px] text-slate-500 mt-1'>
+                      See who is in your circle and manage access
+                    </p>
+                  </div>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setConnectionsModalOpen(true)}
+                    className='px-3 py-2 bg-slate-900 text-white text-xs font-semibold rounded-xl shadow-sm hover:bg-slate-800 transition-colors'
+                  >
+                    View
+                  </motion.button>
+                </div>
+              </motion.div>
+
               {/* NIL Preferences */}
               <motion.div
                 variants={itemVariants}
@@ -1150,6 +1203,15 @@ const ProfileSkeleton = () => (
           </div>
         </motion.div>
       </div>
+
+      <ConnectionsModal
+        isOpen={connectionsModalOpen}
+        onClose={() => setConnectionsModalOpen(false)}
+        currentUserId={currentUserId}
+        title='My Network'
+        subtitle='Search, manage, and unfollow your connections'
+        onCountUpdate={handleConnectionsCountUpdate}
+      />
 
       {/* Edit Profile Modal */}
       <AnimatePresence>
@@ -1781,10 +1843,10 @@ const ProfileSkeleton = () => (
                    specialty: profileData.sport || 'Athlete',
                    connections: 0,
                    banner: profileData.banner 
-                     ? { backgroundImage: `url(${profileData.banner.startsWith('http') ? profileData.banner : `${import.meta.env.VITE_API_URL.replace('/api', '')}${profileData.banner}`})`, backgroundSize: 'cover', backgroundPosition: 'center' } 
+                     ? { backgroundImage: `url(${getImageUrl(profileData.banner)})`, backgroundSize: 'cover', backgroundPosition: 'center' } 
                      : currentTheme.style,
                    profileImg: profileData.photo 
-                     ? (profileData.photo.startsWith('http') ? profileData.photo : `${import.meta.env.VITE_API_URL.replace('/api', '')}${profileData.photo}`)
+                     ? getImageUrl(profileData.photo)
                      : `https://ui-avatars.com/api/?name=${encodeURIComponent(profileData.name || 'User')}&background=random`,
                    matchPercentage: 98
                  }}

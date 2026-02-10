@@ -10,6 +10,7 @@ import {
     Globe,
     Linkedin,
     Lock,
+    Loader2,
     Mail,
     MapPin,
     Phone,
@@ -29,6 +30,7 @@ import UserPreviewCard from '../../components/Profile/UserPreviewCard'
 import { getThemeById, themes } from '../../constants/themes'
 import { selectCurrentUser, updateProfileImage } from '../../redux/userSlice'
 import { profileService } from '../../services/profileService'
+import { getImageUrl } from '../../utils/imageUtils'
 import DashboardLayout from '../Layout/DashboardLayout'
 
 // Professional specific options
@@ -71,6 +73,7 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
   const [completeProfileModalOpen, setCompleteProfileModalOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [savingProfile, setSavingProfile] = useState(false)
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false)
   const [savingSpecializations, setSavingSpecializations] = useState(false)
   const [specializationsModalOpen, setSpecializationsModalOpen] = useState(false)
 
@@ -326,6 +329,7 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
     if (!file) return
 
     try {
+      setIsUploadingPhoto(true)
       setSavingProfile(true)
       const uploadResponse = await profileService.uploadFile(file)
       
@@ -344,6 +348,7 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
       toast.error('Failed to upload profile photo')
     } finally {
       setSavingProfile(false)
+      setIsUploadingPhoto(false)
     }
   }
 
@@ -371,7 +376,7 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
   }
 
   const ProfileSkeleton = () => (
-    <div className='mx-auto px-4 py-6 max-w-7xl w-full animate-pulse'>
+    <div className='mx-auto px-4 py-6 max-w-8xl w-full animate-pulse'>
       <div className='h-8 w-40 bg-slate-200 rounded-lg mb-6' />
       <div className='grid grid-cols-1 lg:grid-cols-3 gap-4'>
         <div className='lg:col-span-2 bg-white rounded-2xl border border-slate-200 h-96' />
@@ -399,7 +404,7 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
 
       <div className='w-full h-full max-w-8xl mx-auto flex flex-col bg-gradient-to-br from-slate-50 to-slate-100 min-h-screen'>
         <motion.div
-          className='mx-auto px-4 py-6 max-w-7xl w-full'
+          className='mx-auto px-4 py-6 max-w-8xl w-full'
           variants={containerVariants}
           initial='hidden'
           animate='visible'
@@ -446,7 +451,7 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
                   <div
                     className='h-32 relative z-0 group/banner overflow-hidden'
                     style={profileData.banner 
-                      ? { backgroundImage: `url(${profileData.banner.startsWith('http') ? profileData.banner : `${import.meta.env.VITE_API_URL.replace('/api', '')}${profileData.banner}`})`, backgroundSize: 'cover', backgroundPosition: 'center' } 
+                      ? { backgroundImage: `url(${getImageUrl(profileData.banner)})`, backgroundSize: 'cover', backgroundPosition: 'center' } 
                       : currentTheme.style
                     }
                   >
@@ -478,7 +483,7 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
                       >
                         {profileData.photo ? (
                           <img
-                            src={profileData.photo.startsWith('http') ? profileData.photo : `${import.meta.env.VITE_API_URL.replace('/api', '')}${profileData.photo}`}
+                            src={getImageUrl(profileData.photo)}
                             alt={profileData.name}
                             className='w-full h-full object-cover'
                           />
@@ -492,14 +497,25 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
                         )}
                         
                         {/* Upload Overlay */}
-                        <label className='absolute inset-0 bg-black/40 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer'>
-                          <Upload size={24} className='text-white mb-1' />
+                        <label
+                          className={`absolute inset-0 bg-black/40 flex flex-col items-center justify-center transition-opacity cursor-pointer ${
+                            isUploadingPhoto ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                          }`}
+                        >
+                          {isUploadingPhoto ? (
+                            <>
+                              <Loader2 size={22} className='text-white animate-spin' />
+                              <span className='text-[11px] text-white mt-2 font-semibold'>Uploading...</span>
+                            </>
+                          ) : (
+                            <Upload size={24} className='text-white mb-1' />
+                          )}
                           <input 
                             type="file" 
                             className="hidden" 
                             accept="image/*"
                             onChange={handlePhotoUpload}
-                            disabled={savingProfile}
+                            disabled={savingProfile || isUploadingPhoto}
                           />
                         </label>
                       </motion.div>
@@ -1159,10 +1175,10 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
                    specialty: 'Advisor',
                    connections: 0,
                    banner: profileData.banner 
-                     ? { backgroundImage: `url(${profileData.banner.startsWith('http') ? profileData.banner : `${import.meta.env.VITE_API_URL.replace('/api', '')}${profileData.banner}`})`, backgroundSize: 'cover', backgroundPosition: 'center' } 
+                     ? { backgroundImage: `url(${getImageUrl(profileData.banner)})`, backgroundSize: 'cover', backgroundPosition: 'center' } 
                      : currentTheme.style,
                    profileImg: profileData.photo 
-                     ? (profileData.photo.startsWith('http') ? profileData.photo : `${import.meta.env.VITE_API_URL.replace('/api', '')}${profileData.photo}`)
+                     ? getImageUrl(profileData.photo)
                      : `https://ui-avatars.com/api/?name=${encodeURIComponent(profileData.name || 'User')}&background=random`,
                    matchPercentage: 95
                  }}

@@ -174,7 +174,7 @@ const SettingsPage = () => {
 
   return (
     <DashboardLayout>
-      <div className="max-w-6xl mx-auto px-4 py-12">
+      <div className="max-w-8xl mx-auto px-4 py-12">
         <header className="mb-12">
           <h1 className="text-5xl font-black text-[#163146] tracking-tight">Account Settings</h1>
           <p className="text-gray-500 mt-2 text-lg">Manage your identity and subscription preferences</p>

@@ -1,9 +1,12 @@
 // File: client/src/pages/Athletes/AthletesPage.jsx
+import ConnectionsModal from '@/components/Connections/ConnectionsModal';
 import Footer from '@/components/Layout/Footer';
 import Navbar from '@/components/Layout/Navbar';
 import { motion, useScroll, useTransform } from 'framer-motion';
-import { Aperture, ArrowRight, Check, DollarSign, Shield, Sparkles } from 'lucide-react';
-import React, { useRef } from 'react';
+import { Aperture, ArrowRight, Check, DollarSign, Shield, Sparkles, Users } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { useSelector } from 'react-redux';
+import { Toaster } from 'sonner';
 
 const features = [
     {
@@ -31,6 +34,9 @@ const features = [
 
 const AthletesPage = () => {
     const containerRef = useRef(null);
+    const [connectionsOpen, setConnectionsOpen] = useState(false);
+    const currentUser = useSelector((state) => state.user.currentUser);
+
     const { scrollYProgress } = useScroll({
         target: containerRef,
         offset: ["start start", "end end"]
@@ -59,6 +65,7 @@ const AthletesPage = () => {
     return (
         <div ref={containerRef} className="relative min-h-screen w-full bg-[#fdfdfd] flex flex-col font-sans selection:bg-[#163146] selection:text-white overflow-x-hidden">
             <Navbar />
+            <Toaster position="bottom-right" theme="dark" />
 
             {/* Dynamic Mesh Background Overlay - Hidden on mobile for performance */}
             <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden max-sm:hidden">
@@ -74,7 +81,7 @@ const AthletesPage = () => {
             </div>
 
             <main className="grow pt-[clamp(8rem,16vh,12rem)] pb-[clamp(4rem,8vh,6rem)] px-[clamp(1rem,5vw,2rem)] relative z-10">
-                <div className="max-w-7xl mx-auto">
+                <div className="max-w-8xl mx-auto">
 
                     {/* Elite Hero Section */}
                     <header className="flex flex-col items-center text-center mb-[clamp(3rem,8vh,8rem)]">
@@ -117,6 +124,25 @@ const AthletesPage = () => {
                         >
                             Navigate your NIL journey with precision. We pair elite talent with the expert guidance needed to build a sustainable, protected legacy.
                         </motion.p>
+
+                        <motion.div
+                            initial={{ opacity: 0, y: 16 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.8, delay: 0.3 }}
+                            className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4"
+                        >
+                            <button
+                                onClick={() => setConnectionsOpen(true)}
+                                disabled={!currentUser?._id}
+                                className={`inline-flex items-center gap-2 px-6 py-3 rounded-full text-xs font-bold tracking-[0.2em] uppercase transition-all border ${currentUser?._id ? 'bg-[#163146] text-white border-[#163146] hover:-translate-y-0.5 hover:shadow-lg' : 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'}`}
+                            >
+                                <Users className="w-4 h-4" />
+                                View My Network
+                            </button>
+                            <div className="text-[11px] text-gray-400 uppercase tracking-[0.18em]">
+                                Search and manage your connections
+                            </div>
+                        </motion.div>
                     </header>
 
                     {/* Modern Bento Grid */}
@@ -190,7 +216,7 @@ const AthletesPage = () => {
                         <div className="absolute -top-40 -right-40 w-96 h-96 bg-[#986a41]/20 rounded-full blur-[100px] opacity-40" />
                         <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-white/5 rounded-full blur-[100px] opacity-20" />
 
-                        <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-[clamp(3rem,6vh,6rem)] px-[clamp(2rem,5vw,5rem)] max-w-6xl mx-auto">
+                        <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-[clamp(3rem,6vh,6rem)] px-[clamp(2rem,5vw,5rem)] max-w-8xl mx-auto">
                             <motion.div
                                 initial={{ opacity: 0, x: -30 }}
                                 whileInView={{ opacity: 1, x: 0 }}
@@ -270,6 +296,14 @@ const AthletesPage = () => {
                 </div>
             </main>
             <Footer />
+
+            <ConnectionsModal
+                isOpen={connectionsOpen}
+                onClose={() => setConnectionsOpen(false)}
+                currentUserId={currentUser?._id || currentUser?.id || null}
+                title="My Network"
+                subtitle="Search, manage, and unfollow your connections"
+            />
         </div>
     );
 };

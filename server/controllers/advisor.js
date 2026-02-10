@@ -9,6 +9,7 @@ import { ProfileView } from '../models/ProfileView.js'
 import { Connection } from '../models/Relationship.js'
 import User from '../models/User.js'
 import Document from '../models/Verification.js'
+import { deleteCloudinaryAsset } from '../utils/cloudinaryCleanup.js'
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ADVISOR/AGENT PROFILE ENDPOINTS
@@ -163,8 +164,18 @@ export const updateAdvisorInfo = async (req, res, next) => {
 
     // Update profile
     if (phone) profile.phone = phone
-    if (profileImage) profile.profileImage = profileImage
-    if (bannerImage) profile.bannerImage = bannerImage
+    if (profileImage) {
+      if (profile.profileImage && profileImage !== profile.profileImage) {
+        await deleteCloudinaryAsset(profile.profileImage)
+      }
+      profile.profileImage = profileImage
+    }
+    if (bannerImage) {
+      if (profile.bannerImage && bannerImage !== profile.bannerImage) {
+        await deleteCloudinaryAsset(profile.bannerImage)
+      }
+      profile.bannerImage = bannerImage
+    }
     if (aboutMe) profile.aboutMe = aboutMe.trim()
     if (socialLinks) {
       profile.socialLinks = { ...profile.socialLinks, ...socialLinks }

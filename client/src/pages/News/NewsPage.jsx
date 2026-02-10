@@ -64,7 +64,7 @@ const NewsPage = () => {
   return (
     <DashboardLayout>
       <div className='w-full h-[calc(100vh-64px)] bg-[#F9FAFB] overflow-hidden flex flex-col'>
-        <div className='mx-auto px-4 md:px-8 py-6 w-full max-w-7xl flex-1 flex flex-col min-h-0'>
+        <div className='mx-auto px-4 md:px-8 py-6 w-full max-w-8xl flex-1 flex flex-col min-h-0'>
           
           {/* Header */}
           <div className='mb-6 flex-shrink-0 flex items-baseline justify-between'>

@@ -5,6 +5,7 @@ import Profile from '../models/Profile.js'
 import { ProfileView } from '../models/ProfileView.js'
 import { Connection, ConnectionRequest } from '../models/Relationship.js'
 import User from '../models/User.js'
+import { deleteCloudinaryAsset } from '../utils/cloudinaryCleanup.js'
 
 /**
  * Get or create user profile
@@ -172,6 +173,19 @@ export const updateProfile = async (req, res, next) => {
         ...updateData,
       })
     } else {
+      if (profileImage !== undefined && profile.profileImage && profileImage !== profile.profileImage) {
+        await deleteCloudinaryAsset(profile.profileImage)
+      }
+      if (photo !== undefined && profile.photo && photo !== profile.photo) {
+        await deleteCloudinaryAsset(profile.photo)
+      }
+      if (bannerImage !== undefined && profile.bannerImage && bannerImage !== profile.bannerImage) {
+        await deleteCloudinaryAsset(profile.bannerImage)
+      }
+      if (coverImage !== undefined && profile.coverImage && coverImage !== profile.coverImage) {
+        await deleteCloudinaryAsset(profile.coverImage)
+      }
+
       profile = await Profile.findOneAndUpdate({ user: userId }, updateData, {
         new: true,
         runValidators: true,
@@ -258,6 +272,13 @@ export const updateAthleteProfile = async (req, res, next) => {
         profileType: 'athlete',
         ...updateData,
       })
+    } else {
+      if (profileImage !== undefined && profile.profileImage && profileImage !== profile.profileImage) {
+        await deleteCloudinaryAsset(profile.profileImage)
+      }
+      if (photo !== undefined && profile.photo && photo !== profile.photo) {
+        await deleteCloudinaryAsset(profile.photo)
+      }
     }
 
     // Security Notification for name/email change

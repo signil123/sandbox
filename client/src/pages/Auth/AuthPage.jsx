@@ -170,7 +170,7 @@ export default function AuthPage({
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
-        className='bg-white rounded-[2rem] shadow-2xl w-full max-w-5xl h-[min(800px,90vh)] flex overflow-hidden'
+        className='bg-white rounded-[2rem] shadow-2xl w-full max-w-8xl h-[min(800px,90vh)] flex overflow-hidden'
       >
         {/* Left Section - Decorative & Branding */}
         <div
