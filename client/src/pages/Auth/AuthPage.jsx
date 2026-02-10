@@ -61,6 +61,8 @@ export default function AuthPage({
   const [loginForm, setLoginForm] = useState({ email: '', password: '' })
   const [errors, setErrors] = useState({})
 
+  const getLandingPath = (role) => (role === 'admin' ? '/admin' : '/dashboard')
+
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden'
@@ -108,7 +110,7 @@ export default function AuthPage({
         if (signupUser.fulfilled.match(result)) {
           onSignupComplete?.()
           onClose()
-          navigate('/dashboard')
+          navigate(getLandingPath(result.payload?.role))
         } else {
           // Error is handled by reduxError selector
         }
@@ -137,7 +139,7 @@ export default function AuthPage({
         if (loginUser.fulfilled.match(result)) {
           onSignupComplete?.()
           onClose()
-          navigate('/dashboard')
+          navigate(getLandingPath(result.payload?.role))
         } else {
           // Error is handled by reduxError selector
         }
@@ -170,7 +172,7 @@ export default function AuthPage({
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
-        className='bg-white rounded-[2rem] shadow-2xl w-full max-w-8xl h-[min(800px,90vh)] flex overflow-hidden'
+        className='bg-white rounded-[2rem] shadow-2xl w-full max-w-6xl h-[min(800px,90vh)] flex overflow-hidden'
       >
         {/* Left Section - Decorative & Branding */}
         <div

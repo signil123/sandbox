@@ -4,6 +4,7 @@ import Notification from '../models/Notification.js'
 import Profile from '../models/Profile.js'
 import User from '../models/User.js'
 import Document from '../models/Verification.js'
+import { deleteCloudinaryAsset } from '../utils/cloudinaryCleanup.js'
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ADVISOR/AGENT DOCUMENT SUBMISSION
@@ -37,6 +38,20 @@ export const submitDocument = async (req, res, next) => {
     if (!validTypes.includes(documentType.toLowerCase())) {
       // Allow it if it matches schema, but these are the main ones we expect from frontend
       // Actually, let's just trust the schema validation or ensure this list matches schema
+    }
+
+    const existing = await Document.findOne({
+      user: advisorId,
+      documentType: documentType.toLowerCase(),
+      status: { $in: ['pending_review', 'verified', 'in_review', 'pending'] },
+    })
+    if (existing) {
+      return next(
+        createError(
+          400,
+          'Document already submitted for this type. Please wait for review or delete it before re-uploading.'
+        )
+      )
     }
 
     // Create document submission
@@ -185,7 +200,12 @@ export const updateDocument = async (req, res, next) => {
     if (newDocId) document.documentId = newDocId
     if (issueDate) document.issueDate = new Date(issueDate)
     if (expirationDate) document.expirationDate = new Date(expirationDate)
-    if (fileUrl) document.documentUrl = fileUrl
+    if (fileUrl) {
+      if (document.documentUrl && fileUrl !== document.documentUrl) {
+        await deleteCloudinaryAsset(document.documentUrl)
+      }
+      document.documentUrl = fileUrl
+    }
     if (notes) document.submittedNotes = notes
 
     document.status = 'pending_review'
@@ -251,6 +271,9 @@ export const deleteDocument = async (req, res, next) => {
       return next(createError(400, 'Cannot delete verified documents'))
     }
 
+    if (document.documentUrl) {
+      await deleteCloudinaryAsset(document.documentUrl)
+    }
     await Document.findByIdAndDelete(documentId)
 
     res.status(200).json({

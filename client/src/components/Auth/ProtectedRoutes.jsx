@@ -9,7 +9,7 @@ export const PrivateRoute = ({ children }) => {
   const currentUser = useSelector(selectCurrentUser)
 
   if (!currentUser) {
-    return <Navigate to='/auth' replace />
+    return <Navigate to='/' replace />
   }
 
   return children
@@ -20,6 +20,9 @@ export const PublicRoute = ({ children }) => {
   const currentUser = useSelector(selectCurrentUser)
 
   if (currentUser) {
+    if (currentUser.role === 'admin') {
+      return <Navigate to='/admin' replace />
+    }
     return <Navigate to='/dashboard' replace />
   }
 
@@ -31,7 +34,7 @@ export const AdminRoute = ({ children }) => {
   const currentUser = useSelector(selectCurrentUser)
 
   if (!currentUser) {
-    return <Navigate to='/auth' replace />
+    return <Navigate to='/' replace />
   }
 
   if (currentUser.role !== 'admin') {

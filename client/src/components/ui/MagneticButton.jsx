@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 
-export const MagneticButton = ({ children, className = "" }) => {
+export const MagneticButton = ({ children, className = "", onClick, ...props }) => {
   const ref = useRef(null);
   const [position, setPosition] = useState({ x: 0, y: 0 });
 
@@ -28,6 +28,8 @@ export const MagneticButton = ({ children, className = "" }) => {
       onMouseLeave={reset}
       whileHover={{ scale: 1.05 }}
       whileTap={{ scale: 0.95 }}
+      onClick={onClick}
+      {...props}
     >
       {children}
     </motion.button>

@@ -48,7 +48,7 @@ import { profileService } from '../../services/profileService'
 import { socketService } from '../../services/socketService'
 import { getImageUrl } from '../../utils/imageUtils'
 
-const DashboardLayout = ({ children }) => {
+const DashboardLayout = ({ children, hideSidebar = false }) => {
   const navigate = useNavigate()
   const location = useLocation()
   const dispatch = useDispatch()
@@ -401,7 +401,7 @@ const DashboardLayout = ({ children }) => {
   const handleLogout = async () => {
     setIsLogoutModalOpen(false)
     await dispatch(logoutUser())
-    navigate('/auth')
+    navigate('/')
   }
 
   // Tooltip Component
@@ -430,85 +430,87 @@ const DashboardLayout = ({ children }) => {
   return (
     <div className='flex min-h-screen bg-gray-50'>
       {/* Desktop Sidebar */}
-      <div className='hidden md:flex fixed left-6 top-1/2 transform -translate-y-1/2 z-40'>
-        <div className='bg-white rounded-full p-3 border border-gray-200'>
-          <div className='flex flex-col gap-2'>
-            {/* Navigation Bubbles */}
-            <div className='flex flex-col gap-2.5'>
-              {navItems.map((item) => {
-                const Icon = item.icon
-                const isActive = activeNav === item.id
-                return (
-                  <Link to={item.path} key={item.id}>
-                    <div className='relative'>
-                      <motion.button
-                        className={`relative w-11 h-11 rounded-full flex items-center justify-center transition-colors ${
-                          isActive
-                            ? 'bg-[#163146] text-white'
-                            : 'text-gray-600 hover:bg-gray-100'
-                        }`}
-                        whileHover={{ scale: 1.2 }}
-                        whileTap={{ scale: 0.85 }}
-                        transition={{ duration: 0.12 }}
-                        onMouseEnter={() => setHoveredTooltip(item.id)}
-                        onMouseLeave={() => setHoveredTooltip(null)}
-                      >
-                        <Icon size={20} />
-                        {/* Active indicator ring */}
-                        {isActive && (
-                          <motion.div
-                            className='absolute inset-0 rounded-full border-2 border-[#163146]'
-                            initial={{ scale: 1.15, opacity: 0 }}
-                            animate={{ scale: 1.25, opacity: 0 }}
-                            transition={{
-                              duration: 0.4,
-                              repeat: Infinity,
-                              ease: 'easeOut',
-                            }}
-                          />
-                        )}
-                      </motion.button>
-                      
-                      {/* Unread Message Bubble for Sidebar */}
-                      {item.id === 'messages' && unreadMessagesCount > 0 && (
-                        <div className="absolute top-0 right-0 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center border border-white pointer-events-none z-10">
+      {!hideSidebar && (
+        <div className='hidden md:flex fixed left-6 top-1/2 transform -translate-y-1/2 z-40'>
+          <div className='bg-white rounded-full p-3 border border-gray-200'>
+            <div className='flex flex-col gap-2'>
+              {/* Navigation Bubbles */}
+              <div className='flex flex-col gap-2.5'>
+                {navItems.map((item) => {
+                  const Icon = item.icon
+                  const isActive = activeNav === item.id
+                  return (
+                    <Link to={item.path} key={item.id}>
+                      <div className='relative'>
+                        <motion.button
+                          className={`relative w-11 h-11 rounded-full flex items-center justify-center transition-colors ${
+                            isActive
+                              ? 'bg-[#163146] text-white'
+                              : 'text-gray-600 hover:bg-gray-100'
+                          }`}
+                          whileHover={{ scale: 1.2 }}
+                          whileTap={{ scale: 0.85 }}
+                          transition={{ duration: 0.12 }}
+                          onMouseEnter={() => setHoveredTooltip(item.id)}
+                          onMouseLeave={() => setHoveredTooltip(null)}
+                        >
+                          <Icon size={20} />
+                          {/* Active indicator ring */}
+                          {isActive && (
+                            <motion.div
+                              className='absolute inset-0 rounded-full border-2 border-[#163146]'
+                              initial={{ scale: 1.15, opacity: 0 }}
+                              animate={{ scale: 1.25, opacity: 0 }}
+                              transition={{
+                                duration: 0.4,
+                                repeat: Infinity,
+                                ease: 'easeOut',
+                              }}
+                            />
+                          )}
+                        </motion.button>
+                        
+                        {/* Unread Message Bubble for Sidebar */}
+                        {item.id === 'messages' && unreadMessagesCount > 0 && (
+                          <div className="absolute top-0 right-0 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center border border-white pointer-events-none z-10">
                             <span className="text-[9px] font-bold text-white">
-                                {unreadMessagesCount > 99 ? '99+' : unreadMessagesCount}
+                              {unreadMessagesCount > 99 ? '99+' : unreadMessagesCount}
                             </span>
-                        </div>
-                      )}
+                          </div>
+                        )}
 
-                      {/* Tooltip */}
-                      <Tooltip
-                        text={item.label}
-                        visible={hoveredTooltip === item.id}
-                      />
-                    </div>
-                  </Link>
-                )
-              })}
-              {/* Divider */}
-              <div className='h-px bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200'></div>
-              {/* Logout Button */}
-              <div className='relative'>
-                <motion.button
-                  onClick={() => setIsLogoutModalOpen(true)}
-                  className='relative w-11 h-11 rounded-full flex items-center justify-center transition-colors text-gray-600 hover:bg-red-50 hover:text-red-600'
-                  whileHover={{ scale: 1.2 }}
-                  whileTap={{ scale: 0.85 }}
-                  transition={{ duration: 0.12 }}
-                  onMouseEnter={() => setHoveredTooltip('logout')}
-                  onMouseLeave={() => setHoveredTooltip(null)}
-                >
-                  <LogOut size={20} />
-                </motion.button>
-                {/* Tooltip */}
-                <Tooltip text='Logout' visible={hoveredTooltip === 'logout'} />
+                        {/* Tooltip */}
+                        <Tooltip
+                          text={item.label}
+                          visible={hoveredTooltip === item.id}
+                        />
+                      </div>
+                    </Link>
+                  )
+                })}
+                {/* Divider */}
+                <div className='h-px bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200'></div>
+                {/* Logout Button */}
+                <div className='relative'>
+                  <motion.button
+                    onClick={() => setIsLogoutModalOpen(true)}
+                    className='relative w-11 h-11 rounded-full flex items-center justify-center transition-colors text-gray-600 hover:bg-red-50 hover:text-red-600'
+                    whileHover={{ scale: 1.2 }}
+                    whileTap={{ scale: 0.85 }}
+                    transition={{ duration: 0.12 }}
+                    onMouseEnter={() => setHoveredTooltip('logout')}
+                    onMouseLeave={() => setHoveredTooltip(null)}
+                  >
+                    <LogOut size={20} />
+                  </motion.button>
+                  {/* Tooltip */}
+                  <Tooltip text='Logout' visible={hoveredTooltip === 'logout'} />
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Top Bar - Full Width */}
       <motion.header
@@ -636,73 +638,78 @@ const DashboardLayout = ({ children }) => {
                         </p>
                       </div>
 
-                      {/* Presence Selector (Reworked) */}
-                      <div className='px-4 py-4 border-b border-gray-100 bg-white'>
-                        <div className='flex items-center justify-between mb-3'>
-                          <div className='flex items-center gap-2'>
-                            <div className={`w-2 h-2 rounded-full ${
-                              currentUser?.status === 'online' ? 'bg-green-500' :
-                              currentUser?.status === 'away' ? 'bg-amber-500' :
-                              currentUser?.status === 'idle' ? 'bg-amber-300' : 'bg-gray-400'
-                            }`} />
-                            <span className='text-[10px] font-bold text-gray-400 uppercase tracking-widest'>Presence</span>
+                      {currentUser?.role !== 'admin' && (
+                        <div className='px-4 py-4 border-b border-gray-100 bg-white'>
+                          <div className='flex items-center justify-between mb-3'>
+                            <div className='flex items-center gap-2'>
+                              <div className={`w-2 h-2 rounded-full ${
+                                currentUser?.status === 'online' ? 'bg-green-500' :
+                                currentUser?.status === 'away' ? 'bg-amber-500' :
+                                currentUser?.status === 'idle' ? 'bg-amber-300' : 'bg-gray-400'
+                              }`} />
+                              <span className='text-[10px] font-bold text-gray-400 uppercase tracking-widest'>Presence</span>
+                            </div>
+                            <span className='text-[10px] font-semibold text-gray-700 capitalize'>
+                              {currentUser?.status || 'offline'}
+                            </span>
                           </div>
-                          <span className='text-[10px] font-semibold text-gray-700 capitalize'>
-                            {currentUser?.status || 'offline'}
-                          </span>
+                          <div className='grid grid-cols-3 gap-2'>
+                            {[
+                              { id: 'online', label: 'Online', icon: CheckCircle2 },
+                              { id: 'away', label: 'Away', icon: Clock },
+                              { id: 'idle', label: 'Idle', icon: Eye }
+                            ].map((s) => (
+                              <motion.button
+                                key={s.id}
+                                whileHover={{ y: -1 }}
+                                whileTap={{ scale: 0.98 }}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  isAutoAwayRef.current = false
+                                  dispatch(updateUserStatus(s.id))
+                                }}
+                                className={`group relative py-2.5 rounded-2xl border text-center transition-all ${
+                                  currentUser?.status === s.id
+                                    ? 'bg-[#163146] border-transparent text-white'
+                                    : 'bg-stone-50 border-stone-100 text-gray-600 hover:border-stone-200 hover:bg-white'
+                                }`}
+                              >
+                                <span className='flex items-center justify-center gap-1'>
+                                  <s.icon size={12} className='opacity-90' />
+                                  <span className='text-[10px] font-bold tracking-tight'>{s.label}</span>
+                                </span>
+                              </motion.button>
+                            ))}
+                          </div>
                         </div>
-                        <div className='grid grid-cols-3 gap-2'>
-                          {[
-                            { id: 'online', label: 'Online', icon: CheckCircle2 },
-                            { id: 'away', label: 'Away', icon: Clock },
-                            { id: 'idle', label: 'Idle', icon: Eye }
-                          ].map((s) => (
-                            <motion.button
-                              key={s.id}
-                              whileHover={{ y: -1 }}
-                              whileTap={{ scale: 0.98 }}
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                isAutoAwayRef.current = false
-                                dispatch(updateUserStatus(s.id))
-                              }}
-                              className={`group relative py-2.5 rounded-2xl border text-center transition-all ${
-                                currentUser?.status === s.id
-                                  ? 'bg-[#163146] border-transparent text-white'
-                                  : 'bg-stone-50 border-stone-100 text-gray-600 hover:border-stone-200 hover:bg-white'
-                              }`}
-                            >
-                              <span className='flex items-center justify-center gap-1'>
-                                <s.icon size={12} className='opacity-90' />
-                                <span className='text-[10px] font-bold tracking-tight'>{s.label}</span>
-                              </span>
-                            </motion.button>
-                          ))}
-                        </div>
-                      </div>
+                      )}
                       {/* Menu Items */}
-                      <div className='py-2'>
-                        <Link to="/settings">
-                          <motion.div
-                            className='flex items-center gap-3 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer'
-                            whileHover={{ x: 4 }}
-                            transition={{ duration: 0.1 }}
-                          >
-                            <CreditCard size={18} className='text-gray-400' />
-                            <span className='font-medium'>Subscription</span>
-                          </motion.div>
-                        </Link>
-                        <Link to="/settings">
-                          <motion.div
-                            className='flex items-center gap-3 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer'
-                            whileHover={{ x: 4 }}
-                            transition={{ duration: 0.1 }}
-                          >
-                            <Settings size={18} className='text-gray-400' />
-                            <span className='font-medium'>Settings</span>
-                          </motion.div>
-                        </Link>
-                        {currentUser?.role === 'admin' && (
+                      {currentUser?.role !== 'admin' && (
+                        <div className='py-2'>
+                          <Link to="/settings">
+                            <motion.div
+                              className='flex items-center gap-3 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer'
+                              whileHover={{ x: 4 }}
+                              transition={{ duration: 0.1 }}
+                            >
+                              <CreditCard size={18} className='text-gray-400' />
+                              <span className='font-medium'>Subscription</span>
+                            </motion.div>
+                          </Link>
+                          <Link to="/settings">
+                            <motion.div
+                              className='flex items-center gap-3 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer'
+                              whileHover={{ x: 4 }}
+                              transition={{ duration: 0.1 }}
+                            >
+                              <Settings size={18} className='text-gray-400' />
+                              <span className='font-medium'>Settings</span>
+                            </motion.div>
+                          </Link>
+                        </div>
+                      )}
+                      {currentUser?.role === 'admin' && (
+                        <div className='py-2'>
                           <Link to="/admin">
                             <motion.div
                               className='flex items-center gap-3 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer md:hidden'
@@ -713,8 +720,8 @@ const DashboardLayout = ({ children }) => {
                               <span className='font-bold'>Admin Portal</span>
                             </motion.div>
                           </Link>
-                        )}
-                      </div>
+                        </div>
+                      )}
                       {/* Logout */}
                       <div className='border-t border-gray-100 py-2'>
                         <motion.button
@@ -1016,8 +1023,9 @@ const DashboardLayout = ({ children }) => {
       </motion.div>
 
       {/* Mobile Bottom Navigation - Enhanced Active State */}
-      <div className='md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40'>
-        <div className='flex items-center justify-around h-20 px-2 gap-1'>
+      {!hideSidebar && (
+        <div className='md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40'>
+          <div className='flex items-center justify-around h-20 px-2 gap-1'>
           {/* Dashboard */}
           <Link to='/dashboard' className='flex-1 min-w-0'>
             <motion.div className='relative flex flex-col items-center justify-center h-full'>
@@ -1189,8 +1197,9 @@ const DashboardLayout = ({ children }) => {
               </span>
             </motion.div>
           </Link>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Scout Chat Modal (Mobile) */}
       <AnimatePresence>

@@ -34,7 +34,7 @@ axiosInstance.interceptors.response.use(
     if (error.response?.status === 401 && error.config.url !== '/auth/signin') {
       localStorage.removeItem('token')
       sessionStorage.removeItem('token')
-      window.location.href = '/auth'
+      window.location.href = '/'
     }
     return Promise.reject(error)
   }

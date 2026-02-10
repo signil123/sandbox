@@ -124,12 +124,13 @@ const NewsPage = () => {
                     className='group block relative h-full w-full'
                   >
                     {/* Image Background */}
-                    <div className='absolute inset-0'>
-                      <img
-                        src={heroNews.image}
-                        alt={heroNews.title}
-                        className='w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700'
-                      />
+                      <div className='absolute inset-0'>
+                        <img
+                          src={heroNews.image}
+                          alt=''
+                          aria-hidden='true'
+                          className='w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700'
+                        />
                       {/* Gradient Overlay */}
                       <div className='absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent' />
                     </div>
@@ -183,7 +184,8 @@ const NewsPage = () => {
                       <div className='relative w-24 h-24 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100'>
                         <img
                           src={newsItem.image}
-                          alt={newsItem.title}
+                          alt=''
+                          aria-hidden='true'
                           className='w-full h-full object-cover group-hover:scale-110 transition-transform duration-500'
                         />
                       </div>

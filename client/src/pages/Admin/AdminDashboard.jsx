@@ -42,7 +42,7 @@ const AdminDashboard = () => {
   ]
 
   return (
-    <DashboardLayout>
+    <DashboardLayout hideSidebar>
       <Toaster position="bottom-right" theme="dark" />
       <div className="w-full flex flex-col p-4 md:p-8 space-y-6 md:space-y-10 bg-slate-50/30 min-h-[calc(100vh-64px)] overflow-x-hidden">
         

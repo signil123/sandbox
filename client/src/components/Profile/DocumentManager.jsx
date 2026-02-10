@@ -151,6 +151,8 @@ const DocumentManager = ({ isOpen, onClose, currentUser }) => {
   )
 
   const progress = Math.round(((requiredDocs.length - missingDocs.length) / requiredDocs.length) * 100)
+  const selectedDoc = documents.find(doc => doc.documentType === selectedType)
+  const isReviewLocked = selectedDoc && ['pending_review', 'pending', 'in_review', 'verified'].includes(selectedDoc.status)
 
   // Mobile & Scroll Lock
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
@@ -237,6 +239,13 @@ const DocumentManager = ({ isOpen, onClose, currentUser }) => {
             <p className='text-xs text-slate-500 mb-4 max-w-xs mx-auto'>
               Supported files: PDF, PNG, JPG (Max 10MB)
             </p>
+            {isReviewLocked && (
+              <div className='mb-4 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2'>
+                {selectedDoc?.status === 'verified'
+                  ? 'A document of this type is already verified.'
+                  : 'A document of this type is already under review. Please wait for the result or delete it before re-uploading.'}
+              </div>
+            )}
 
             <div className='flex flex-col sm:flex-row gap-2 justify-center max-w-md mx-auto'>
               <select
@@ -256,11 +265,11 @@ const DocumentManager = ({ isOpen, onClose, currentUser }) => {
                   onChange={handleFileUpload}
                   className='hidden'
                   accept='.pdf,.png,.jpg,.jpeg'
-                  disabled={uploading}
+                  disabled={uploading || isReviewLocked}
                 />
                 <span
                   className={`w-full sm:w-auto px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg cursor-pointer hover:bg-emerald-700 transition-colors inline-block ${
-                    uploading ? 'opacity-70 cursor-not-allowed' : ''
+                    uploading || isReviewLocked ? 'opacity-70 cursor-not-allowed' : ''
                   }`}
                 >
                   {uploading ? 'Uploading...' : 'Choose File'}
@@ -312,6 +321,7 @@ const DocumentManager = ({ isOpen, onClose, currentUser }) => {
                       </div>
                       <button
                         onClick={() => handleDelete(doc._id)}
+                        disabled={doc.status === 'verified'}
                         className='p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors'
                       >
                         <X size={16} />

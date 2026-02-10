@@ -7,12 +7,14 @@ import Navbar from '@/components/Layout/Navbar';
 import MagneticButton from '@/components/ui/MagneticButton';
 import { AnimatePresence, motion } from 'framer-motion';
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
+import { openAuthModal } from '../../redux/uiSlice';
 
 const words = ["Champions", "Athletes", "Agents", "Advisors", "Institutions"];
 
 const HomePage = () => {
   const [index, setIndex] = useState(0);
+  const dispatch = useDispatch();
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -126,16 +128,18 @@ const HomePage = () => {
                 transition={{ duration: 0.8, delay: 0.3 }}
                 className="flex flex-wrap items-center gap-8"
               >
-                <Link to="/auth">
-                  <MagneticButton className="group bg-[#163146] hover:bg-[#1f4563] text-white px-10 py-6 text-lg font-bold rounded-2xl flex items-center gap-4 transition-all shadow-2xl shadow-[#163146]/20">
-                    Join the Inner Circle
-                    <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center group-hover:bg-[#986a41] transition-colors duration-500">
-                      <svg className="w-5 h-5 transition-transform duration-500 group-hover:rotate-45" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                        <path d="M7 17L17 7M17 7H7M17 7V17" />
-                      </svg>
-                    </div>
-                  </MagneticButton>
-                </Link>
+                <MagneticButton
+                  type="button"
+                  onClick={() => dispatch(openAuthModal({ step: 'email-form' }))}
+                  className="group bg-[#163146] hover:bg-[#1f4563] text-white px-10 py-6 text-lg font-bold rounded-2xl flex items-center gap-4 transition-all shadow-2xl shadow-[#163146]/20"
+                >
+                  Join the Inner Circle
+                  <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center group-hover:bg-[#986a41] transition-colors duration-500">
+                    <svg className="w-5 h-5 transition-transform duration-500 group-hover:rotate-45" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                      <path d="M7 17L17 7M17 7H7M17 7V17" />
+                    </svg>
+                  </div>
+                </MagneticButton>
 
                 <button className="group relative overflow-hidden flex flex-col items-start gap-0.5 text-[#163146] font-black text-sm uppercase tracking-[0.2em]">
                   <span className="group-hover:text-[#986a41] transition-colors duration-300">See the Experience</span>

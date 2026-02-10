@@ -57,6 +57,11 @@ import DashboardLayout from '../Layout/DashboardLayout'
 const DashboardPage = () => {
   const navigate = useNavigate()
   const currentUser = useSelector(selectCurrentUser)
+  useEffect(() => {
+    if (currentUser?.role === 'admin') {
+      navigate('/admin')
+    }
+  }, [currentUser?.role, navigate])
   const dispatch = useDispatch()
   const network = useSelector(state => state.user.network) || { advisors: [], roster: [], loading: false }
   const [showStats, setShowStats] = useState(false)
