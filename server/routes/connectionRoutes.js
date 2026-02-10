@@ -7,6 +7,7 @@ import {
     getPendingRequests,
     getRequestsSummary,
     getSentRequests,
+    getPublicConnections,
     getUserConnections,
     removeConnection,
     sendConnectionRequest,
@@ -78,6 +79,9 @@ router.get(
   checkOwnershipOrAdmin('userId'),
   getUserConnections
 )
+
+// Get public network (active connections, limited fields)
+router.get('/public/:userId', getPublicConnections)
 
 // Remove active connection (unfollow)
 router.delete(

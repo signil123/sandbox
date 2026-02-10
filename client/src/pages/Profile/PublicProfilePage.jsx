@@ -43,6 +43,7 @@ import { selectCurrentUser } from '../../redux/userSlice'
 import { connectionService } from '../../services/connectionService'
 import { profileService } from '../../services/profileService'
 import { getImageUrl } from '../../utils/imageUtils'
+import ConnectionsModal from '../../components/Connections/ConnectionsModal'
 import DashboardLayout from '../Layout/DashboardLayout'
 
 const PublicProfileSkeleton = () => (
@@ -87,6 +88,8 @@ const PublicProfilePage = () => {
   const [connectionMessage, setConnectionMessage] = useState('')
   const [isSending, setIsSending] = useState(false)
   const [scrolled, setScrolled] = useState(false)
+  const [connectionsPreview, setConnectionsPreview] = useState([])
+  const [showConnectionsList, setShowConnectionsList] = useState(false)
   
   // New state for connection mode (quick vs message)
   const [addNoteMode, setAddNoteMode] = useState(false)
@@ -99,8 +102,11 @@ const PublicProfilePage = () => {
       setLoading(true)
       const response = await profileService.getProfileByUserId(id)
       if (response.status === 'success') {
-        const { profile, connectionStatus, connectionRequestId, connectionRequestMessage } = response.data
-        setProfileData(profile)
+        const { profile, connectionStatus, connectionRequestId, connectionRequestMessage, totalConnections } = response.data
+        setProfileData({
+          ...profile,
+          connectionsCount: totalConnections ?? profile.connectionsCount ?? 0,
+        })
         setConnectionStatus(connectionStatus || 'not_connected')
         setConnectionRequestId(connectionRequestId)
         setConnectionRequestMessage(connectionRequestMessage)
@@ -125,6 +131,28 @@ const PublicProfilePage = () => {
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
   }, [id])
+
+  useEffect(() => {
+    const fetchConnectionsPreview = async () => {
+      if (!currentUser?._id || currentUser._id !== id) {
+        setConnectionsPreview([])
+        return
+      }
+      try {
+        const response = await connectionService.getNetwork(currentUser._id)
+        if (response.data?.status === 'success') {
+          setConnectionsPreview(response.data.data?.connections || [])
+        } else {
+          setConnectionsPreview([])
+        }
+      } catch (error) {
+        console.error('Error fetching connections preview:', error)
+        setConnectionsPreview([])
+      }
+    }
+
+    fetchConnectionsPreview()
+  }, [currentUser?._id, id])
 
   const handleConnect = () => {
     if (!currentUser) return
@@ -568,14 +596,40 @@ const PublicProfilePage = () => {
                      </div>
                   )}
 
-                  <div className='flex items-center justify-between px-1 mt-4'>
+                  <button
+                      type='button'
+                      onClick={() => setShowConnectionsList(true)}
+                      className='flex items-center justify-between px-1 mt-4 w-full cursor-pointer'
+                  >
                       <div className='flex -space-x-2'>
-                          {[1,2,3].map(i => (
-                             <div key={i} className='w-6 h-6 rounded-full border-2 border-white bg-slate-200' />
-                          ))}
+                          {(connectionsPreview.length > 0 ? connectionsPreview.slice(0, 3) : []).map((connection) => {
+                            const user = connection.connectedUser || {}
+                            const avatar = user.profileImage ? getImageUrl(user.profileImage) : null
+                            const initials = (user.name || 'U')
+                              .split(' ')
+                              .slice(0, 2)
+                              .map((part) => part[0])
+                              .join('')
+                              .toUpperCase()
+
+                            return (
+                              <div
+                                key={connection.connectionId}
+                                className='w-6 h-6 rounded-full border-2 border-white bg-slate-200 overflow-hidden flex items-center justify-center text-[9px] font-bold text-slate-600'
+                              >
+                                {avatar ? (
+                                  <img src={avatar} alt={user.name || 'Connection'} className='w-full h-full object-cover' />
+                                ) : (
+                                  initials
+                                )}
+                              </div>
+                            )
+                          })}
                       </div>
-                      <span className='text-[10px] font-bold text-slate-400 uppercase tracking-widest'>30+ Shared Connections</span>
-                  </div>
+                      <span className='text-[10px] font-bold text-slate-400 uppercase tracking-widest'>
+                        {profileData.connectionsCount || 0} Connections
+                      </span>
+                  </button>
                 </motion.div>
 
                 {/* Match Score Card */}
@@ -819,6 +873,17 @@ const PublicProfilePage = () => {
 
         </DialogContent>
       </Dialog>
+
+      <ConnectionsModal
+        isOpen={showConnectionsList}
+        onClose={() => setShowConnectionsList(false)}
+        currentUserId={currentUser?._id || currentUser?.id || null}
+        userId={id}
+        usePublic={currentUser?._id !== id}
+        canManage={currentUser?._id === id}
+        title={currentUser?._id === id ? 'My Network' : `${user.name}'s Network`}
+        subtitle={currentUser?._id === id ? 'Search, manage, and unfollow your connections' : 'Connections in this network'}
+      />
     </DashboardLayout>
   )
 }

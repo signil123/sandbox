@@ -2,37 +2,86 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Loader2, Search, UserMinus, Users, X } from 'lucide-react'
 import { toast } from 'sonner'
+import { useNavigate } from 'react-router-dom'
+import { useSelector } from 'react-redux'
+import ProfilePopup from '../Dashboard/ProfilePopup'
+import { profileService } from '../../services/profileService'
 import { connectionService } from '../../services/connectionService'
+import { getImageUrl } from '../../utils/imageUtils'
+import { selectCurrentUser } from '../../redux/userSlice'
+import { getThemeById } from '../../constants/themes'
 
-const getImageUrl = (path) => {
-  if (!path) return null
-  if (path.startsWith('http')) return path
-  const baseUrl = import.meta.env.VITE_API_URL.replace('/api', '')
-  return `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`
+const getBannerStyle = (profile) => {
+  if (profile?.bannerImage) {
+    if (
+      profile.bannerImage.startsWith('linear-gradient') ||
+      profile.bannerImage.startsWith('radial-gradient') ||
+      profile.bannerImage.startsWith('url')
+    ) {
+      return { background: profile.bannerImage }
+    }
+
+    if (
+      profile.bannerImage.startsWith('/') ||
+      profile.bannerImage.includes('uploads')
+    ) {
+      const url = getImageUrl(profile.bannerImage)
+      return {
+        backgroundImage: `url(${url})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }
+    }
+
+    const theme = getThemeById(profile.bannerImage)
+    if (theme?.style) return theme.style
+
+    return { background: profile.bannerImage }
+  }
+
+  if (profile?.themeId) {
+    const theme = getThemeById(profile.themeId)
+    if (theme?.style) return theme.style
+  }
+
+  return { background: 'linear-gradient(135deg, #163146 0%, #986a41 100%)' }
 }
 
 const ConnectionsModal = ({
   isOpen,
   onClose,
   currentUserId,
+  userId,
+  usePublic = false,
   title = 'My Network',
   subtitle = 'Manage the people you are connected with',
   onCountUpdate,
+  canManage = true,
 }) => {
   const [connections, setConnections] = useState([])
   const [connectionsLoading, setConnectionsLoading] = useState(false)
   const [connectionsError, setConnectionsError] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [removingId, setRemovingId] = useState(null)
+  const [selectedProfile, setSelectedProfile] = useState(null)
+  const [profilePopupOpen, setProfilePopupOpen] = useState(false)
+  const [profileLoading, setProfileLoading] = useState(false)
+
+  const navigate = useNavigate()
+  const currentUser = useSelector(selectCurrentUser)
+  const currentUserType = currentUser?.userType || 'athlete'
 
   useEffect(() => {
-    if (!isOpen || !currentUserId) return
+    const targetUserId = userId || currentUserId
+    if (!isOpen || !targetUserId) return
 
     const fetchConnections = async () => {
       try {
         setConnectionsLoading(true)
         setConnectionsError(null)
-        const response = await connectionService.getNetwork(currentUserId)
+        const response = usePublic
+          ? await connectionService.getPublicNetwork(targetUserId)
+          : await connectionService.getNetwork(targetUserId)
         if (response.data?.status === 'success') {
           const list = response.data.data?.connections || []
           setConnections(list)
@@ -50,7 +99,67 @@ const ConnectionsModal = ({
     }
 
     fetchConnections()
-  }, [isOpen, currentUserId])
+  }, [isOpen, currentUserId, userId, usePublic])
+
+  const mapProfileToPopup = (profile, connectionStatus, totalConnections) => {
+    const user = profile?.user || {}
+    const name = user.name || profile?.name || 'User'
+    const userType = profile?.profileType || user.userType || 'athlete'
+    const title =
+      profile?.title ||
+      (userType
+        ? `${userType.charAt(0).toUpperCase() + userType.slice(1)}`
+        : 'Member')
+    const profileImg = profile?.profileImage
+      ? getImageUrl(profile.profileImage)
+      : profile?.photo
+        ? getImageUrl(profile.photo)
+        : `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`
+    const banner = getBannerStyle(profile)
+    const experienceValue = parseInt(profile?.experience)
+
+    return {
+      id: user._id || user.id,
+      name,
+      title,
+      location: profile?.location || 'Remote',
+      specialties: profile?.specialization || profile?.specialties || [],
+      experience: Number.isFinite(experienceValue) ? experienceValue : 0,
+      specialty: profile?.specialization?.[0] || profile?.sport || title,
+      connections: totalConnections || 0,
+      initials: name.split(' ').map((part) => part[0]).join(''),
+      verified: profile?.verified || false,
+      bestMatch: false,
+      matchPercentage: profile?.matchScore || 0,
+      banner,
+      profileImg,
+      type: userType,
+      rating: profile?.ratings?.averageRating || 0,
+      reviewCount: profile?.ratings?.totalReviews || 0,
+      about: profile?.aboutMe || '',
+      connectionStatus: connectionStatus || 'not_connected',
+    }
+  }
+
+  const handleOpenProfile = async (connection) => {
+    const userIdToFetch = connection?.connectedUser?.userId
+    if (!userIdToFetch) return
+    try {
+      setProfileLoading(true)
+      const response = await profileService.getProfileByUserId(userIdToFetch)
+      if (response?.status === 'success') {
+        const { profile, connectionStatus, totalConnections } = response.data || {}
+        const mappedProfile = mapProfileToPopup(profile, connectionStatus, totalConnections)
+        setSelectedProfile(mappedProfile)
+        setProfilePopupOpen(true)
+      }
+    } catch (error) {
+      console.error('Error loading profile:', error)
+      toast.error('Failed to load profile')
+    } finally {
+      setProfileLoading(false)
+    }
+  }
 
   const filteredConnections = useMemo(() => {
     if (!searchTerm.trim()) return connections
@@ -72,7 +181,7 @@ const ConnectionsModal = ({
   }, [connections, searchTerm])
 
   const handleRemoveConnection = async (connectionId, name) => {
-    if (!currentUserId) return
+    if (!currentUserId || !canManage) return
     try {
       setRemovingId(connectionId)
       await connectionService.removeConnection(currentUserId, connectionId)
@@ -154,7 +263,7 @@ const ConnectionsModal = ({
               {connectionsLoading && (
                 <div className='flex items-center justify-center gap-3 py-12 text-slate-500 text-sm'>
                   <Loader2 size={18} className='animate-spin' />
-                  Loading your network...
+                  {usePublic || !canManage ? 'Loading connections...' : 'Loading your network...'}
                 </div>
               )}
 
@@ -180,10 +289,18 @@ const ConnectionsModal = ({
                   return (
                     <div
                       key={connection.connectionId}
-                      className='flex flex-col md:flex-row md:items-center md:justify-between gap-4 p-4 bg-white border border-slate-200 rounded-2xl shadow-sm'
+                      className='flex flex-col md:flex-row md:items-center md:justify-between gap-4 p-4 bg-white border border-slate-200 rounded-2xl shadow-sm cursor-pointer hover:border-slate-300 hover:shadow-md transition'
+                      onClick={() => handleOpenProfile(connection)}
                     >
                       <div className='flex items-center gap-3'>
-                        <div className='w-12 h-12 rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-500 text-sm font-semibold'>
+                        <button
+                          type='button'
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleOpenProfile(connection)
+                          }}
+                          className='w-12 h-12 rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-500 text-sm font-semibold hover:ring-2 hover:ring-slate-300 transition'
+                        >
                           {avatar ? (
                             <img src={avatar} alt={user.name || 'Connection'} className='w-full h-full object-cover' />
                           ) : (
@@ -194,9 +311,18 @@ const ConnectionsModal = ({
                               .join('')
                               .toUpperCase()
                           )}
-                        </div>
+                        </button>
                         <div>
-                          <p className='text-sm font-semibold text-slate-900'>{user.name || 'Unknown'}</p>
+                          <button
+                            type='button'
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleOpenProfile(connection)
+                            }}
+                            className='text-sm font-semibold text-slate-900 hover:underline'
+                          >
+                            {user.name || 'Unknown'}
+                          </button>
                           <p className='text-xs text-slate-500'>{userMeta || 'Connected member'}</p>
                           {user.email && (
                             <p className='text-[11px] text-slate-400 mt-1'>{user.email}</p>
@@ -204,20 +330,25 @@ const ConnectionsModal = ({
                         </div>
                       </div>
 
-                      <motion.button
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => handleRemoveConnection(connection.connectionId, user.name)}
-                        disabled={removingId === connection.connectionId}
-                        className={`inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl border transition-all shadow-sm ${
-                          removingId === connection.connectionId
-                            ? 'border-slate-200 text-slate-400 bg-slate-100 cursor-wait'
-                            : 'border-rose-200 text-rose-600 bg-rose-50 hover:bg-rose-100'
-                        }`}
-                      >
-                        <UserMinus size={14} />
-                        {removingId === connection.connectionId ? 'Removing...' : 'Unfollow'}
-                      </motion.button>
+                      {canManage && (
+                        <motion.button
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleRemoveConnection(connection.connectionId, user.name)
+                          }}
+                          disabled={removingId === connection.connectionId}
+                          className={`inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl border transition-all shadow-sm ${
+                            removingId === connection.connectionId
+                              ? 'border-slate-200 text-slate-400 bg-slate-100 cursor-wait'
+                              : 'border-rose-200 text-rose-600 bg-rose-50 hover:bg-rose-100'
+                          }`}
+                        >
+                          <UserMinus size={14} />
+                          {removingId === connection.connectionId ? 'Removing...' : 'Unfollow'}
+                        </motion.button>
+                      )}
                     </div>
                   )
                 })}
@@ -225,6 +356,24 @@ const ConnectionsModal = ({
           </motion.div>
         </motion.div>
       )}
+      <ProfilePopup
+        profile={selectedProfile}
+        isOpen={profilePopupOpen}
+        onClose={() => setProfilePopupOpen(false)}
+        currentUserType={currentUserType}
+        zIndexBase={90}
+        onConnect={async (profile) => {
+          if (!currentUserId || !profile?.id) return
+          try {
+            await connectionService.sendRequest(currentUserId, profile.id, '')
+            toast.success(`Connection request sent to ${profile.name}`)
+          } catch (error) {
+            console.error('Error sending connection request:', error)
+            toast.error(error.response?.data?.message || 'Failed to send connection request')
+          }
+        }}
+        onMessage={(profile) => navigate('/inbox', { state: { recipientId: profile.id || profile._id } })}
+      />
     </AnimatePresence>
   )
 }

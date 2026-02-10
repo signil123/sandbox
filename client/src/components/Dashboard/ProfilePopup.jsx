@@ -145,7 +145,8 @@ const ProfilePopup = ({
   isOpen,
   currentUserType = 'athlete',
   onConnect,
-  onMessage
+  onMessage,
+  zIndexBase = 50
 }) => {
   const navigate = useNavigate()
   const [showReviewModal, setShowReviewModal] = useState(false)
@@ -183,7 +184,8 @@ const ProfilePopup = ({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={onClose}
-              className='fixed inset-0 h-screen w-screen bg-black/30 backdrop-blur-sm z-50'
+              className='fixed inset-0 h-screen w-screen bg-black/30 backdrop-blur-sm'
+              style={{ zIndex: zIndexBase }}
             />
 
             <motion.div
@@ -191,7 +193,8 @@ const ProfilePopup = ({
               animate={isMobile ? { y: 0 } : { opacity: 1, scale: 1, y: 0 }}
               exit={isMobile ? { y: '100%' } : { opacity: 0, scale: 0.95, y: 20 }}
               transition={{ type: isMobile ? 'spring' : 'tween', damping: 25, stiffness: 300 }}
-              className='fixed left-0 md:left-1/2 bottom-0 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 w-full md:w-[600px] max-w-full md:max-w-[95vw] bg-white rounded-t-[32px] md:rounded-[32px] shadow-2xl z-50 overflow-hidden flex flex-col h-[85vh] md:max-h-[85vh]'
+              className='fixed left-0 md:left-1/2 bottom-0 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 w-full md:w-[600px] max-w-full md:max-w-[95vw] bg-white rounded-t-[32px] md:rounded-[32px] shadow-2xl overflow-hidden flex flex-col h-[85vh] md:max-h-[85vh]'
+              style={{ zIndex: zIndexBase + 1 }}
             >
               <button
                   onClick={onClose}
@@ -284,7 +287,7 @@ const ProfilePopup = ({
 
                   {/* Stats Grid */}
                   <div className='grid grid-cols-3 gap-2 mt-8'>
-                    {profile.experience && (
+                    {profile.experience !== undefined && profile.experience !== null && (
                         <StatCard 
                             label="Experience" 
                             value={String(profile.experience).toLowerCase().includes('year') ? profile.experience : `${profile.experience} years`} 

@@ -673,6 +673,76 @@ export const getUserConnections = async (req, res, next) => {
 }
 
 /**
+ * Get public connections for a user (limited fields)
+ */
+export const getPublicConnections = async (req, res, next) => {
+  try {
+    const { userId } = req.params
+    const { page = 1, limit = 50 } = req.query
+
+    const profile = await Profile.findOne({ user: userId }).select('isPublic')
+    if (!profile || !profile.isPublic) {
+      return next(createError(403, 'This profile is private'))
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit)
+
+    const connections = await Connection.find({
+      $or: [{ user1: userId }, { user2: userId }],
+      status: 'active',
+    })
+      .populate('user1', 'name userType')
+      .populate('user2', 'name userType')
+      .skip(skip)
+      .limit(parseInt(limit))
+      .sort({ connectedAt: -1 })
+
+    const total = await Connection.countDocuments({
+      $or: [{ user1: userId }, { user2: userId }],
+      status: 'active',
+    })
+
+    const formattedConnections = await Promise.all(
+      connections.map(async (conn) => {
+        const otherUser =
+          conn.user1._id.toString() === userId ? conn.user2 : conn.user1
+
+        const profileDoc = await Profile.findOne({ user: otherUser._id }).select(
+          'profileImage title location'
+        )
+
+        return {
+          connectionId: conn._id,
+          connectedUser: {
+            userId: otherUser._id,
+            name: otherUser.name,
+            userType: otherUser.userType,
+            profileImage: profileDoc?.profileImage,
+            title: profileDoc?.title,
+            location: profileDoc?.location,
+          },
+          connectedAt: conn.connectedAt,
+        }
+      })
+    )
+
+    res.status(200).json({
+      status: 'success',
+      results: formattedConnections.length,
+      totalResults: total,
+      totalPages: Math.ceil(total / parseInt(limit)),
+      currentPage: parseInt(page),
+      data: {
+        connections: formattedConnections,
+      },
+    })
+  } catch (error) {
+    console.error('Error in getPublicConnections:', error)
+    next(error)
+  }
+}
+
+/**
  * Remove an active connection (unfollow)
  */
 export const removeConnection = async (req, res, next) => {

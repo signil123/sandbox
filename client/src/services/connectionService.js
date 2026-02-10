@@ -29,6 +29,9 @@ export const connectionService = {
   getNetwork: (userId) => 
     axiosInstance.get(`${API_URL}/network/${userId}`),
 
+  getPublicNetwork: (userId) =>
+    axiosInstance.get(`${API_URL}/public/${userId}`),
+
   removeConnection: (userId, connectionId) =>
     axiosInstance.delete(`${API_URL}/remove/${userId}/${connectionId}`),
     
