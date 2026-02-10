@@ -19,16 +19,19 @@ import {
     Twitter,
     Upload,
     User,
+    Users,
     X,
 } from 'lucide-react'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import { Toaster, toast } from 'sonner'
+import ConnectionsModal from '../../components/Connections/ConnectionsModal'
 import DocumentManager from '../../components/Profile/DocumentManager'
 import UserPreviewCard from '../../components/Profile/UserPreviewCard'
 import { getThemeById, themes } from '../../constants/themes'
 import { selectCurrentUser, updateProfileImage } from '../../redux/userSlice'
+import { connectionService } from '../../services/connectionService'
 import { profileService } from '../../services/profileService'
 import { getImageUrl } from '../../utils/imageUtils'
 import DashboardLayout from '../Layout/DashboardLayout'
@@ -71,6 +74,7 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
   const [themeModalOpen, setThemeModalOpen] = useState(false)
   const [previewModalOpen, setPreviewModalOpen] = useState(false)
   const [completeProfileModalOpen, setCompleteProfileModalOpen] = useState(false)
+  const [connectionsModalOpen, setConnectionsModalOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [savingProfile, setSavingProfile] = useState(false)
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false)
@@ -87,14 +91,14 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
   }, [])
 
   useEffect(() => {
-    const isAnyModalOpen = editModalOpen || preferencesModalOpen || documentManagerOpen || themeModalOpen || previewModalOpen || completeProfileModalOpen
+    const isAnyModalOpen = editModalOpen || preferencesModalOpen || documentManagerOpen || themeModalOpen || previewModalOpen || completeProfileModalOpen || connectionsModalOpen
     if (isAnyModalOpen) {
       document.body.style.overflow = 'hidden'
     } else {
       document.body.style.overflow = 'unset'
     }
     return () => { document.body.style.overflow = 'unset' }
-  }, [editModalOpen, preferencesModalOpen, documentManagerOpen, themeModalOpen, previewModalOpen, completeProfileModalOpen])
+  }, [editModalOpen, preferencesModalOpen, documentManagerOpen, themeModalOpen, previewModalOpen, completeProfileModalOpen, connectionsModalOpen])
 
   // Profile data
   const [profileData, setProfileData] = useState({
@@ -185,6 +189,16 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
           setEditFormData(mappedProfile)
           setSelectedThemeId(profile.themeId || 'ocean')
 
+          try {
+            const networkResponse = await connectionService.getNetwork(currentUser._id)
+            if (networkResponse.data?.status === 'success') {
+              const totalConnections = (networkResponse.data.data?.connections || []).length
+              setProfileData((prev) => ({ ...prev, connections: totalConnections }))
+            }
+          } catch (error) {
+            console.warn('Error fetching connections count:', error)
+          }
+
           // Map NIL preferences
           if (nilPreferences) {
             const mappedServiceTypes = {}
@@ -218,6 +232,16 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
       setLoading(false)
     }
   }, [currentUser?._id, currentUser?.userType, type])
+
+  const handleConnectionsCountUpdate = (valueOrUpdater) => {
+    setProfileData((prev) => ({
+      ...prev,
+      connections:
+        typeof valueOrUpdater === 'function'
+          ? valueOrUpdater(prev.connections || 0)
+          : valueOrUpdater,
+    }))
+  }
 
   useEffect(() => {
     fetchProfileData()
@@ -611,6 +635,39 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
 
             {/* Right Sidebar */}
             <div className='space-y-6'>
+
+               {/* My Network */}
+               <motion.div
+                 variants={itemVariants}
+                 className='bg-white rounded-2xl border border-slate-200 p-5 shadow-sm'
+               >
+                 <div className='flex items-center justify-between mb-3'>
+                   <h3 className='text-sm font-semibold text-slate-900'>
+                     My Network
+                   </h3>
+                   <div className='w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center'>
+                     <Users size={14} />
+                   </div>
+                 </div>
+                 <div className='bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center justify-between gap-3'>
+                   <div>
+                     <p className='text-xs font-semibold text-slate-700'>
+                       {profileData.connections || 0} connections
+                     </p>
+                     <p className='text-[11px] text-slate-500 mt-1'>
+                       View and manage your connections
+                     </p>
+                   </div>
+                   <motion.button
+                     whileHover={{ scale: 1.02 }}
+                     whileTap={{ scale: 0.98 }}
+                     onClick={() => setConnectionsModalOpen(true)}
+                     className='px-3 py-2 bg-slate-900 text-white text-xs font-semibold rounded-xl shadow-sm hover:bg-slate-800 transition-colors'
+                   >
+                     View
+                   </motion.button>
+                 </div>
+               </motion.div>
                
                {/* CRM / Verification Status Card */}
                <motion.div variants={itemVariants} className='bg-white rounded-2xl border border-slate-200 p-5 shadow-sm'>
@@ -712,6 +769,15 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
           </div>
         </motion.div>
       </div>
+
+      <ConnectionsModal
+        isOpen={connectionsModalOpen}
+        onClose={() => setConnectionsModalOpen(false)}
+        currentUserId={currentUser?._id || currentUser?.id || null}
+        title='My Network'
+        subtitle='Search, manage, and unfollow your connections'
+        onCountUpdate={handleConnectionsCountUpdate}
+      />
 
        {/* Edit Profile Modal */}
        <AnimatePresence>

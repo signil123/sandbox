@@ -297,6 +297,37 @@ export const getMessages = async (req, res, next) => {
     next(error)
   }
 }
+
+/**
+ * Mark all messages in a conversation as read for current user
+ */
+export const markConversationRead = async (req, res, next) => {
+  try {
+    const { conversationId } = req.params
+    const userId = req.user.id
+
+    const conversation = await Conversation.findById(conversationId)
+    if (!conversation) {
+      return next(createError(404, 'Conversation not found'))
+    }
+
+    if (
+      conversation.participant1.toString() !== userId &&
+      conversation.participant2.toString() !== userId
+    ) {
+      return next(createError(403, 'You are not a participant in this conversation'))
+    }
+
+    await conversation.markAllMessagesAsRead(userId)
+
+    res.status(200).json({
+      status: 'success',
+    })
+  } catch (error) {
+    console.error('Error in markConversationRead:', error)
+    next(error)
+  }
+}
 /**
  * Update user settings
  */

@@ -66,24 +66,54 @@ export const sendConnectionRequest = async (req, res, next) => {
     const existingRequest = await ConnectionRequest.findOne({
       from: userId,
       to: targetUserId,
-      status: 'pending',
     })
 
     if (existingRequest) {
-      return next(createError(400, 'Connection request already sent'))
+      existingRequest.status = 'pending'
+      existingRequest.message = message || ''
+      existingRequest.matchScore = await calculateMatchScore(userId, targetUserId)
+      existingRequest.respondedAt = null
+      existingRequest.respondedBy = null
+      await existingRequest.save()
+
+      return res.status(200).json({
+        status: 'success',
+        message: 'Connection request updated',
+        data: {
+          requestId: existingRequest._id,
+        },
+      })
+    }
+
+    const reversePending = await ConnectionRequest.findOne({
+      from: targetUserId,
+      to: userId,
+      status: 'pending',
+    })
+
+    if (reversePending) {
+      return next(createError(400, 'Connection request already received'))
     }
 
     // Calculate match score for the request
     const matchScore = await calculateMatchScore(userId, targetUserId)
  
     // Create connection request
-    const request = await ConnectionRequest.create({
-      from: userId,
-      to: targetUserId,
-      status: 'pending',
-      message: message || '',
-      matchScore: matchScore,
-    })
+    let request
+    try {
+      request = await ConnectionRequest.create({
+        from: userId,
+        to: targetUserId,
+        status: 'pending',
+        message: message || '',
+        matchScore: matchScore,
+      })
+    } catch (err) {
+      if (err?.code === 11000) {
+        return next(createError(400, 'Connection request already sent'))
+      }
+      throw err
+    }
 
     // If a message is provided, start a conversation and send the message
     if (message) {
@@ -763,6 +793,12 @@ export const removeConnection = async (req, res, next) => {
     }
 
     await Connection.findByIdAndDelete(connectionId)
+    await ConnectionRequest.deleteMany({
+      $or: [
+        { from: connection.user1, to: connection.user2 },
+        { from: connection.user2, to: connection.user1 },
+      ],
+    })
 
     res.status(200).json({
       status: 'success',

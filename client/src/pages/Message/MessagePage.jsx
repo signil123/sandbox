@@ -138,6 +138,15 @@ const getMessageSnippet = (conv) => {
   return 'No messages yet'
 }
 
+const formatDate = (value) => {
+  if (!value) return ''
+  return new Date(value).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
 // Expanded Profile View Component - Matches ProfilePopup styling
 function ExpandedProfileView({
   user,
@@ -235,6 +244,18 @@ function ExpandedProfileView({
                 </h3>
                 <p className='text-xs text-gray-600 line-clamp-3'>
                   {user?.about}
+                </p>
+              </div>
+            )}
+
+            {/* Request Message */}
+            {isRequest && user?.message && (
+              <div className='text-left'>
+                <h3 className='font-semibold text-gray-900 text-xs md:text-sm mb-1'>
+                  Request Message
+                </h3>
+                <p className='text-xs text-gray-600 whitespace-pre-wrap'>
+                  {user.message}
                 </p>
               </div>
             )}
@@ -460,6 +481,9 @@ function MessagePage() {
   const [newMessage, setNewMessage] = useState('')
   const [conversations, setConversations] = useState([])
   const [messages, setMessages] = useState([])
+  const [messagesPage, setMessagesPage] = useState(1)
+  const [messagesTotalPages, setMessagesTotalPages] = useState(1)
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false)
   const [requests, setRequests] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [isMessagesLoading, setIsMessagesLoading] = useState(false)
@@ -467,6 +491,10 @@ function MessagePage() {
   const [isMobileOpen, setIsMobileOpen] = useState(false)
   const [messageCache, setMessageCache] = useState({})
   const messageEndRef = useRef(null)
+  const chatMessagesRef = useRef(null)
+  const skipAutoScrollRef = useRef(false)
+  const shouldAutoScrollRef = useRef(true)
+  const forceScrollRef = useRef(false)
   const [dragStart, setDragStart] = useState(0)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
@@ -513,6 +541,21 @@ function MessagePage() {
   // Sync refs
   useEffect(() => {
     selectedIdRef.current = selectedConversationId
+  }, [selectedConversationId])
+
+  useEffect(() => {
+    forceScrollRef.current = true
+  }, [selectedConversationId])
+
+  useEffect(() => {
+    if (!selectedConversationId) return
+    setConversations((prev) =>
+      prev.map((c) =>
+        c._id === selectedConversationId
+          ? { ...c, unreadCount: 0, showUnreadDot: false }
+          : c
+      )
+    )
   }, [selectedConversationId])
 
   useEffect(() => {
@@ -767,27 +810,35 @@ function MessagePage() {
   useEffect(() => {
     const loadMessages = async () => {
       if (!selectedConversationId) return
-      
+
+      setMessagesPage(1)
+      setMessagesTotalPages(1)
+
       // Use cache if available for instant UI update
       if (messageCache[selectedConversationId]) {
         setMessages(messageCache[selectedConversationId])
+        forceScrollRef.current = true
       } else {
         setIsMessagesLoading(true)
       }
 
       try {
-        const response = await messageService.getMessages(selectedConversationId)
+        const response = await messageService.getMessages(selectedConversationId, 1, 30)
         if (response.data.status === 'success') {
           const newMessages = response.data.data.messages
           setMessages(newMessages)
-          
+          forceScrollRef.current = true
+          setMessagesPage(response.data.currentPage || 1)
+          setMessagesTotalPages(response.data.totalPages || 1)
+
           // Update cache
           setMessageCache(prev => ({
             ...prev,
             [selectedConversationId]: newMessages
           }))
 
-          // Update global unread count
+          // Mark conversation read on server and refresh unread count
+          await messageService.markConversationRead(selectedConversationId)
           dispatch(fetchUnreadMessages())
         }
       } catch (error) {
@@ -823,7 +874,7 @@ function MessagePage() {
             reviewCount: req.from?.reviewCount,
             experience: req.from?.experience,
             message: req.message,
-            timestamp: new Date(req.sentAt).toLocaleDateString(),
+            timestamp: formatDate(req.sentAt),
             from: req.from
           }))
           setRequests(formatted)
@@ -872,9 +923,45 @@ function MessagePage() {
     return () => clearTimeout(delayDebounceFn)
   }, [searchQuery])
 
-  // Auto scroll to bottom
   useEffect(() => {
-    messageEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const container = chatMessagesRef.current
+    if (!container) return
+
+    const handleScroll = () => {
+      const threshold = 120
+      const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight
+      shouldAutoScrollRef.current = distanceFromBottom <= threshold
+    }
+
+    container.addEventListener('scroll', handleScroll)
+    handleScroll()
+    return () => container.removeEventListener('scroll', handleScroll)
+  }, [chatMessagesRef.current])
+
+  const scrollToBottomImmediate = () => {
+    const container = chatMessagesRef.current
+    if (!container) return
+    container.scrollTop = container.scrollHeight
+  }
+
+  // Auto scroll to bottom (no animation), but don't fight user scrolling
+  useEffect(() => {
+    if (skipAutoScrollRef.current) {
+      skipAutoScrollRef.current = false
+      return
+    }
+
+    if (forceScrollRef.current) {
+      requestAnimationFrame(() => {
+        scrollToBottomImmediate()
+        forceScrollRef.current = false
+      })
+      return
+    }
+
+    if (shouldAutoScrollRef.current) {
+      messageEndRef.current?.scrollIntoView({ behavior: 'auto' })
+    }
   }, [messages])
 
   // Handle swipe gestures for mobile
@@ -1151,6 +1238,12 @@ function MessagePage() {
         if (response.data.status === 'success') {
           setRequests(prev => prev.filter(r => r.id !== requestId))
           setExpandedProfile(null)
+          setConversations(prev => prev.map(c => {
+            if (c.connectionRequestId === requestId || c._id === selectedConversationId) {
+              return { ...c, connectionStatus: 'connected' }
+            }
+            return c
+          }))
           loadConversations() // Reload conversations to show the new connection
           return 'Connection request accepted!'
         }
@@ -1173,6 +1266,12 @@ function MessagePage() {
         if (response.data.status === 'success') {
           setRequests(prev => prev.filter(r => r.id !== requestId))
           setExpandedProfile(null)
+          setConversations(prev => prev.map(c => {
+            if (c.connectionRequestId === requestId || c._id === selectedConversationId) {
+              return { ...c, connectionStatus: 'not_connected' }
+            }
+            return c
+          }))
           return 'Connection request declined'
         }
         throw new Error(response.data.message || 'Failed to decline request')
@@ -1191,9 +1290,15 @@ function MessagePage() {
       success: (response) => {
         if (response.data.status === 'success') {
           // Refresh messages to show updated status
-          messageService.getMessages(selectedConversationId).then(msgRes => {
+          messageService.getMessages(selectedConversationId, 1, 30).then(msgRes => {
             if (msgRes.data.status === 'success') {
               setMessages(msgRes.data.data.messages);
+              setMessagesPage(msgRes.data.currentPage || 1);
+              setMessagesTotalPages(msgRes.data.totalPages || 1);
+              setMessageCache(prev => ({
+                ...prev,
+                [selectedConversationId]: msgRes.data.data.messages
+              }))
             }
           });
           return `Event ${status}`;
@@ -1202,6 +1307,41 @@ function MessagePage() {
       },
       error: 'Failed to respond to event'
     });
+  }
+
+  const handleLoadOlderMessages = async () => {
+    if (!selectedConversationId || isLoadingOlder || messagesPage >= messagesTotalPages) return
+    const container = chatMessagesRef.current
+    if (!container) return
+
+    const prevScrollHeight = container.scrollHeight
+    const prevScrollTop = container.scrollTop
+    const nextPage = messagesPage + 1
+
+    try {
+      setIsLoadingOlder(true)
+      const response = await messageService.getMessages(selectedConversationId, nextPage, 30)
+      if (response.data.status === 'success') {
+        const olderMessages = response.data.data.messages || []
+        skipAutoScrollRef.current = true
+        setMessages(prev => [...olderMessages, ...prev])
+        setMessagesPage(response.data.currentPage || nextPage)
+        setMessagesTotalPages(response.data.totalPages || messagesTotalPages)
+        setMessageCache(prev => ({
+          ...prev,
+          [selectedConversationId]: [...olderMessages, ...(prev[selectedConversationId] || [])]
+        }))
+
+        requestAnimationFrame(() => {
+          const newScrollHeight = container.scrollHeight
+          container.scrollTop = newScrollHeight - prevScrollHeight + prevScrollTop
+        })
+      }
+    } catch (error) {
+      console.error('Failed to load older messages:', error)
+    } finally {
+      setIsLoadingOlder(false)
+    }
   }
 
   // Handle event invitation response from message (new flow)
@@ -1437,7 +1577,7 @@ function MessagePage() {
                           {msg.conversationInfo.otherUser.profileImage ? <img src={getImageUrl(msg.conversationInfo.otherUser.profileImage)} className='w-full h-full rounded-full object-cover' /> : getInitials(msg.conversationInfo.otherUser.name)}
                         </div>
                         <span className='text-[10px] font-bold text-gray-700'>{msg.conversationInfo.otherUser.name}</span>
-                        <span className='text-[8px] text-gray-400 ml-auto'>{new Date(msg.createdAt).toLocaleDateString()}</span>
+                        <span className='text-[8px] text-gray-400 ml-auto'>{formatDate(msg.createdAt)}</span>
                       </div>
                       <p className='text-xs text-gray-600 line-clamp-2 italic'>
                         {msg.content ? `"${msg.content}"` : (msg.attachments?.length > 0 ? `[${msg.type === 'image' ? 'Image' : 'File'}]` : '')}
@@ -1553,13 +1693,13 @@ function MessagePage() {
                             {req.name}
                           </h3>
                           <p className='text-xs text-gray-500 truncate'>
-                            {req.message}
+                            {req.message || 'No message'}
                           </p>
                           <p className='text-xs text-gray-400 mt-1'>
                             {req.timestamp}
                           </p>
                           <div
-                            className='flex gap-2 mt-2'
+                            className='flex gap-2 mt-2 flex-wrap'
                             onClick={(e) => e.stopPropagation()}
                           >
                             <button
@@ -1567,13 +1707,13 @@ function MessagePage() {
                                 handleAcceptRequest(req.id)
                                 setIsMobileOpen(false)
                               }}
-                              className='flex-1 py-1 rounded text-xs font-medium text-white transition-all flex items-center justify-center gap-0.5 bg-[#163146]'
+                              className='flex-1 py-1.5 rounded-lg text-xs font-semibold text-white transition-all bg-[#163146] hover:opacity-90'
                             >
-                              <Check size={12} /> Accept
+                              Accept
                             </button>
                             <button
                               onClick={() => handleDeclineRequest(req.id)}
-                              className='flex-1 py-1 rounded text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-all'
+                              className='flex-1 py-1.5 rounded-lg text-xs font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-all'
                             >
                               Decline
                             </button>
@@ -1648,7 +1788,7 @@ function MessagePage() {
                         <div className='flex-1 min-w-0'>
                           <div className='flex justify-between items-center'>
                             <span className='text-xs font-bold text-gray-900 group-hover:text-[#986a41]'>{msg.conversationInfo.otherUser.name}</span>
-                            <span className='text-[10px] text-gray-400'>{new Date(msg.createdAt).toLocaleDateString()}</span>
+                            <span className='text-[10px] text-gray-400'>{formatDate(msg.createdAt)}</span>
                           </div>
                         </div>
                      </div>
@@ -1676,7 +1816,18 @@ function MessagePage() {
                     return (
                       <div
                         key={conv._id}
-                        onClick={() => setSelectedConversationId(conv._id)}
+                        onClick={() => {
+                          setSelectedConversationId(conv._id)
+                          setConversations((prev) =>
+                            prev.map((c) =>
+                              c._id === conv._id
+                                ? { ...c, unreadCount: 0, showUnreadDot: false }
+                                : c
+                            )
+                          )
+                          messageService.markConversationRead(conv._id).catch(() => {})
+                          dispatch(fetchUnreadMessages())
+                        }}
                         className={`w-full p-4 border-b border-gray-50 text-left transition-all hover:bg-white cursor-pointer relative group ${
                           selectedConversationId === conv._id
                             ? 'bg-white shadow-[inset_4px_0_0_0_#986a41]'
@@ -1765,38 +1916,36 @@ function MessagePage() {
                           {req.name}
                         </h3>
                         <p className='text-xs text-gray-500 truncate'>
-                          {req.message}
+                          {req.message || 'No message'}
                         </p>
                         <p className='text-xs text-gray-400 mt-1'>
                           {req.timestamp}
                         </p>
                         <div
-                          className='flex gap-2 mt-3'
+                          className='flex gap-2 mt-3 flex-wrap'
                           onClick={(e) => e.stopPropagation()}
                         >
                           <button
                             disabled={processingRequestId === req.id}
                             onClick={() => handleAcceptRequest(req.id)}
-                            className='flex-1 py-1.5 rounded-lg text-xs font-medium text-white transition-all flex items-center justify-center gap-1 hover:opacity-90 bg-[#163146] disabled:opacity-50'
+                            className='flex-1 py-1.5 rounded-lg text-xs font-semibold text-white transition-all hover:opacity-90 bg-[#163146] disabled:opacity-50 flex items-center justify-center'
                           >
                             {processingRequestId === req.id ? (
                               <Loader2 size={14} className='animate-spin' />
                             ) : (
-                              <Check size={14} />
+                              'Accept'
                             )}
-                            Accept
                           </button>
                           <button
                             disabled={processingRequestId === req.id}
                             onClick={() => handleDeclineRequest(req.id)}
-                            className='flex-1 py-1.5 rounded-lg text-xs font-medium bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 transition-all disabled:opacity-50'
+                            className='flex-1 py-1.5 rounded-lg text-xs font-semibold bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 transition-all disabled:opacity-50 flex items-center justify-center'
                           >
                             {processingRequestId === req.id ? (
                                 <Loader2 size={14} className='animate-spin' />
                             ) : (
-                                <X size={14} />
+                                'Decline'
                             )}
-                            Decline
                           </button>
                         </div>
                       </div>
@@ -1927,11 +2076,22 @@ function MessagePage() {
               </div>
             </div>
 
-            <div className={`flex-1 overflow-y-auto p-4 md:p-6 space-y-4 min-h-0 chat-messages-area bg-[#faf9f6]/30 ${isMessagesLoading ? 'opacity-50 pointer-events-none' : 'opacity-100'} transition-opacity duration-300`}>
+            <div ref={chatMessagesRef} className={`flex-1 overflow-y-auto p-4 md:p-6 space-y-4 min-h-0 chat-messages-area bg-[#faf9f6]/30 ${isMessagesLoading ? 'opacity-50 pointer-events-none' : 'opacity-100'} transition-opacity duration-300`}>
               {isMessagesLoading ? (
                 <MessageSkeleton />
               ) : (
                 <>
+                  {messagesPage < messagesTotalPages && (
+                    <div className='flex justify-center'>
+                      <button
+                        onClick={handleLoadOlderMessages}
+                        disabled={isLoadingOlder}
+                        className='px-3 py-1.5 text-xs font-semibold rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition disabled:opacity-50'
+                      >
+                        {isLoadingOlder ? 'Loading...' : 'Load older messages'}
+                      </button>
+                    </div>
+                  )}
                   {messages.length === 0 ? (
                     <div className='flex flex-col items-center justify-center h-full opacity-60 px-8 text-center'>
                       <div className='w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mb-4'>
@@ -1955,105 +2115,95 @@ function MessagePage() {
                             }`}
                           >
                             <motion.div 
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className={`mb-6 rounded-[2rem] border overflow-hidden flex flex-col shadow-2xl transition-all duration-300 hover:shadow-blue-500/10 bg-white border-slate-100 max-w-[500px] w-full`}
+                              initial={{ opacity: 0, y: 8 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              className='mb-4 rounded-2xl border border-slate-200 bg-white shadow-sm max-w-[420px] w-full overflow-hidden'
                             >
-                                {/* Header with Background Gradient */}
-                                <div className={`p-6 bg-gradient-to-br transition-all duration-500 ${
-                                    msg.sender === currentLoggedInUser._id ? 'from-blue-600 to-indigo-700' : 'from-[#163146] to-[#0f1f27]'
-                                }`}>
-                                    <div className="flex justify-between items-start mb-4">
-                                        <div className="p-3 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20">
-                                            <Calendar size={24} className="text-white" />
-                                        </div>
-                                        <div className="flex flex-col items-end">
-                                            <span className="text-[10px] font-black text-white/60 uppercase tracking-widest mb-1">
-                                                Event Invitation
-                                            </span>
-                                            {msg.sender === currentLoggedInUser._id && (
-                                                <span className="text-[9px] bg-white/20 text-white px-2 py-0.5 rounded-full font-bold uppercase backdrop-blur-sm border border-white/10">Sent</span>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <h4 className="text-2xl font-black text-white leading-tight">
-                                        {msg.eventInfo.title}
-                                    </h4>
+                              <div className='px-4 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between'>
+                                <div className='flex items-center gap-2'>
+                                  <div className='w-8 h-8 rounded-xl bg-[#163146]/10 text-[#163146] flex items-center justify-center'>
+                                    <Calendar size={16} />
+                                  </div>
+                                  <div>
+                                    <p className='text-[10px] font-bold uppercase tracking-widest text-slate-500'>Event Invite</p>
+                                    <p className='text-sm font-semibold text-slate-900 truncate max-w-[220px]'>
+                                      {msg.eventInfo.title}
+                                    </p>
+                                  </div>
                                 </div>
+                                {msg.sender === currentLoggedInUser._id && (
+                                  <span className='text-[9px] font-bold uppercase tracking-widest text-slate-500'>
+                                    Sent
+                                  </span>
+                                )}
+                              </div>
 
-                                {/* Details Body */}
-                                <div className="p-6 space-y-4 bg-white">
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="space-y-1">
-                                            <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Date</p>
-                                            <p className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                                                <Clock size={14} className="text-blue-500" />
-                                                {new Date(msg.eventInfo.startTime).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
-                                            </p>
-                                        </div>
-                                        <div className="space-y-1">
-                                            <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Time</p>
-                                            <p className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                                                <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                                                {new Date(msg.eventInfo.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    
-                                    {msg.eventInfo.location && (
-                                        <div className="pt-2 border-t border-slate-50 flex items-center gap-3">
-                                            <div className="p-2 bg-slate-50 rounded-lg">
-                                                <MapPin size={16} className="text-slate-400" />
-                                            </div>
-                                            <p className="text-xs text-slate-600 font-bold">{msg.eventInfo.location}</p>
-                                        </div>
-                                    )}
+                              <div className='px-4 py-3 grid grid-cols-2 gap-3 text-xs'>
+                                <div className='flex items-center gap-2'>
+                                  <Clock size={14} className='text-slate-400' />
+                                  <div>
+                                    <p className='text-[10px] text-slate-400 font-semibold uppercase tracking-widest'>Date</p>
+                                    <p className='text-slate-700 font-semibold'>{formatDate(msg.eventInfo.startTime)}</p>
+                                  </div>
                                 </div>
+                                <div className='flex items-center gap-2'>
+                                  <div className='w-2 h-2 rounded-full bg-emerald-500' />
+                                  <div>
+                                    <p className='text-[10px] text-slate-400 font-semibold uppercase tracking-widest'>Time</p>
+                                    <p className='text-slate-700 font-semibold'>
+                                      {new Date(msg.eventInfo.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </p>
+                                  </div>
+                                </div>
+                                {msg.eventInfo.location && (
+                                  <div className='flex items-center gap-2 col-span-2'>
+                                    <MapPin size={14} className='text-slate-400' />
+                                    <p className='text-slate-600 font-medium truncate'>{msg.eventInfo.location}</p>
+                                  </div>
+                                )}
+                              </div>
 
-                                {/* Footer Actions */}
-                                <div className="px-6 pb-6 bg-white">
-                                    {msg.eventInfo.invitationStatus === 'pending' && msg.sender !== currentLoggedInUser._id ? (
-                                        <div className="flex gap-3">
-                                            <motion.button 
-                                                whileHover={{ scale: 1.02, y: -2 }}
-                                                whileTap={{ scale: 0.98 }}
-                                                disabled={respondingMessageId === msg._id}
-                                                onClick={() => handleEventInvitationResponse(msg._id, 'accepted')}
-                                                className="flex-1 py-4 bg-[#163146] text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-[#0f1f27] transition-all flex items-center justify-center gap-2 shadow-xl shadow-blue-900/20 disabled:opacity-50"
-                                            >
-                                                {respondingMessageId === msg._id ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} strokeWidth={3} />}
-                                                Accept Invite
-                                            </motion.button>
-                                            <motion.button 
-                                                whileHover={{ scale: 1.02 }}
-                                                whileTap={{ scale: 0.98 }}
-                                                disabled={respondingMessageId === msg._id}
-                                                onClick={() => handleEventInvitationResponse(msg._id, 'declined')}
-                                                className="p-4 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-2xl transition-colors flex items-center justify-center disabled:opacity-50"
-                                            >
-                                                <X size={18} strokeWidth={3} />
-                                            </motion.button>
-                                        </div>
-                                    ) : (
-                                        <div className="flex items-center justify-between pt-4 border-t border-slate-50">
-                                            <div className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest ${
-                                                msg.eventInfo.invitationStatus === 'accepted' ? 'bg-green-50 text-green-600 border border-green-100' :
-                                                msg.eventInfo.invitationStatus === 'declined' ? 'bg-red-50 text-red-600 border border-red-100' :
-                                                'bg-blue-50 text-blue-600 border border-blue-100'
-                                            }`}>
-                                                {msg.eventInfo.invitationStatus === 'accepted' && <><Check size={12} strokeWidth={3} /> Confirmed</>}
-                                                {msg.eventInfo.invitationStatus === 'declined' && <><X size={12} strokeWidth={3} /> Declined</>}
-                                                {msg.eventInfo.invitationStatus === 'pending' && 'Awaiting Response'}
-                                            </div>
-                                            <Link 
-                                                to={`/calendar?eventId=${msg.eventInfo.eventId}`}
-                                                className="flex items-center gap-2 text-xs font-black text-[#163146] hover:text-blue-600 transition-colors"
-                                            >
-                                                View Details <Search size={14} />
-                                            </Link>
-                                        </div>
-                                    )}
-                                </div>
+                              <div className='px-4 py-3 border-t border-slate-100 bg-white'>
+                                {msg.eventInfo.invitationStatus === 'pending' && msg.sender !== currentLoggedInUser._id ? (
+                                  <div className='flex gap-2'>
+                                    <motion.button 
+                                      whileHover={{ scale: 1.01 }}
+                                      whileTap={{ scale: 0.98 }}
+                                      disabled={respondingMessageId === msg._id}
+                                      onClick={() => handleEventInvitationResponse(msg._id, 'accepted')}
+                                      className='flex-1 py-2 rounded-lg text-xs font-semibold bg-[#163146] text-white hover:bg-[#0f1f27] transition disabled:opacity-50'
+                                    >
+                                      {respondingMessageId === msg._id ? 'Working...' : 'Accept'}
+                                    </motion.button>
+                                    <motion.button 
+                                      whileHover={{ scale: 1.01 }}
+                                      whileTap={{ scale: 0.98 }}
+                                      disabled={respondingMessageId === msg._id}
+                                      onClick={() => handleEventInvitationResponse(msg._id, 'declined')}
+                                      className='flex-1 py-2 rounded-lg text-xs font-semibold bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition disabled:opacity-50'
+                                    >
+                                      Decline
+                                    </motion.button>
+                                  </div>
+                                ) : (
+                                  <div className='flex items-center justify-between'>
+                                    <div className={`text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full ${
+                                      msg.eventInfo.invitationStatus === 'accepted' ? 'bg-emerald-50 text-emerald-700' :
+                                      msg.eventInfo.invitationStatus === 'declined' ? 'bg-rose-50 text-rose-700' :
+                                      'bg-slate-100 text-slate-600'
+                                    }`}>
+                                      {msg.eventInfo.invitationStatus === 'accepted' ? 'Confirmed' :
+                                       msg.eventInfo.invitationStatus === 'declined' ? 'Declined' : 'Awaiting Response'}
+                                    </div>
+                                    <Link 
+                                      to={`/calendar?eventId=${msg.eventInfo.eventId}`}
+                                      className='text-xs font-semibold text-[#163146] hover:underline'
+                                    >
+                                      View details
+                                    </Link>
+                                  </div>
+                                )}
+                              </div>
                             </motion.div>
                           </div>
                         );
@@ -2159,7 +2309,7 @@ function MessagePage() {
                                         <div className='flex items-center gap-2'>
                                             <Clock size={12} className={msg.sender === currentLoggedInUser._id ? 'text-white/60' : 'text-blue-500'} />
                                             <span className='text-[10px] font-bold'>
-                                                {new Date(msg.eventInfo.startTime).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                                                {formatDate(msg.eventInfo.startTime)} • {new Date(msg.eventInfo.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                             </span>
                                         </div>
                                         {msg.eventInfo.location && (

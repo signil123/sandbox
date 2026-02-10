@@ -13,6 +13,9 @@ export const messageService = {
   // Messages
   getMessages: (conversationId, page = 1, limit = 50) => 
     axiosInstance.get(`${API_URL}/conversations/${conversationId}/messages?page=${page}&limit=${limit}`),
+
+  markConversationRead: (conversationId) =>
+    axiosInstance.post(`${API_URL}/conversations/${conversationId}/read`),
   
   sendMessage: (conversationId, content, options = {}) => {
     const { type = 'text', attachments = [], eventInfo = null } = options

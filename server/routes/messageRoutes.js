@@ -6,6 +6,7 @@ import {
     deleteMessage,
     getConversations,
     getMessages,
+    markConversationRead,
     searchMessages,
     sendMessage,
     startConversation,
@@ -31,6 +32,9 @@ router.get('/conversations', getConversations)
 
 // Get messages for a conversation
 router.get('/conversations/:conversationId/messages', getMessages)
+
+// Mark conversation as read
+router.post('/conversations/:conversationId/read', markConversationRead)
 
 // Send a message
 router.post('/conversations/:conversationId/messages', sendMessage)
