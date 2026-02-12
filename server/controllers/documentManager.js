@@ -6,6 +6,20 @@ import User from '../models/User.js'
 import Document from '../models/Verification.js'
 import { deleteCloudinaryAsset } from '../utils/cloudinaryCleanup.js'
 
+const updateUserVerificationState = async (userId, verificationStatus, isVerified = false) => {
+  await User.findByIdAndUpdate(
+    userId,
+    {
+      verificationStatus,
+      isVerified,
+    },
+    {
+      new: false,
+      runValidators: false,
+    }
+  )
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // ADVISOR/AGENT DOCUMENT SUBMISSION
 // ═══════════════════════════════════════════════════════════════════════════
@@ -72,6 +86,8 @@ export const submitDocument = async (req, res, next) => {
       submittedNotes: notes || '',
       submittedAt: new Date(),
     })
+
+    await updateUserVerificationState(advisorId, 'pending_review', false)
 
     // Create notification for admins
     const adminUsers = await User.find({ role: 'admin' })
@@ -212,6 +228,7 @@ export const updateDocument = async (req, res, next) => {
     document.resubmittedAt = new Date()
 
     await document.save()
+    await updateUserVerificationState(advisorId, 'pending_review', false)
 
     // Notify admins of resubmission
     const adminUsers = await User.find({ role: 'admin' })
@@ -379,6 +396,7 @@ export const approveDocument = async (req, res, next) => {
       profile.verificationStatus = 'approved'
       await profile.save()
     }
+    await updateUserVerificationState(document.user, 'approved', true)
 
     // Notify advisor
     await Notification.create({
@@ -436,6 +454,7 @@ export const declineDocument = async (req, res, next) => {
     document.adminNotes = adminNotes || ''
 
     await document.save()
+    await updateUserVerificationState(document.user, 'requires_update', false)
 
     // Notify advisor
     await Notification.create({
@@ -483,6 +502,7 @@ export const markDocumentExpired = async (req, res, next) => {
       profile.verificationStatus = 'expired'
       await profile.save()
     }
+    await updateUserVerificationState(document.user, 'expired', false)
 
     // Notify advisor
     await Notification.create({

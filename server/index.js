@@ -18,7 +18,9 @@ import exploreRoute from './routes/exploreRoutes.js'
 import messageRoutes from './routes/messageRoutes.js'
 import notificationRoutes from './routes/notificationRoutes.js'
 import profileRoutes from './routes/profileRoutes.js'
+import subscriptionRoutes from './routes/subscriptionRoutes.js'
 import uploadRoutes from './routes/uploadRoutes.js'
+import { seedStripePlans } from './seeds/stripePlanSeed.js'
 
 const app = express()
 const __filename = fileURLToPath(import.meta.url)
@@ -54,6 +56,7 @@ app.use('/api/profile', profileRoutes)
 app.use('/api/notifications', notificationRoutes)
 app.use('/api/upload', uploadRoutes)
 app.use('/api/documents', documentManagerRoutes)
+app.use('/api/subscriptions', subscriptionRoutes)
 
 // Error handler middleware
 app.use((err, req, res, next) => {
@@ -86,6 +89,9 @@ const connect = () => {
     .connect(process.env.MONGO)
     .then(() => {
       console.log('✅ Connected to MongoDB')
+      seedStripePlans().catch((error) => {
+        console.error('❌ Stripe plan seed failed:', error.message || error)
+      })
     })
     .catch((err) => {
       console.error('❌ MongoDB connection error:', err)

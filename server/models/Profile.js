@@ -188,8 +188,16 @@ const ProfileSchema = new mongoose.Schema(
     },
     verificationStatus: {
       type: String,
-      enum: ['pending', 'approved', 'rejected'],
-      default: 'pending',
+      enum: [
+        'not_submitted',
+        'pending',
+        'pending_review',
+        'approved',
+        'rejected',
+        'requires_update',
+        'expired',
+      ],
+      default: 'not_submitted',
     },
     ratings: {
       averageRating: {

@@ -189,6 +189,53 @@ const UserSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Subscription',
     },
+    tier: {
+      type: String,
+      enum: ['free', 'growth', 'pro'],
+      default: 'free',
+    },
+    verificationStatus: {
+      type: String,
+      enum: [
+        'not_submitted',
+        'pending_review',
+        'approved',
+        'rejected',
+        'requires_update',
+        'expired',
+      ],
+      default: 'not_submitted',
+    },
+    stripeCustomerId: {
+      type: String,
+      default: null,
+    },
+    stripeSubscriptionId: {
+      type: String,
+      default: null,
+    },
+    subscriptionStatus: {
+      type: String,
+      enum: [
+        'inactive',
+        'active',
+        'trialing',
+        'past_due',
+        'unpaid',
+        'canceled',
+        'incomplete',
+        'incomplete_expired',
+      ],
+      default: 'inactive',
+    },
+    subscriptionCurrentPeriodEnd: {
+      type: Date,
+      default: null,
+    },
+    cancelAtPeriodEnd: {
+      type: Boolean,
+      default: false,
+    },
 
     // Stats
     totalConnections: {
