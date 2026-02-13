@@ -4,6 +4,8 @@ import User from '../models/User.js'
 import { stripeRequest } from '../utils/stripeClient.js'
 
 const ACTIVE_STATUSES = ['active', 'trialing', 'past_due', 'unpaid']
+const GRACE_PERIOD_DAYS = 3
+const TIER_ORDER = { free: 0, growth: 1, pro: 2 }
 
 const formatPlanResponse = (plan) => ({
   _id: plan._id,
@@ -20,6 +22,59 @@ const formatPlanResponse = (plan) => ({
   createdAt: plan.createdAt,
   updatedAt: plan.updatedAt,
 })
+
+const FIXED_PLAN_TEMPLATES = [
+  {
+    tier: 'free',
+    name: 'Free',
+    description: 'Limited visibility with verification entry point',
+    amount: 0,
+    currency: 'usd',
+    features: [
+      'Athlete profiles visible (limited to 2-3 example profiles)',
+      'Explore shows 2-3 real athlete profiles; others blurred with upgrade prompt',
+      'Connecting, messaging, and athlete social links are locked (upgrade required)',
+      'Advisor profile not visible to athletes',
+      'Verification upload enabled (required before Growth/Pro purchase)',
+    ],
+    active: true,
+  },
+  {
+    tier: 'growth',
+    name: 'Growth',
+    description: 'Verified access with monthly connection limits',
+    amount: 49,
+    currency: 'usd',
+    features: [
+      'Verification required before purchase',
+      'Athlete profiles and social accounts fully visible',
+      'Advisor profile visible to athletes',
+      'Connection requests: 15/mo; Connections accepted: 5/mo',
+      'Unlimited messaging',
+      'Standard placement + filters: Sport, School',
+    ],
+    active: true,
+  },
+  {
+    tier: 'pro',
+    name: 'Pro',
+    description: 'Verified unlimited access with premium visibility',
+    amount: 99,
+    currency: 'usd',
+    features: [
+      'Verification required before purchase',
+      'Athlete profiles and social accounts fully visible',
+      'Advisor profile visible to athletes + Pro badge',
+      'Unlimited connection requests and accepts',
+      'Unlimited messaging',
+      'Premium algorithm visibility',
+      'Premium filters: Athlete Needs, Location, Grade Level, Interest, Experience',
+    ],
+    active: true,
+  },
+]
+
+const FIXED_TIERS = new Set(FIXED_PLAN_TEMPLATES.map((plan) => plan.tier))
 
 const getFrontEndUrl = () => process.env.FRONTEND_URL || 'http://localhost:5173'
 
@@ -74,6 +129,20 @@ const ensureStripeCustomer = async (user) => {
   await user.save({ validateBeforeSave: false })
 
   return customer.id
+}
+
+const ensureCustomerHasCard = async (customerId) => {
+  const paymentMethods = await stripeRequest('/payment_methods', {
+    method: 'GET',
+    query: {
+      customer: customerId,
+      type: 'card',
+      limit: 1,
+    },
+  })
+
+  const hasCard = Array.isArray(paymentMethods?.data) && paymentMethods.data.length > 0
+  return hasCard
 }
 
 const syncUserFromStripeSubscription = async (user, subscription, plan = null) => {
@@ -143,6 +212,25 @@ const refreshAndResolveUserSubscription = async (user) => {
     ? await StripePlan.findOne({ stripePriceId: priceId })
     : null
 
+  if (['past_due', 'unpaid'].includes(activeSubscription.status)) {
+    const currentPeriodEnd = getCurrentPeriodEnd(activeSubscription)
+    if (currentPeriodEnd) {
+      const graceEnds = new Date(currentPeriodEnd.getTime() + GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000)
+      if (Date.now() > graceEnds.getTime()) {
+        try {
+          await stripeRequest(`/subscriptions/${activeSubscription.id}`, { method: 'DELETE' })
+        } catch {
+          // Ignore cancellation errors and still downgrade locally.
+        }
+        await syncUserFromStripeSubscription(user, null, null)
+        return {
+          subscription: null,
+          plan: null,
+        }
+      }
+    }
+  }
+
   await syncUserFromStripeSubscription(user, activeSubscription, matchingPlan)
 
   return {
@@ -151,9 +239,77 @@ const refreshAndResolveUserSubscription = async (user) => {
   }
 }
 
+const getStripeSubscription = async (subscriptionId) => {
+  if (!subscriptionId) return null
+  return stripeRequest(`/subscriptions/${subscriptionId}`, {
+    method: 'GET',
+    query: {
+      expand: ['items.data.price'],
+    },
+  })
+}
+
+const createDowngradeSchedule = async (subscription, nextPriceId) => {
+  const currentItem = subscription?.items?.data?.[0]
+  const currentPriceId = currentItem?.price?.id || currentItem?.price
+  const quantity = currentItem?.quantity || 1
+  const startDate = subscription?.current_period_start
+  const endDate = subscription?.current_period_end
+
+  if (!currentPriceId || !startDate || !endDate) {
+    throw createError(400, 'Unable to determine current subscription details for downgrade')
+  }
+
+  const schedule = await stripeRequest('/subscription_schedules', {
+    method: 'POST',
+    data: {
+      from_subscription: subscription.id,
+    },
+  })
+
+  await stripeRequest(`/subscription_schedules/${schedule.id}`, {
+    method: 'POST',
+    data: {
+      end_behavior: 'release',
+      phases: [
+        {
+          start_date: startDate,
+          end_date: endDate,
+          items: [{ price: currentPriceId, quantity }],
+        },
+        {
+          start_date: endDate,
+          items: [{ price: nextPriceId, quantity: 1 }],
+        },
+      ],
+    },
+  })
+}
+
+const upgradeSubscriptionNow = async (subscription, nextPriceId) => {
+  const currentItem = subscription?.items?.data?.[0]
+  if (!currentItem?.id) {
+    throw createError(400, 'Unable to upgrade subscription without a current item')
+  }
+
+  await stripeRequest(`/subscriptions/${subscription.id}`, {
+    method: 'POST',
+    data: {
+      cancel_at_period_end: false,
+      proration_behavior: 'always_invoice',
+      items: [
+        {
+          id: currentItem.id,
+          price: nextPriceId,
+        },
+      ],
+    },
+  })
+}
+
 export const getAdminPlans = async (req, res, next) => {
   try {
-    const plans = await StripePlan.find().sort({ amount: 1, createdAt: -1 })
+    const plans = await ensureFixedAdminPlans(req.user?._id || null)
 
     res.status(200).json({
       status: 'success',
@@ -170,17 +326,17 @@ export const createAdminPlan = async (req, res, next) => {
   try {
     const { name, description = '', tier, amount, currency = 'usd', features = [], active = true } = req.body
 
-    const existingCount = await StripePlan.countDocuments()
-    if (existingCount >= 3) {
-      return next(createError(400, 'Plan limit reached. Only 3 plans are allowed.'))
-    }
-
     if (!name || !tier || amount === undefined || amount === null) {
       return next(createError(400, 'name, tier and amount are required'))
     }
 
-    if (!['free', 'growth', 'pro'].includes(tier)) {
+    if (!FIXED_TIERS.has(tier)) {
       return next(createError(400, 'tier must be one of: free, growth, pro'))
+    }
+
+    const existingTierPlan = await StripePlan.findOne({ tier })
+    if (existingTierPlan) {
+      return next(createError(400, `Plan for tier "${tier}" already exists. Use update instead.`))
     }
 
     const parsedAmount = Number(amount)
@@ -192,46 +348,6 @@ export const createAdminPlan = async (req, res, next) => {
       ? features.map((feature) => String(feature).trim()).filter(Boolean)
       : []
 
-    let stripeProductId = null
-    let stripePriceId = null
-
-    if (tier !== 'free') {
-      if (parsedAmount <= 0) {
-        return next(createError(400, 'Paid plans must have amount greater than 0'))
-      }
-
-      const product = await stripeRequest('/products', {
-        method: 'POST',
-        data: {
-          name: String(name).trim(),
-          description: String(description || '').trim(),
-          active: Boolean(active),
-          metadata: {
-            tier,
-          },
-        },
-      })
-
-      const unitAmount = Math.round(parsedAmount * 100)
-      const price = await stripeRequest('/prices', {
-        method: 'POST',
-        data: {
-          currency: String(currency).toLowerCase().trim(),
-          unit_amount: unitAmount,
-          recurring: {
-            interval: 'month',
-          },
-          product: product.id,
-          metadata: {
-            tier,
-          },
-        },
-      })
-
-      stripeProductId = product.id
-      stripePriceId = price.id
-    }
-
     const plan = await StripePlan.create({
       name: String(name).trim(),
       description: String(description || '').trim(),
@@ -241,10 +357,13 @@ export const createAdminPlan = async (req, res, next) => {
       interval: 'month',
       features: sanitizedFeatures,
       active: Boolean(active),
-      stripeProductId,
-      stripePriceId,
+      stripeProductId: null,
+      stripePriceId: null,
       createdBy: req.user._id,
     })
+
+    await ensureStripeStateForPlan(plan)
+    await plan.save()
 
     res.status(201).json({
       status: 'success',
@@ -263,43 +382,135 @@ const isStripeResourceMissing = (error) => {
   return message.includes('No such product') || message.includes('No such price')
 }
 
-const rebuildStripeForPlan = async (plan) => {
-  if (plan.tier === 'free') {
-    plan.stripeProductId = null
-    plan.stripePriceId = null
-    return plan
-  }
-
-  const product = await stripeRequest('/products', {
+const createStripeProductForPlan = async (plan) => {
+  return stripeRequest('/products', {
     method: 'POST',
     data: {
-      name: plan.name,
-      description: plan.description,
+      name: String(plan.name || '').trim(),
+      description: String(plan.description || '').trim(),
       active: Boolean(plan.active),
       metadata: {
         tier: plan.tier,
       },
     },
   })
+}
 
-  const price = await stripeRequest('/prices', {
+const createStripePriceForPlan = async (plan, productId) => {
+  return stripeRequest('/prices', {
     method: 'POST',
     data: {
-      currency: String(plan.currency).toLowerCase().trim(),
-      unit_amount: Math.round(plan.amount * 100),
+      currency: String(plan.currency || 'usd').toLowerCase().trim(),
+      unit_amount: Math.round(Number(plan.amount) * 100),
       recurring: {
         interval: 'month',
       },
-      product: product.id,
+      product: productId,
       metadata: {
         tier: plan.tier,
       },
     },
   })
+}
 
-  plan.stripeProductId = product.id
-  plan.stripePriceId = price.id
-  return plan
+const ensureStripeStateForPlan = async (plan, { forceNewPrice = false } = {}) => {
+  if (plan.tier === 'free') {
+    plan.stripeProductId = null
+    plan.stripePriceId = null
+    plan.amount = 0
+    return
+  }
+
+  if (!Number.isFinite(plan.amount) || plan.amount <= 0) {
+    throw createError(400, `Paid plan "${plan.tier}" must have amount greater than 0`)
+  }
+
+  let product = null
+
+  if (plan.stripeProductId) {
+    try {
+      product = await stripeRequest(`/products/${plan.stripeProductId}`, { method: 'GET' })
+    } catch (error) {
+      if (!isStripeResourceMissing(error)) throw error
+      plan.stripeProductId = null
+      plan.stripePriceId = null
+    }
+  }
+
+  if (!product) {
+    product = await createStripeProductForPlan(plan)
+    plan.stripeProductId = product.id
+  } else {
+    await stripeRequest(`/products/${plan.stripeProductId}`, {
+      method: 'POST',
+      data: {
+        name: String(plan.name || '').trim(),
+        description: String(plan.description || '').trim(),
+        active: Boolean(plan.active),
+        metadata: {
+          tier: plan.tier,
+        },
+      },
+    })
+  }
+
+  let shouldCreateNewPrice = Boolean(forceNewPrice) || !plan.stripePriceId
+  if (plan.stripePriceId) {
+    try {
+      const existingPrice = await stripeRequest(`/prices/${plan.stripePriceId}`, { method: 'GET' })
+      const expectedUnitAmount = Math.round(Number(plan.amount) * 100)
+      const expectedCurrency = String(plan.currency || 'usd').toLowerCase().trim()
+      const priceProductId = existingPrice?.product?.id || existingPrice?.product
+      const isSameProduct = priceProductId === plan.stripeProductId
+      const isSameAmount = Number(existingPrice?.unit_amount) === expectedUnitAmount
+      const isSameCurrency = String(existingPrice?.currency || '').toLowerCase() === expectedCurrency
+      const isMonthly = existingPrice?.recurring?.interval === 'month'
+
+      if (!isSameProduct || !isSameAmount || !isSameCurrency || !isMonthly) {
+        shouldCreateNewPrice = true
+      }
+    } catch (error) {
+      if (!isStripeResourceMissing(error)) throw error
+      shouldCreateNewPrice = true
+    }
+  }
+
+  if (shouldCreateNewPrice) {
+    const price = await createStripePriceForPlan(plan, plan.stripeProductId)
+    plan.stripePriceId = price.id
+  }
+}
+
+const ensureFixedAdminPlans = async (createdBy = null) => {
+  const plans = []
+
+  for (const template of FIXED_PLAN_TEMPLATES) {
+    let plan = await StripePlan.findOne({ tier: template.tier }).sort({ createdAt: 1 })
+
+    if (!plan) {
+      plan = await StripePlan.create({
+        ...template,
+        interval: 'month',
+        createdBy,
+      })
+    } else {
+      if (!plan.name) plan.name = template.name
+      if (!plan.currency) plan.currency = template.currency
+      if (!plan.interval) plan.interval = 'month'
+      if (!Array.isArray(plan.features)) plan.features = template.features
+      if (plan.tier === 'free') plan.amount = 0
+    }
+
+    await ensureStripeStateForPlan(plan)
+
+    if (plan.isModified()) {
+      await plan.save()
+    }
+
+    plans.push(plan)
+  }
+
+  return plans
 }
 
 export const updateAdminPlan = async (req, res, next) => {
@@ -317,38 +528,9 @@ export const updateAdminPlan = async (req, res, next) => {
       return next(createError(400, 'amount must be a positive number'))
     }
 
-    if (active !== undefined) {
-      plan.active = Boolean(active)
+    if (active !== undefined) plan.active = Boolean(active)
 
-      if (plan.stripeProductId) {
-        await stripeRequest(`/products/${plan.stripeProductId}`, {
-          method: 'POST',
-          data: {
-            active: Boolean(active),
-          },
-        })
-      }
-    }
-
-    if (description !== undefined) {
-      plan.description = String(description || '').trim()
-      if (plan.stripeProductId) {
-        try {
-          await stripeRequest(`/products/${plan.stripeProductId}`, {
-            method: 'POST',
-            data: {
-              description: plan.description,
-            },
-          })
-        } catch (error) {
-          if (isStripeResourceMissing(error)) {
-            await rebuildStripeForPlan(plan)
-          } else {
-            throw error
-          }
-        }
-      }
-    }
+    if (description !== undefined) plan.description = String(description || '').trim()
 
     if (features !== undefined) {
       plan.features = Array.isArray(features)
@@ -356,40 +538,14 @@ export const updateAdminPlan = async (req, res, next) => {
         : []
     }
 
-    if (parsedAmount !== null && plan.tier !== 'free' && plan.stripeProductId) {
-      if (parsedAmount <= 0) {
+    if (parsedAmount !== null) {
+      if (plan.tier !== 'free' && parsedAmount <= 0) {
         return next(createError(400, 'Paid plans must have amount greater than 0'))
       }
-      const unitAmount = Math.round(parsedAmount * 100)
-      try {
-        const price = await stripeRequest('/prices', {
-          method: 'POST',
-          data: {
-            currency: String(plan.currency).toLowerCase().trim(),
-            unit_amount: unitAmount,
-            recurring: {
-              interval: 'month',
-            },
-            product: plan.stripeProductId,
-            metadata: {
-              tier: plan.tier,
-            },
-          },
-        })
-        plan.amount = parsedAmount
-        plan.stripePriceId = price.id
-      } catch (error) {
-        if (isStripeResourceMissing(error)) {
-          plan.amount = parsedAmount
-          await rebuildStripeForPlan(plan)
-        } else {
-          throw error
-        }
-      }
-    } else if (parsedAmount !== null) {
       plan.amount = parsedAmount
     }
 
+    await ensureStripeStateForPlan(plan, { forceNewPrice: parsedAmount !== null })
     await plan.save()
 
     res.status(200).json({
@@ -430,35 +586,85 @@ export const createCheckoutSession = async (req, res, next) => {
       return next(createError(404, 'Active plan not found'))
     }
 
+    const user = await User.findById(req.user._id)
+
     if (plan.tier === 'free') {
-      const user = await User.findById(req.user._id)
-      user.tier = 'free'
-      user.subscriptionStatus = 'inactive'
-      user.stripeSubscriptionId = null
-      user.subscriptionCurrentPeriodEnd = null
-      user.cancelAtPeriodEnd = false
-      await user.save({ validateBeforeSave: false })
+      if (user.stripeSubscriptionId) {
+        const existingSubscription = await getStripeSubscription(user.stripeSubscriptionId)
+        if (existingSubscription) {
+          await stripeRequest(`/subscriptions/${existingSubscription.id}`, {
+            method: 'POST',
+            data: {
+              cancel_at_period_end: true,
+            },
+          })
+          user.cancelAtPeriodEnd = true
+          await user.save({ validateBeforeSave: false })
+        }
+      }
 
       return res.status(200).json({
         status: 'success',
-        message: 'Moved to free tier',
+        message: 'Downgrade scheduled for end of billing period',
         data: {
-          tier: 'free',
+          tier: user.tier || 'free',
+          cancelAtPeriodEnd: true,
         },
       })
+    }
+
+    if (user.verificationStatus !== 'approved') {
+      return next(createError(403, 'Identity verification is required before purchasing paid plans'))
     }
 
     if (!plan.stripePriceId) {
       return next(createError(400, 'Selected plan is missing Stripe price configuration'))
     }
 
-    const user = await User.findById(req.user._id)
+    const customerId = await ensureStripeCustomer(user)
 
-    if (user.verificationStatus !== 'approved') {
-      return next(createError(403, 'Identity verification is required before purchasing paid plans'))
+    if (user.stripeSubscriptionId) {
+      const existingSubscription = await getStripeSubscription(user.stripeSubscriptionId)
+      if (existingSubscription) {
+        const currentPriceId = existingSubscription?.items?.data?.[0]?.price?.id
+        const currentTier = (await StripePlan.findOne({ stripePriceId: currentPriceId }))?.tier
+        const currentRank = TIER_ORDER[currentTier] ?? 0
+        const targetRank = TIER_ORDER[plan.tier] ?? 0
+
+        if (targetRank === currentRank) {
+          return next(createError(400, 'You are already on this plan'))
+        }
+
+        if (targetRank > currentRank) {
+          const hasCard = await ensureCustomerHasCard(customerId)
+          if (!hasCard) {
+            return next(createError(400, 'Add a card before upgrading to a paid plan'))
+          }
+          await upgradeSubscriptionNow(existingSubscription, plan.stripePriceId)
+          return res.status(200).json({
+            status: 'success',
+            message: 'Plan upgraded instantly',
+            data: {
+              tier: plan.tier,
+            },
+          })
+        }
+
+        await createDowngradeSchedule(existingSubscription, plan.stripePriceId)
+        return res.status(200).json({
+          status: 'success',
+          message: 'Downgrade scheduled for end of billing period',
+          data: {
+            tier: plan.tier,
+          },
+        })
+      }
     }
 
-    const customerId = await ensureStripeCustomer(user)
+    const hasCard = await ensureCustomerHasCard(customerId)
+    if (!hasCard) {
+      return next(createError(400, 'Add a card before purchasing a paid plan'))
+    }
 
     const successUrl = `${getFrontEndUrl()}/settings?checkout=success&session_id={CHECKOUT_SESSION_ID}`
     const cancelUrl = `${getFrontEndUrl()}/settings?checkout=cancelled`
@@ -643,6 +849,31 @@ export const createSetupSession = async (req, res, next) => {
       data: {
         checkoutUrl: session.url,
         sessionId: session.id,
+      },
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export const createSetupIntent = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id)
+    const customerId = await ensureStripeCustomer(user)
+
+    const setupIntent = await stripeRequest('/setup_intents', {
+      method: 'POST',
+      data: {
+        customer: customerId,
+        usage: 'off_session',
+        payment_method_types: ['card'],
+      },
+    })
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        clientSecret: setupIntent.client_secret,
       },
     })
   } catch (error) {

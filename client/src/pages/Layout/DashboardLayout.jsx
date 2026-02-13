@@ -45,6 +45,7 @@ import {
 import { messageService } from '../../services/messageService'
 import { notificationService } from '../../services/notificationService'
 import { profileService } from '../../services/profileService'
+import { pushService } from '../../services/pushService'
 import { socketService } from '../../services/socketService'
 import { getImageUrl } from '../../utils/imageUtils'
 
@@ -57,6 +58,10 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [isNotificationOpen, setIsNotificationOpen] = useState(false)
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false)
+  const [notificationsSupported, setNotificationsSupported] = useState(false)
+  const [notificationPermission, setNotificationPermission] = useState('default')
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false)
+  const [inAppNotificationsEnabled, setInAppNotificationsEnabled] = useState(true)
   const notifications = useSelector(selectNotifications) || []
   const unreadCount = useSelector(selectUnreadCount) || 0
   const unreadMessagesCount = useSelector(selectUnreadMessagesCount) || 0
@@ -67,6 +72,9 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
   const profileRef = useRef(null)
   const inactivityTimerRef = useRef(null)
   const isAutoAwayRef = useRef(false)
+  const processedMessageIdsRef = useRef(new Set())
+  const notificationsSupportedRef = useRef(false)
+  const notificationsEnabledRef = useRef(false)
 
   // Handle click outside for profile dropdown
   useEffect(() => {
@@ -87,30 +95,35 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
 
   React.useEffect(() => {
     const fetchProfileImage = async () => {
-      if (currentUser && !currentUser.profileImage) {
-        try {
-          let profileImg = null
-          if (currentUser.userType === 'athlete') {
-            const response = await profileService.getAthleteProfileBundle()
-            if (response?.status === 'success' && response.data?.profile) {
-              profileImg = response.data.profile.profileImage || response.data.profile.photo
-            }
-          } else {
-            const response = await profileService.getAdvisorProfile(currentUser._id)
-            if (response?.status === 'success' && response.data?.advisor?.profile) {
-              profileImg = response.data.advisor.profile.profileImage || response.data.advisor.profile.photo
-            }
+      if (!currentUser || currentUser.profileImage) return
+      if (currentUser.role === 'admin') return
+
+      const userType = currentUser.userType
+      if (userType !== 'athlete' && userType !== 'advisor' && userType !== 'agent') {
+        return
+      }
+
+      try {
+        let profileImg = null
+        if (userType === 'athlete') {
+          const response = await profileService.getAthleteProfileBundle()
+          if (response?.status === 'success' && response.data?.profile) {
+            profileImg = response.data.profile.profileImage || response.data.profile.photo
           }
-          if (profileImg) {
-            dispatch(updateProfileImage(profileImg))
+        } else {
+          const response = await profileService.getAdvisorProfile(currentUser._id)
+          if (response?.status === 'success' && response.data?.advisor?.profile) {
+            profileImg = response.data.advisor.profile.profileImage || response.data.advisor.profile.photo
           }
-        } catch (error) {
-          console.error('Error fetching profile image for topbar:', error)
         }
+        if (profileImg) {
+          dispatch(updateProfileImage(profileImg))
+        }
+      } catch (error) {
+        console.error('Error fetching profile image for topbar:', error)
       }
     }
 
-    fetchProfileImage()
     fetchProfileImage()
   }, [currentUser, dispatch])
 
@@ -126,6 +139,66 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
     }
   }, [isNotificationOpen])
 
+  useEffect(() => {
+    const isSupported = pushService.isSupported()
+    setNotificationsSupported(isSupported)
+    notificationsSupportedRef.current = isSupported
+    if (!isSupported) return
+
+    const permission = pushService.getPermission()
+    const enabled = pushService.getEnabled() && permission === 'granted'
+    setNotificationPermission(permission)
+    setNotificationsEnabled(enabled)
+    notificationsEnabledRef.current = enabled
+  }, [])
+
+  const persistNotificationsEnabled = (enabled) => {
+    pushService.setEnabled(enabled)
+    setNotificationsEnabled(enabled)
+    notificationsEnabledRef.current = enabled
+  }
+
+  const requestNotificationPermission = async () => {
+    if (!notificationsSupportedRef.current) return
+
+    const result = await pushService.subscribe()
+    const permission = pushService.getPermission()
+    const enabled = pushService.getEnabled() && permission === 'granted'
+    setNotificationPermission(permission)
+    setNotificationsEnabled(enabled)
+    notificationsEnabledRef.current = enabled
+
+    if (!result.ok) {
+      persistNotificationsEnabled(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!notificationsSupported) return
+
+    const refreshSettings = () => {
+      const permission = pushService.getPermission()
+      const enabled = pushService.getEnabled() && permission === 'granted'
+      setNotificationPermission(permission)
+      setNotificationsEnabled(enabled)
+      notificationsEnabledRef.current = enabled
+    }
+
+    const handleStorage = (event) => {
+      if (event.key === 'messageNotificationsEnabled') {
+        refreshSettings()
+      }
+    }
+
+    window.addEventListener('message-notifications-updated', refreshSettings)
+    window.addEventListener('storage', handleStorage)
+
+    return () => {
+      window.removeEventListener('message-notifications-updated', refreshSettings)
+      window.removeEventListener('storage', handleStorage)
+    }
+  }, [notificationsSupported])
+
   // Fetch unread messages and listen to socket
   React.useEffect(() => {
     if (currentUser) {
@@ -136,6 +209,15 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
       const socket = socketService.connect(localStorage.getItem('token'))
 
       const handleNewMessage = ({ message, conversationId }) => {
+        if (message?._id) {
+          if (processedMessageIdsRef.current.has(message._id)) return
+          processedMessageIdsRef.current.add(message._id)
+          if (processedMessageIdsRef.current.size > 500) {
+            const trimmed = Array.from(processedMessageIdsRef.current).slice(-250)
+            processedMessageIdsRef.current.clear()
+            trimmed.forEach((id) => processedMessageIdsRef.current.add(id))
+          }
+        }
         // If we are NOT in this conversation, increment the global unread count
         // Note: The activeConversationId should be set by the MessagePage
         if (activeConversationId !== conversationId) {
@@ -150,6 +232,40 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
       }
     }
   }, [currentUser, dispatch, activeConversationId])
+
+  useEffect(() => {
+    const stored = localStorage.getItem('inAppNotificationsEnabled')
+    const enabled = stored === null ? true : stored === 'true'
+    setInAppNotificationsEnabled(enabled)
+  }, [])
+
+  const persistInAppNotificationsEnabled = (enabled) => {
+    localStorage.setItem('inAppNotificationsEnabled', enabled ? 'true' : 'false')
+    setInAppNotificationsEnabled(enabled)
+    window.dispatchEvent(new Event('in-app-notifications-updated'))
+  }
+
+  useEffect(() => {
+    const refresh = () => {
+      const stored = localStorage.getItem('inAppNotificationsEnabled')
+      const enabled = stored === null ? true : stored === 'true'
+      setInAppNotificationsEnabled(enabled)
+    }
+
+    const handleStorage = (event) => {
+      if (event.key === 'inAppNotificationsEnabled') {
+        refresh()
+      }
+    }
+
+    window.addEventListener('in-app-notifications-updated', refresh)
+    window.addEventListener('storage', handleStorage)
+
+    return () => {
+      window.removeEventListener('in-app-notifications-updated', refresh)
+      window.removeEventListener('storage', handleStorage)
+    }
+  }, [])
 
   // Auto-away logic based on user activity
   useEffect(() => {
@@ -214,11 +330,16 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
       }
     }
 
+    if (!inAppNotificationsEnabled) {
+      dispatch(setNotifications([]))
+      return
+    }
+
     fetchNotifications()
     // Polling frequency increased to 15 seconds
     const interval = setInterval(fetchNotifications, 15000)
     return () => clearInterval(interval)
-  }, [currentUser, dispatch])
+  }, [currentUser, dispatch, inAppNotificationsEnabled])
 
   /*
     Determine the correct profile path based on user type/role.
@@ -371,6 +492,7 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
   }
 
   const activeNav = getActiveNav()
+  const effectiveUnreadCount = inAppNotificationsEnabled ? unreadCount : 0
 
   // Handle swipe navigation
   const handleSwipe = (direction) => {
@@ -563,14 +685,14 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
                   transition={{ duration: 0.12 }}
                 >
                   <Bell size={20} />
-                  {unreadCount > 0 && (
+                  {effectiveUnreadCount > 0 && (
                     <motion.span
                       className='absolute -top-1.5 -right-1.5 w-5 h-5 bg-[#163146] rounded-full text-white text-[10px] font-bold flex items-center justify-center'
                       initial={{ scale: 0 }}
                       animate={{ scale: 1 }}
                       transition={{ type: 'spring', stiffness: 200 }}
                     >
-                      {unreadCount > 9 ? '9+' : unreadCount}
+                      {effectiveUnreadCount > 9 ? '9+' : effectiveUnreadCount}
                     </motion.span>
                   )}
                 </motion.button>
@@ -784,11 +906,13 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
                                 Notifications
                               </h3>
                               <p className='text-[11px] text-gray-300 font-medium mt-1.5 opacity-80'>
-                                {unreadCount === 0
-                                  ? 'No new messages'
-                                  : `${unreadCount} unread message${
-                                      unreadCount === 1 ? '' : 's'
-                                    }`}
+                                {!inAppNotificationsEnabled
+                                  ? 'In-app notifications are off'
+                                  : effectiveUnreadCount === 0
+                                    ? 'No new messages'
+                                    : `${effectiveUnreadCount} unread message${
+                                        effectiveUnreadCount === 1 ? '' : 's'
+                                      }`}
                               </p>
                             </div>
                           </div>
@@ -800,7 +924,50 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
                           </button>
                         </div>
 
-
+                        {notificationsSupported && (
+                          <div className='px-6 pt-4'>
+                            <div className='flex items-center justify-between gap-3 rounded-2xl border border-amber-100 bg-amber-50/70 px-4 py-3'>
+                              <div className='flex items-center gap-3 min-w-0'>
+                                <div className='w-8 h-8 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center flex-shrink-0'>
+                                  <Bell size={16} />
+                                </div>
+                                <div className='min-w-0'>
+                                  <p className='text-xs font-bold text-amber-900 leading-tight'>Browser notifications</p>
+                                  <p className='text-[11px] text-amber-700 leading-tight'>
+                                    Get alerts when new messages arrive
+                                  </p>
+                                </div>
+                              </div>
+                              {notificationPermission === 'granted' ? (
+                                <button
+                                  onClick={async () => {
+                                    if (notificationsEnabled) {
+                                      await pushService.unsubscribe()
+                                      persistNotificationsEnabled(false)
+                                    } else {
+                                      await requestNotificationPermission()
+                                    }
+                                  }}
+                                  className='text-[11px] font-bold text-amber-900/80 hover:text-amber-900 transition whitespace-nowrap'
+                                >
+                                  {notificationsEnabled ? 'Turn off' : 'Turn on'}
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={requestNotificationPermission}
+                                  disabled={notificationPermission === 'denied'}
+                                  className={`text-[11px] font-bold transition whitespace-nowrap ${
+                                    notificationPermission === 'denied'
+                                      ? 'text-amber-300 cursor-not-allowed'
+                                      : 'text-amber-900 hover:text-amber-800'
+                                  }`}
+                                >
+                                  {notificationPermission === 'denied' ? 'Blocked' : 'Enable'}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )}
 
                         {/* Tabs Header */}
                         <div className='px-6 pt-4 pb-2 bg-white/80 backdrop-blur-md sticky top-0 z-20 border-b border-gray-50/50'>
@@ -851,7 +1018,19 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
 
                         {/* Notifications List */}
                         <div className='flex-1 overflow-y-auto p-4 space-y-6 bg-gray-50/30'>
-                          {notifications.length === 0 ? (
+                          {!inAppNotificationsEnabled ? (
+                            <div className='flex flex-col items-center justify-center h-full text-center p-8'>
+                              <div className='w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-4 text-gray-300'>
+                                <Bell size={32} />
+                              </div>
+                              <h4 className='text-gray-900 font-semibold'>
+                                In-app notifications are off
+                              </h4>
+                              <p className='text-sm text-gray-500 mt-1 max-w-[240px] leading-relaxed'>
+                                Turn them back on in Settings if you want to see updates here.
+                              </p>
+                            </div>
+                          ) : notifications.length === 0 ? (
                             <div className='flex flex-col items-center justify-center h-full text-center p-8'>
                               <div className='w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-4 text-gray-300'>
                                 <Bell size={32} />

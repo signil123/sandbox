@@ -1,9 +1,9 @@
 // File: client/src/App.jsx
 
 import { Provider } from 'react-redux'
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { PersistGate } from 'redux-persist/integration/react'
-import { AdminRoute, PrivateRoute } from './components/Auth/ProtectedRoutes'
+import { AdminRoute, PrivateRoute, PublicLandingRoute } from './components/Auth/ProtectedRoutes'
 import ScrollToTop from './components/Common/ScrollToTop'
 import AdminDashboard from './pages/Admin/AdminDashboard'
 import AdvisorsPage from './pages/Advisors/AdvisorsPage'
@@ -23,6 +23,7 @@ import { persistor, store } from './redux/store'
 import { useDispatch, useSelector } from 'react-redux'
 import SettingsPage from './pages/Settings/SettingsPage'
 import { closeAuthModal, selectAuthModalInitialStep, selectIsAuthModalOpen } from './redux/uiSlice'
+import { selectCurrentUser } from './redux/userSlice'
 
 const App = () => {
   return (
@@ -38,6 +39,7 @@ const AppContent = () => {
   const dispatch = useDispatch()
   const isAuthModalOpen = useSelector(selectIsAuthModalOpen)
   const authModalInitialStep = useSelector(selectAuthModalInitialStep)
+  const currentUser = useSelector(selectCurrentUser)
 
   return (
     <BrowserRouter>
@@ -60,15 +62,35 @@ const AppContent = () => {
               />
               <Route
                 index
-                element={<HomePage />}
+                element={
+                  currentUser
+                    ? <Navigate to={currentUser.role === 'admin' ? '/admin' : '/dashboard'} replace />
+                    : <HomePage />
+                }
+              />
+              <Route
+                path='/advisor'
+                element={<Navigate to='/advisors' replace />}
+              />
+              <Route
+                path='/athlete'
+                element={<Navigate to='/athletes' replace />}
               />
               <Route
                 path='/advisors'
-                element={<AdvisorsPage />}
+                element={
+                  <PublicLandingRoute>
+                    <AdvisorsPage />
+                  </PublicLandingRoute>
+                }
               />
               <Route
                 path='/athletes'
-                element={<AthletesPage />}
+                element={
+                  <PublicLandingRoute>
+                    <AthletesPage />
+                  </PublicLandingRoute>
+                }
               />
               <Route
                 path='/dashboard'

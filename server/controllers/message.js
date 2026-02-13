@@ -5,6 +5,7 @@ import Profile from '../models/Profile.js'
 import { Connection, ConnectionRequest } from '../models/Relationship.js'
 import User from '../models/User.js'
 import { getIO } from '../socket.js'
+import { sendPushToUser } from './push.js'
 
 /**
  * Start a new conversation or get existing one
@@ -131,9 +132,17 @@ export const sendMessage = async (req, res, next) => {
     conversation.messageCount += 1
     await conversation.save()
 
-    // Emit socket event
+    // Emit socket event (conversation room + both user rooms)
     const io = getIO()
     io.to(conversationId).emit('new_message', {
+      message,
+      conversationId,
+    })
+    io.to(recipientId.toString()).emit('new_message', {
+      message,
+      conversationId,
+    })
+    io.to(senderId.toString()).emit('new_message', {
       message,
       conversationId,
     })
@@ -157,6 +166,16 @@ export const sendMessage = async (req, res, next) => {
       },
       actionUrl: `/messages/conversations/${conversationId}`,
       isRead: false,
+    })
+
+    // Send web push notification (if configured)
+    await sendPushToUser(recipientId, {
+      title: `New message from ${sender.name}`,
+      body: notificationContent,
+      url: `/inbox?conversationId=${conversationId}`,
+      conversationId,
+      senderId,
+      tag: conversationId,
     })
 
     res.status(201).json({

@@ -3,13 +3,17 @@ import { io } from 'socket.io-client'
 
 let socket
 
+const getAuthToken = () =>
+  localStorage.getItem('token') || sessionStorage.getItem('token')
+
 export const socketService = {
   connect: (token) => {
     if (socket) return socket
 
     const socketUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || '/'
+    const authToken = token || getAuthToken()
     socket = io(socketUrl, {
-      auth: { token },
+      auth: { token: authToken },
       transports: ['websocket', 'polling'],
     })
 

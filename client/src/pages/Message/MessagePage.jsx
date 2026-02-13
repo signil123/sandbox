@@ -8,7 +8,7 @@
 import imageCompression from 'browser-image-compression'
 import EmojiPicker from 'emoji-picker-react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { AlertCircle, Ban, Calendar, Check, Clock, Download, FileText, Image as ImageIcon, LayoutGrid, Loader2, MapPin, Menu, MessageSquare, MoreVertical, Paperclip, Paperclip as PaperclipIcon, PenLine, Search, Send, Smile, Trash2, X } from 'lucide-react'
+import { AlertCircle, Ban, Bell, Calendar, Check, Clock, Download, FileText, Image as ImageIcon, LayoutGrid, Loader2, MapPin, Menu, MessageSquare, MoreVertical, Paperclip, Paperclip as PaperclipIcon, PenLine, Search, Send, Smile, Trash2, X } from 'lucide-react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
@@ -24,6 +24,7 @@ import { connectionService } from '../../services/connectionService'
 import { eventService } from '../../services/eventService'
 import { messageService } from '../../services/messageService'
 import { profileService } from '../../services/profileService'
+import { pushService } from '../../services/pushService'
 import { socketService } from '../../services/socketService'
 import DashboardLayout from '../Layout/DashboardLayout'
 
@@ -513,6 +514,9 @@ function MessagePage() {
   const [connectionMessage, setConnectionMessage] = useState('')
   const [addNoteMode, setAddNoteMode] = useState(false)
   const [deletingMessageId, setDeletingMessageId] = useState(null)
+  const [notificationsSupported, setNotificationsSupported] = useState(false)
+  const [notificationPermission, setNotificationPermission] = useState('default')
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false)
   const [confirmationModal, setConfirmationModal] = useState({
     isOpen: false,
     title: '',
@@ -535,6 +539,9 @@ function MessagePage() {
   const lastTypingEmitRef = useRef(0)
   const selectedIdRef = useRef(selectedConversationId)
   const selectedUserRef = useRef(selectedUser)
+  const conversationsRef = useRef(conversations)
+  const notificationsSupportedRef = useRef(false)
+  const notificationsEnabledRef = useRef(false)
   
   const dispatch = useDispatch()
 
@@ -562,6 +569,85 @@ function MessagePage() {
     selectedUserRef.current = selectedUser
   }, [selectedUser])
 
+  useEffect(() => {
+    conversationsRef.current = conversations
+  }, [conversations])
+
+  useEffect(() => {
+    const isSupported = pushService.isSupported()
+    setNotificationsSupported(isSupported)
+    notificationsSupportedRef.current = isSupported
+    if (!isSupported) return
+
+    const permission = pushService.getPermission()
+    const enabled = pushService.getEnabled() && permission === 'granted'
+    setNotificationPermission(permission)
+    setNotificationsEnabled(enabled)
+    notificationsEnabledRef.current = enabled
+  }, [])
+
+  const persistNotificationsEnabled = (enabled) => {
+    pushService.setEnabled(enabled)
+    setNotificationsEnabled(enabled)
+    notificationsEnabledRef.current = enabled
+  }
+
+  const requestNotificationPermission = async () => {
+    if (!notificationsSupported) return
+
+    const result = await pushService.subscribe()
+    const permission = pushService.getPermission()
+    const enabled = pushService.getEnabled() && permission === 'granted'
+    setNotificationPermission(permission)
+    setNotificationsEnabled(enabled)
+    notificationsEnabledRef.current = enabled
+
+    if (result.ok) {
+      toast.success('Browser notifications enabled.')
+      return
+    }
+
+    if (result.reason === 'denied') {
+      toast.error('Notifications are blocked in your browser settings.')
+    }
+  }
+
+  const buildNotificationBody = (message) => {
+    if (!message) return 'You have a new message.'
+    if (message.content) return message.content
+    if (message.type === 'image') return 'Sent an image.'
+    if (message.type === 'document') return 'Sent a file.'
+    if (message.type === 'event_invitation') return 'Sent an event invitation.'
+    if (message.type === 'event') return 'Sent an event.'
+    if (message.attachments?.length) return 'Sent an attachment.'
+    return 'You have a new message.'
+  }
+
+  useEffect(() => {
+    if (!notificationsSupported) return
+
+    const refreshSettings = () => {
+      const permission = pushService.getPermission()
+      const enabled = pushService.getEnabled() && permission === 'granted'
+      setNotificationPermission(permission)
+      setNotificationsEnabled(enabled)
+      notificationsEnabledRef.current = enabled
+    }
+
+    const handleStorage = (event) => {
+      if (event.key === 'messageNotificationsEnabled') {
+        refreshSettings()
+      }
+    }
+
+    window.addEventListener('message-notifications-updated', refreshSettings)
+    window.addEventListener('storage', handleStorage)
+
+    return () => {
+      window.removeEventListener('message-notifications-updated', refreshSettings)
+      window.removeEventListener('storage', handleStorage)
+    }
+  }, [notificationsSupported])
 
   
   // Socket connection and events - persistent lifecycle
@@ -592,18 +678,41 @@ function MessagePage() {
         
         // Always update conversation list to show snippet and unread dot
         setConversations((prev) =>
-          prev.map((c) =>
-            c._id === conversationId 
-              ? { 
-                  ...c, 
-                  lastMessage: message, 
-                  lastMessageAt: message.createdAt || new Date(),
-                  unreadCount: selectedIdRef.current === conversationId ? c.unreadCount : (c.unreadCount || 0) + 1, 
-                  showUnreadDot: selectedIdRef.current !== conversationId 
-                } 
-              : c
-          ).sort((a, b) => new Date(b.lastMessageAt || b.updatedAt) - new Date(a.lastMessageAt || a.updatedAt))
+          prev.map((c) => {
+            if (c._id !== conversationId) return c
+            if (c.lastMessage?._id === message._id) return c
+            const isActive = selectedIdRef.current === conversationId
+            return {
+              ...c,
+              lastMessage: message,
+              lastMessageAt: message.createdAt || new Date(),
+              unreadCount: isActive ? c.unreadCount : (c.unreadCount || 0) + 1,
+              showUnreadDot: !isActive,
+            }
+          }).sort((a, b) => new Date(b.lastMessageAt || b.updatedAt) - new Date(a.lastMessageAt || a.updatedAt))
         )
+
+        const shouldNotify = notificationsSupportedRef.current
+          && notificationsEnabledRef.current
+          && Notification.permission === 'granted'
+          && message.sender !== currentLoggedInUser?._id
+          && (document.hidden || selectedIdRef.current !== conversationId)
+
+        if (shouldNotify) {
+          const conv = conversationsRef.current.find((c) => c._id === conversationId)
+          const senderName = conv?.otherUser?.name || 'New message'
+          const icon = conv?.otherUser?.profileImage ? getImageUrl(conv.otherUser.profileImage) : undefined
+          const notification = new Notification(`New message from ${senderName}`, {
+            body: buildNotificationBody(message),
+            icon,
+            tag: conversationId,
+          })
+          notification.onclick = () => {
+            window.focus()
+            setActiveTab('network')
+            setSelectedConversationId(conversationId)
+          }
+        }
       })
 
       // Handle typing indicator with auto-timeout
@@ -1536,6 +1645,51 @@ function MessagePage() {
               </div>
             </div>
 
+            {notificationsSupported && (
+              <div className='px-3 pb-2'>
+                <div className='flex items-center justify-between gap-2 rounded-xl border border-amber-100 bg-amber-50/70 px-3 py-2'>
+                  <div className='flex items-center gap-2 min-w-0'>
+                    <div className='w-6 h-6 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center flex-shrink-0'>
+                      <Bell size={12} />
+                    </div>
+                    <div className='min-w-0'>
+                      <p className='text-[10px] font-bold text-amber-900 leading-tight'>Browser notifications</p>
+                      <p className='text-[9px] text-amber-700 leading-tight'>
+                        Get alerts when new messages arrive
+                      </p>
+                    </div>
+                  </div>
+                  {notificationPermission === 'granted' ? (
+                    <button
+                      onClick={async () => {
+                        if (notificationsEnabled) {
+                          await pushService.unsubscribe()
+                          persistNotificationsEnabled(false)
+                        } else {
+                          await requestNotificationPermission()
+                        }
+                      }}
+                      className='text-[10px] font-bold text-amber-900/80 hover:text-amber-900 transition whitespace-nowrap'
+                    >
+                      {notificationsEnabled ? 'Turn off' : 'Turn on'}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={requestNotificationPermission}
+                      disabled={notificationPermission === 'denied'}
+                      className={`text-[10px] font-bold transition whitespace-nowrap ${
+                        notificationPermission === 'denied'
+                          ? 'text-amber-300 cursor-not-allowed'
+                          : 'text-amber-900 hover:text-amber-800'
+                      }`}
+                    >
+                      {notificationPermission === 'denied' ? 'Blocked' : 'Enable'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Tabs */}
             <div className='flex gap-2 p-3 border-b border-gray-100'>
               {['network', 'requests'].map((tab) => (
@@ -1744,6 +1898,51 @@ function MessagePage() {
                 className='flex-1 bg-transparent text-sm focus:outline-none'
               />
             </div>
+
+            {notificationsSupported && (
+              <div className='mt-3'>
+                <div className='flex items-center justify-between gap-3 rounded-xl border border-amber-100 bg-amber-50/70 px-3 py-2'>
+                  <div className='flex items-center gap-2 min-w-0'>
+                    <div className='w-7 h-7 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center flex-shrink-0'>
+                      <Bell size={14} />
+                    </div>
+                    <div className='min-w-0'>
+                      <p className='text-[11px] font-bold text-amber-900 leading-tight'>Browser notifications</p>
+                      <p className='text-[10px] text-amber-700 leading-tight'>
+                        Get alerts when new messages arrive
+                      </p>
+                    </div>
+                  </div>
+                  {notificationPermission === 'granted' ? (
+                    <button
+                      onClick={async () => {
+                        if (notificationsEnabled) {
+                          await pushService.unsubscribe()
+                          persistNotificationsEnabled(false)
+                        } else {
+                          await requestNotificationPermission()
+                        }
+                      }}
+                      className='text-[11px] font-bold text-amber-900/80 hover:text-amber-900 transition whitespace-nowrap'
+                    >
+                      {notificationsEnabled ? 'Turn off' : 'Turn on'}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={requestNotificationPermission}
+                      disabled={notificationPermission === 'denied'}
+                      className={`text-[11px] font-bold transition whitespace-nowrap ${
+                        notificationPermission === 'denied'
+                          ? 'text-amber-300 cursor-not-allowed'
+                          : 'text-amber-900 hover:text-amber-800'
+                      }`}
+                    >
+                      {notificationPermission === 'denied' ? 'Blocked' : 'Enable'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Tabs */}

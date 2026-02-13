@@ -57,6 +57,14 @@ export const subscriptionService = {
       handleError(error)
     }
   },
+  createSetupIntent: async () => {
+    try {
+      const response = await axiosInstance.post('/subscriptions/setup-intent')
+      return response.data
+    } catch (error) {
+      handleError(error)
+    }
+  },
   getPaymentMethods: async () => {
     try {
       const response = await axiosInstance.get('/subscriptions/payment-methods')

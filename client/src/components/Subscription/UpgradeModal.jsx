@@ -48,11 +48,18 @@ const formatPrice = (amount, currency = 'usd', interval = 'month') => {
   return `${formatted}/${interval === 'year' ? 'yr' : 'mo'}`
 }
 
+const TIER_ORDER = {
+  free: 0,
+  growth: 1,
+  pro: 2,
+}
+
 const ModalContent = ({
   onClose,
   triggerAction,
   currentTier,
   isVerified,
+  hasCardOnFile,
   plans,
   isLoading,
   checkoutPlanId,
@@ -124,14 +131,42 @@ const ModalContent = ({
 
       <div className="bg-[#fcfcfd] px-4 md:px-8 py-6 md:py-10">
         {isLoading ? (
-          <div className="text-center text-sm font-semibold text-gray-500 py-8">Loading plans...</div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-5 max-w-[1000px] mx-auto">
+            {Array.from({ length: 3 }).map((_, idx) => (
+              <div key={idx} className="relative flex flex-col p-5 md:p-6 rounded-[28px] border border-gray-100 bg-white animate-pulse">
+                <div className="mb-4 space-y-2">
+                  <div className="h-4 w-16 rounded-full bg-gray-200" />
+                  <div className="h-5 w-32 rounded-full bg-gray-200" />
+                  <div className="h-6 w-24 rounded-full bg-gray-200" />
+                </div>
+                <div className="flex-1 space-y-2 mb-6">
+                  {Array.from({ length: 5 }).map((__, lineIdx) => (
+                    <div key={lineIdx} className="flex items-center gap-2">
+                      <div className="w-4 h-4 rounded-full bg-gray-200" />
+                      <div className="h-3 flex-1 rounded-full bg-gray-200" />
+                    </div>
+                  ))}
+                </div>
+                <div className="h-10 rounded-lg bg-gray-200" />
+              </div>
+            ))}
+          </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-5 max-w-[1000px] mx-auto">
             {displayPlans.map((plan) => {
               const tier = plan.tier || 'free'
               const isCurrent = currentTier === tier
               const isPro = tier === 'pro'
-              const canPurchase = isVerified || tier === 'free'
+              const requiresCard = tier !== 'free'
+              const currentRank = TIER_ORDER[currentTier] ?? 0
+              const targetRank = TIER_ORDER[tier] ?? 0
+              const isUpgrade = targetRank > currentRank
+              const isDowngrade = targetRank < currentRank
+              const canPurchase = tier === 'free'
+                ? true
+                : isUpgrade
+                  ? (isVerified && hasCardOnFile)
+                  : true
 
               return (
                 <div
@@ -187,7 +222,9 @@ const ModalContent = ({
                       {!canPurchase && (
                         <div className="flex items-center justify-center gap-1 py-1 px-2 bg-amber-50/50 rounded-lg border border-amber-200/50">
                           <ShieldCheck size={10} className="text-amber-600" />
-                          <span className="text-[8px] font-bold text-amber-700 uppercase">Verification Required</span>
+                          <span className="text-[8px] font-bold text-amber-700 uppercase">
+                            {isVerified ? 'Add Card First' : 'Verification Required'}
+                          </span>
                         </div>
                       )}
                       <Button
@@ -199,7 +236,13 @@ const ModalContent = ({
                         disabled={!canPurchase || checkoutPlanId === plan._id}
                         onClick={() => onCheckout(plan)}
                       >
-                        {checkoutPlanId === plan._id ? 'Redirecting...' : isVerified ? 'Get Started' : 'Unlock'}
+                        {checkoutPlanId === plan._id
+                          ? 'Redirecting...'
+                          : isDowngrade
+                            ? 'Downgrade'
+                            : isUpgrade
+                              ? 'Upgrade'
+                              : 'Get Started'}
                       </Button>
                     </div>
                   )}
@@ -222,6 +265,7 @@ const UpgradeModal = ({
   isLoadingPlans = false,
   checkoutPlanId = null,
   currentSubscriptionTier = null,
+  hasCardOnFile = false,
 }) => {
   const currentTier = useSelector(selectUserTier)
   const verificationStatus = useSelector(selectVerificationStatus)
@@ -242,6 +286,7 @@ const UpgradeModal = ({
       triggerAction={triggerAction}
       currentTier={effectiveTier}
       isVerified={isVerified}
+      hasCardOnFile={hasCardOnFile}
       plans={plans}
       isLoading={isLoadingPlans}
       checkoutPlanId={checkoutPlanId}

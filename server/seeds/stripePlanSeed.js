@@ -89,16 +89,22 @@ const createStripeProductAndPrice = async (plan) => {
   return { stripeProductId: product.id, stripePriceId: price.id }
 }
 
+const FALLBACK_AMOUNT_BY_TIER = {
+  growth: 49,
+  pro: 99,
+}
+
 const isStripeResourceMissing = (error) => {
   if (error?.statusCode === 404 || error?.details?.code === 'resource_missing') return true
   const message = String(error?.message || '')
   return message.includes('No such product') || message.includes('No such price')
 }
 
-const ensureStripeForPlan = async (plan, template) => {
+const ensureStripeForPlan = async (plan) => {
   if (plan.tier === 'free') {
     plan.stripeProductId = null
     plan.stripePriceId = null
+    plan.amount = 0
     return plan
   }
 
@@ -127,16 +133,14 @@ const ensureStripeForPlan = async (plan, template) => {
     return plan
   }
 
-  // Reset plan details to template when Stripe resources are missing
-  plan.name = template.name
-  plan.description = template.description
-  plan.amount = template.amount
-  plan.currency = template.currency
-  plan.features = template.features
-  plan.active = template.active
-  plan.interval = 'month'
+  const payload = {
+    ...plan.toObject(),
+    amount: plan.amount > 0 ? plan.amount : (FALLBACK_AMOUNT_BY_TIER[plan.tier] || 49),
+    currency: plan.currency || 'usd',
+    interval: 'month',
+  }
 
-  const { stripeProductId, stripePriceId } = await createStripeProductAndPrice(template)
+  const { stripeProductId, stripePriceId } = await createStripeProductAndPrice(payload)
   plan.stripeProductId = stripeProductId
   plan.stripePriceId = stripePriceId
 
@@ -167,7 +171,7 @@ export const seedStripePlans = async () => {
       continue
     }
 
-    const updatedPlan = await ensureStripeForPlan(existingPlan, template)
+    const updatedPlan = await ensureStripeForPlan(existingPlan)
     if (updatedPlan.isModified()) {
       await updatedPlan.save()
     }

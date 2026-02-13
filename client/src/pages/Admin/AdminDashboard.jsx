@@ -6,6 +6,7 @@ import {
   Users,
 } from 'lucide-react'
 import React, { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Toaster, toast } from 'sonner'
 import { Button } from '../../components/ui/button'
 import UserTable from '../../components/Admin/UserTable'
@@ -193,8 +194,15 @@ const BillingManager = () => {
   )
 }
 
+const TAB_IDS = ['users', 'verification', 'billing']
+const DEFAULT_TAB = 'users'
+
 const AdminDashboard = () => {
-  const [activeTab, setActiveTab] = useState('users')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const activeTab = useMemo(() => {
+    const candidate = searchParams.get('tab')
+    return TAB_IDS.includes(candidate) ? candidate : DEFAULT_TAB
+  }, [searchParams])
   const [stats, setStats] = useState({
     total: 0,
     pending: 0,
@@ -202,6 +210,15 @@ const AdminDashboard = () => {
     rejected: 0,
     expired: 0,
   })
+
+  useEffect(() => {
+    const current = searchParams.get('tab')
+    if (!current || !TAB_IDS.includes(current)) {
+      const nextParams = new URLSearchParams(searchParams)
+      nextParams.set('tab', DEFAULT_TAB)
+      setSearchParams(nextParams, { replace: true })
+    }
+  }, [searchParams, setSearchParams])
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -243,7 +260,11 @@ const AdminDashboard = () => {
                 return (
                   <button
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
+                    onClick={() => {
+                      const nextParams = new URLSearchParams(searchParams)
+                      nextParams.set('tab', tab.id)
+                      setSearchParams(nextParams, { replace: true })
+                    }}
                     className={`flex-1 md:flex-none flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-[20px] text-xs font-black uppercase tracking-widest transition-all relative border-2 ${
                       isActive
                         ? 'bg-[#163146] text-white border-[#163146] shadow-xl shadow-blue-900/10'

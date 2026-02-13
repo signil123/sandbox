@@ -15,10 +15,12 @@ import { useDispatch, useSelector } from 'react-redux'
 import ProBadge from '../../components/Common/ProBadge'
 import DocumentManager from '../../components/Profile/DocumentManager'
 import UpgradeModal from '../../components/Subscription/UpgradeModal'
+import AddCardModal from '../../components/Subscription/AddCardModal'
 import { TIERS, TIER_DETAILS, VERIFICATION_STATUS } from '../../constants/tiers'
 import { selectCurrentUser, selectUserTier, selectVerificationStatus, setUser } from '../../redux/userSlice'
 import axiosInstance from '../../config'
 import { subscriptionService } from '../../services/subscriptionService'
+import { pushService } from '../../services/pushService'
 import DashboardLayout from '../Layout/DashboardLayout'
 
 const formatDate = (dateValue) => {
@@ -41,6 +43,7 @@ const SettingsPage = () => {
   const [activeTab, setActiveTab] = useState('subscription')
   const [isDocumentManagerOpen, setIsDocumentManagerOpen] = useState(false)
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false)
+  const [isAddCardModalOpen, setIsAddCardModalOpen] = useState(false)
 
   const [plans, setPlans] = useState([])
   const [subscription, setSubscription] = useState(null)
@@ -50,6 +53,10 @@ const SettingsPage = () => {
   const [paymentMethods, setPaymentMethods] = useState([])
   const [defaultPaymentMethodId, setDefaultPaymentMethodId] = useState(null)
   const [isLoadingCards, setIsLoadingCards] = useState(false)
+  const [notificationsSupported, setNotificationsSupported] = useState(false)
+  const [notificationPermission, setNotificationPermission] = useState('default')
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false)
+  const [inAppNotificationsEnabled, setInAppNotificationsEnabled] = useState(true)
   const currentUserRef = useRef(currentUser)
   const refreshInFlightRef = useRef(false)
   const hasLoadedRef = useRef(false)
@@ -58,8 +65,8 @@ const SettingsPage = () => {
   const isSubscriptionEligible = ['advisor', 'agent', 'athlete'].includes(currentUser?.userType)
 
   const tabs = [
-    { id: 'profile', label: 'Profile Settings', icon: User },
     ...(isSubscriptionEligible ? [{ id: 'subscription', label: 'Subscription', icon: CreditCard }] : []),
+    ...(isSubscriptionEligible ? [{ id: 'plans', label: 'Plans', icon: ShieldCheck }] : []),
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'security', label: 'Security', icon: Lock },
   ]
@@ -81,6 +88,95 @@ const SettingsPage = () => {
       active: true,
     }))
   }, [plans])
+
+  useEffect(() => {
+    const isSupported = pushService.isSupported()
+    setNotificationsSupported(isSupported)
+    if (!isSupported) return
+
+    const permission = pushService.getPermission()
+    const enabled = pushService.getEnabled() && permission === 'granted'
+    setNotificationPermission(permission)
+    setNotificationsEnabled(enabled)
+  }, [])
+
+  useEffect(() => {
+    const stored = localStorage.getItem('inAppNotificationsEnabled')
+    const enabled = stored === null ? true : stored === 'true'
+    setInAppNotificationsEnabled(enabled)
+  }, [])
+
+  const persistNotificationsEnabled = (enabled) => {
+    pushService.setEnabled(enabled)
+    setNotificationsEnabled(enabled)
+  }
+
+  const persistInAppNotificationsEnabled = (enabled) => {
+    localStorage.setItem('inAppNotificationsEnabled', enabled ? 'true' : 'false')
+    setInAppNotificationsEnabled(enabled)
+    window.dispatchEvent(new Event('in-app-notifications-updated'))
+  }
+
+  const requestNotificationPermission = async () => {
+    if (!notificationsSupported) return
+
+    const result = await pushService.subscribe()
+    const permission = pushService.getPermission()
+    const enabled = pushService.getEnabled() && permission === 'granted'
+    setNotificationPermission(permission)
+    setNotificationsEnabled(enabled)
+
+    if (!result.ok) {
+      persistNotificationsEnabled(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!notificationsSupported) return
+
+    const refreshSettings = () => {
+      const permission = pushService.getPermission()
+      const enabled = pushService.getEnabled() && permission === 'granted'
+      setNotificationPermission(permission)
+      setNotificationsEnabled(enabled)
+    }
+
+    const handleStorage = (event) => {
+      if (event.key === 'messageNotificationsEnabled') {
+        refreshSettings()
+      }
+    }
+
+    window.addEventListener('message-notifications-updated', refreshSettings)
+    window.addEventListener('storage', handleStorage)
+
+    return () => {
+      window.removeEventListener('message-notifications-updated', refreshSettings)
+      window.removeEventListener('storage', handleStorage)
+    }
+  }, [notificationsSupported])
+
+  useEffect(() => {
+    const refreshSettings = () => {
+      const stored = localStorage.getItem('inAppNotificationsEnabled')
+      const enabled = stored === null ? true : stored === 'true'
+      setInAppNotificationsEnabled(enabled)
+    }
+
+    const handleStorage = (event) => {
+      if (event.key === 'inAppNotificationsEnabled') {
+        refreshSettings()
+      }
+    }
+
+    window.addEventListener('in-app-notifications-updated', refreshSettings)
+    window.addEventListener('storage', handleStorage)
+
+    return () => {
+      window.removeEventListener('in-app-notifications-updated', refreshSettings)
+      window.removeEventListener('storage', handleStorage)
+    }
+  }, [])
 
   const refreshSubscription = useCallback(async () => {
     if (!isSubscriptionEligible) return
@@ -131,6 +227,20 @@ const SettingsPage = () => {
 
   const handleCheckout = async (plan) => {
     try {
+      const requiresCard = plan?.tier && plan.tier !== 'free'
+      const hasCardOnFile = paymentMethods.length > 0
+
+      if (requiresCard && !hasCardOnFile) {
+        setSubscriptionError('Add a card before purchasing a paid plan.')
+        setIsAddCardModalOpen(true)
+        return
+      }
+
+      if (requiresCard && !isVerified) {
+        setSubscriptionError('Identity verification is required before purchasing paid plans.')
+        return
+      }
+
       setCheckoutPlanId(plan._id)
       setSubscriptionError('')
 
@@ -185,16 +295,9 @@ const SettingsPage = () => {
     }
   }, [isSubscriptionEligible])
 
-  const handleAddCard = async () => {
-    try {
-      const response = await subscriptionService.createSetupSession()
-      const checkoutUrl = response?.data?.checkoutUrl
-      if (checkoutUrl) {
-        window.location.href = checkoutUrl
-      }
-    } catch (error) {
-      setSubscriptionError(error || 'Failed to start card setup')
-    }
+  const handleAddCard = () => {
+    setSubscriptionError('')
+    setIsAddCardModalOpen(true)
   }
 
   const handleSetDefaultCard = async (paymentMethodId) => {
@@ -259,7 +362,7 @@ const SettingsPage = () => {
   }, [currentUser])
 
   const renderSubscriptionTab = () => (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="p-8 bg-gradient-to-br from-[#163146] to-[#0f1f27] text-white">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -279,7 +382,7 @@ const SettingsPage = () => {
               </p>
             </div>
             <Button
-              onClick={handleManageSubscription}
+              onClick={() => setActiveTab('plans')}
               className="bg-[#986a41] hover:bg-[#855c38] text-white font-bold rounded-2xl px-8 py-6 text-lg shadow-xl shadow-[#986a41]/20 transition-all border-none"
             >
               Manage Subscription
@@ -331,8 +434,8 @@ const SettingsPage = () => {
       <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h3 className="text-2xl font-bold text-gray-900">Payment Methods</h3>
-            <p className="text-gray-500 text-sm mt-1">First added card becomes default automatically.</p>
+            <h3 className="text-xl md:text-2xl font-bold text-gray-900">Payment Methods</h3>
+            <p className="text-gray-500 text-xs md:text-sm mt-1">First added card becomes default automatically.</p>
           </div>
           <Button
             onClick={handleAddCard}
@@ -349,7 +452,23 @@ const SettingsPage = () => {
         )}
 
         {isLoadingCards ? (
-          <p className="text-sm text-gray-500">Loading payment methods...</p>
+          <div className="grid md:grid-cols-2 gap-4">
+            {Array.from({ length: 2 }).map((_, idx) => (
+              <div key={idx} className="rounded-2xl border border-gray-100 p-5 bg-gray-50/60 animate-pulse">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-2">
+                    <div className="h-4 w-40 rounded-full bg-gray-200" />
+                    <div className="h-3 w-24 rounded-full bg-gray-200" />
+                  </div>
+                  <div className="h-4 w-16 rounded-full bg-gray-200" />
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <div className="h-9 w-28 rounded-xl bg-gray-200" />
+                  <div className="h-9 w-24 rounded-xl bg-gray-200" />
+                </div>
+              </div>
+            ))}
+          </div>
         ) : paymentMethods.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-gray-200 p-6 text-sm text-gray-500">
             No cards yet. Add a card to manage subscriptions faster.
@@ -401,13 +520,13 @@ const SettingsPage = () => {
       <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h3 className="text-2xl font-bold text-gray-900">Identity Verification</h3>
-            <p className="text-gray-500 text-sm mt-1">Required to access Growth and Pro tiers</p>
+            <h3 className="text-xl md:text-2xl font-bold text-gray-900">Identity Verification</h3>
+            <p className="text-gray-500 text-xs md:text-sm mt-1">Required to access Growth and Pro tiers</p>
           </div>
           <Button
             variant="outline"
             onClick={() => setIsDocumentManagerOpen(true)}
-            className="rounded-2xl border-gray-200 hover:bg-gray-50 font-bold"
+            className="rounded-2xl border-gray-200 hover:bg-gray-50 font-bold text-xs md:text-sm px-4 md:px-6 py-2.5"
           >
             Open Document Center
           </Button>
@@ -442,6 +561,150 @@ const SettingsPage = () => {
     </div>
   )
 
+  const renderPlansTab = () => (
+    <div className="space-y-6">
+      <div className="flex items-center justify-end">
+        <Button
+          onClick={handleManageSubscription}
+          variant="outline"
+          className="rounded-2xl px-5 py-3 font-bold"
+        >
+          Refresh Status
+        </Button>
+      </div>
+
+      <div className="bg-transparent">
+        {isLoadingPlans ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-5">
+            {Array.from({ length: 3 }).map((_, idx) => (
+              <div key={idx} className="relative flex flex-col p-6 rounded-[28px] bg-white shadow-sm border border-slate-100 animate-pulse">
+                <div className="mb-4 space-y-2">
+                  <div className="h-4 w-16 rounded-full bg-gray-200" />
+                  <div className="h-5 w-32 rounded-full bg-gray-200" />
+                  <div className="h-6 w-24 rounded-full bg-gray-200" />
+                </div>
+                <div className="flex-1 space-y-2 mb-6">
+                  {Array.from({ length: 5 }).map((__, lineIdx) => (
+                    <div key={lineIdx} className="flex items-center gap-2">
+                      <div className="w-4 h-4 rounded-full bg-gray-200" />
+                      <div className="h-3 flex-1 rounded-full bg-gray-200" />
+                    </div>
+                  ))}
+                </div>
+                <div className="h-10 rounded-lg bg-gray-200" />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+            {visiblePlans.map((plan) => {
+              const tier = plan.tier || 'free'
+              const isCurrent = currentSubscriptionTier === tier
+              const isPro = tier === 'pro'
+              const currentRank = { free: 0, growth: 1, pro: 2 }[currentSubscriptionTier] ?? 0
+              const targetRank = { free: 0, growth: 1, pro: 2 }[tier] ?? 0
+              const isUpgrade = targetRank > currentRank
+              const isDowngrade = targetRank < currentRank
+              const canPurchase = tier === 'free'
+                ? true
+                : isUpgrade
+                  ? (isVerified && paymentMethods.length > 0)
+                  : true
+
+              return (
+                <div
+                  key={plan._id}
+                  className={`relative flex flex-col p-6 rounded-[28px] transition-all duration-300 bg-white
+                    ${isPro
+                      ? 'shadow-[0_18px_40px_-18px_rgba(152,106,65,0.35)] border border-[#986a41]/30'
+                      : 'shadow-sm border border-slate-100'
+                    }`}
+                >
+                  {isPro && (
+                    <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-[#986a41] to-[#855c38] text-[8px] md:text-[9px] text-white font-black px-3.5 py-1 rounded-full uppercase tracking-[0.1em] flex items-center gap-1 z-20 shadow-md">
+                      <Zap size={8} fill="currentColor" /> Most Popular
+                    </div>
+                  )}
+
+                  <div className="mb-4">
+                    <div
+                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-widest mb-2
+                      ${isPro ? 'bg-[#986a41]/10 text-[#986a41]' : 'bg-gray-100 text-gray-400'}`}
+                    >
+                      {tier}
+                    </div>
+                    <h3 className={`text-base md:text-lg font-black tracking-tight mb-1 ${isPro ? 'text-[#986a41]' : 'text-[#163146]'}`}>
+                      {plan.name}
+                    </h3>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-2xl md:text-3xl font-black text-[#163146]">
+                        {new Intl.NumberFormat('en-US', {
+                          style: 'currency',
+                          currency: (plan.currency || 'usd').toUpperCase(),
+                          maximumFractionDigits: plan.amount % 1 === 0 ? 0 : 2,
+                        }).format(plan.amount || 0)}
+                        /mo
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex-1 space-y-2 mb-6">
+                    {(plan.features || []).slice(0, 7).map((feature, idx) => (
+                      <div key={idx} className="flex gap-2 items-start text-[11px] md:text-[12px] text-[#2c3e50] leading-tight">
+                        <div
+                          className={`mt-0.5 w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0
+                          ${isPro ? 'bg-[#986a41]/15 text-[#986a41]' : 'bg-gray-100 text-gray-400'}`}
+                        >
+                          <CheckCircle2 size={10} strokeWidth={3} />
+                        </div>
+                        <span className="font-semibold">{feature}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {isCurrent ? (
+                    <div className="flex items-center justify-center gap-1.5 py-2.5 px-3 bg-slate-50 rounded-lg text-slate-400 font-black text-[10px] uppercase tracking-widest">
+                      <CheckCircle2 size={14} className="text-emerald-500" />
+                      Current
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {!canPurchase && (
+                        <div className="flex items-center justify-center gap-1 py-1 px-2 bg-amber-50/50 rounded-lg border border-amber-200/50">
+                          <ShieldCheck size={10} className="text-amber-600" />
+                          <span className="text-[8px] font-bold text-amber-700 uppercase">
+                            {isVerified ? 'Add Card First' : 'Verification Required'}
+                          </span>
+                        </div>
+                      )}
+                      <Button
+                        className={`w-full h-10 md:h-11 rounded-lg font-black text-[10px] md:text-[11px] tracking-widest uppercase transition-all duration-300
+                          ${isPro
+                            ? 'bg-[#163146] hover:bg-[#1f4461] text-white shadow-md'
+                            : 'bg-white border-2 border-[#163146] text-[#163146] hover:bg-[#163146] hover:text-white'
+                          } ${!canPurchase && 'grayscale opacity-60'}`}
+                        disabled={!canPurchase || checkoutPlanId === plan._id}
+                        onClick={() => handleCheckout(plan)}
+                      >
+                        {checkoutPlanId === plan._id
+                          ? 'Processing...'
+                          : isDowngrade
+                            ? 'Downgrade'
+                            : isUpgrade
+                              ? 'Upgrade'
+                              : 'Get Started'}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
   const Step = ({ number, title, desc, status }) => {
     const isCompleted = status === 'completed'
     const isCurrent = status === 'current'
@@ -468,45 +731,122 @@ const SettingsPage = () => {
     )
   }
 
+  const renderNotificationsTab = () => (
+    <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8 md:p-10">
+      <div className="flex items-start gap-4 mb-8">
+        <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center">
+          <Bell size={22} />
+        </div>
+        <div>
+          <h3 className="text-xl font-bold text-gray-900">Notifications</h3>
+          <p className="text-sm text-gray-500 mt-1">
+            Control how you receive message alerts across the app.
+          </p>
+        </div>
+      </div>
+
+      {!notificationsSupported && (
+        <div className="rounded-2xl border border-gray-100 bg-gray-50 px-5 py-4 text-sm text-gray-500">
+          Browser notifications are not supported on this device.
+        </div>
+      )}
+
+      {notificationsSupported && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-gray-100 bg-gray-50 px-5 py-4">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-gray-900 leading-tight">In-app notifications</p>
+              <p className="text-xs text-gray-500 leading-tight">
+                Show updates inside the app (bell drawer and badges).
+              </p>
+            </div>
+            <button
+              onClick={() => persistInAppNotificationsEnabled(!inAppNotificationsEnabled)}
+              className="px-4 py-2 rounded-xl text-xs font-bold bg-white text-gray-800 border border-gray-200 hover:border-gray-300 transition whitespace-nowrap"
+            >
+              {inAppNotificationsEnabled ? 'Turn off' : 'Turn on'}
+            </button>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-100 bg-amber-50/70 px-5 py-4">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-amber-900 leading-tight">Browser notifications</p>
+              <p className="text-xs text-amber-700 leading-tight">
+                Get alerts when new messages arrive, even if you’re not in the chat.
+              </p>
+            </div>
+            {notificationPermission === 'granted' ? (
+              <button
+                onClick={async () => {
+                  if (notificationsEnabled) {
+                    await pushService.unsubscribe()
+                    persistNotificationsEnabled(false)
+                  } else {
+                    await requestNotificationPermission()
+                  }
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-white text-amber-900 border border-amber-200 hover:border-amber-300 transition whitespace-nowrap"
+              >
+                {notificationsEnabled ? 'Turn off' : 'Turn on'}
+              </button>
+            ) : (
+              <button
+                onClick={requestNotificationPermission}
+                disabled={notificationPermission === 'denied'}
+                className={`px-4 py-2 rounded-xl text-xs font-bold border transition whitespace-nowrap ${
+                  notificationPermission === 'denied'
+                    ? 'bg-gray-100 text-gray-300 border-gray-200 cursor-not-allowed'
+                    : 'bg-white text-amber-900 border-amber-200 hover:border-amber-300'
+                }`}
+              >
+                {notificationPermission === 'denied' ? 'Blocked' : 'Enable'}
+              </button>
+            )}
+          </div>
+
+          {notificationPermission === 'denied' && (
+            <div className="rounded-2xl border border-gray-100 bg-gray-50 px-5 py-4 text-xs text-gray-500">
+              Notifications are blocked in your browser settings. Allow them there to enable alerts.
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+
   return (
     <DashboardLayout>
-      <div className="max-w-8xl mx-auto px-4 py-12">
-        <header className="mb-12">
-          <h1 className="text-5xl font-black text-[#163146] tracking-tight">Account Settings</h1>
-          <p className="text-gray-500 mt-2 text-lg">Manage your identity and subscription preferences</p>
-        </header>
+      <div className="max-w-8xl mx-auto px-4 md:px-8 py-6 space-y-6">
 
-        <div className="flex flex-col lg:flex-row gap-12">
-          <aside className="lg:w-72 shrink-0">
-            <nav className="space-y-2">
-              {tabs.map((tab) => {
-                const Icon = tab.icon
-                const isActive = activeTab === tab.id
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl font-bold transition-all text-sm ${
-                      isActive
-                        ? 'bg-[#163146] text-white shadow-xl shadow-[#163146]/20'
-                        : 'text-gray-500 hover:bg-gray-100'
-                    }`}
-                  >
-                    <Icon size={20} className={isActive ? 'text-[#986a41]' : ''} />
-                    {tab.label}
-                  </button>
-                )
-              })}
-            </nav>
-          </aside>
+        <div className="space-y-6">
+          <div className="flex flex-wrap gap-2 bg-white p-2 rounded-[24px] border border-slate-200 shadow-sm w-fit mx-auto overflow-x-auto no-scrollbar">
+            {tabs.map((tab) => {
+              const Icon = tab.icon
+              const isActive = activeTab === tab.id
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex-1 md:flex-none flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-[20px] text-xs font-black uppercase tracking-widest transition-colors relative border-2 focus:outline-none focus-visible:ring-0 ${
+                    isActive
+                      ? 'bg-[#163146] text-white border-[#163146] shadow-xl shadow-blue-900/10'
+                      : 'text-slate-400 bg-white border-transparent md:hover:bg-slate-50'
+                  }`}
+                >
+                  <Icon size={16} strokeWidth={2.5} />
+                  {tab.label}
+                </button>
+              )
+            })}
+          </div>
 
-          <main className="flex-1 min-w-0">
+          <main className="min-w-0">
             <AnimatePresence mode="wait">
-              <div
-                key={activeTab}
-              >
+              <div key={activeTab}>
                 {activeTab === 'subscription' && renderSubscriptionTab()}
-                {activeTab !== 'subscription' && (
+                {activeTab === 'plans' && renderPlansTab()}
+                {activeTab === 'notifications' && renderNotificationsTab()}
+                {activeTab !== 'subscription' && activeTab !== 'plans' && activeTab !== 'notifications' && (
                   <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-12 text-center">
                     <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6 text-gray-300">
                       {tabs.find((t) => t.id === activeTab)?.icon({ size: 40 })}
@@ -535,6 +875,24 @@ const SettingsPage = () => {
         isLoadingPlans={isLoadingPlans}
         checkoutPlanId={checkoutPlanId}
         currentSubscriptionTier={currentSubscriptionTier}
+        hasCardOnFile={paymentMethods.length > 0}
+      />
+
+      <AddCardModal
+        isOpen={isAddCardModalOpen}
+        onClose={() => setIsAddCardModalOpen(false)}
+        onSuccess={async (paymentMethodId) => {
+          if (paymentMethodId) {
+            try {
+              await subscriptionService.setDefaultPaymentMethod(paymentMethodId)
+            } catch (error) {
+              setSubscriptionError(error || 'Failed to set default card')
+            }
+          }
+          await refreshPaymentMethods()
+          setIsAddCardModalOpen(false)
+        }}
+        onError={(message) => setSubscriptionError(message)}
       />
     </DashboardLayout>
   )

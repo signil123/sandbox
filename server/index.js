@@ -20,6 +20,7 @@ import notificationRoutes from './routes/notificationRoutes.js'
 import profileRoutes from './routes/profileRoutes.js'
 import subscriptionRoutes from './routes/subscriptionRoutes.js'
 import uploadRoutes from './routes/uploadRoutes.js'
+import pushRoutes from './routes/pushRoutes.js'
 import { seedStripePlans } from './seeds/stripePlanSeed.js'
 
 const app = express()
@@ -54,6 +55,7 @@ app.use('/api/messages', messageRoutes)
 app.use('/api/events', eventRoutes)
 app.use('/api/profile', profileRoutes)
 app.use('/api/notifications', notificationRoutes)
+app.use('/api/push', pushRoutes)
 app.use('/api/upload', uploadRoutes)
 app.use('/api/documents', documentManagerRoutes)
 app.use('/api/subscriptions', subscriptionRoutes)

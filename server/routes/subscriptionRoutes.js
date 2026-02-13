@@ -4,6 +4,7 @@ import {
   createBillingPortalSession,
   createCheckoutSession,
   createSetupSession,
+  createSetupIntent,
   getAdminPlans,
   getMySubscription,
   getPaymentMethods,
@@ -25,6 +26,7 @@ router.post('/checkout-session', createCheckoutSession)
 router.post('/checkout/sync', syncCheckoutSession)
 router.post('/billing-portal', createBillingPortalSession)
 router.post('/setup-session', createSetupSession)
+router.post('/setup-intent', createSetupIntent)
 router.get('/payment-methods', getPaymentMethods)
 router.post('/payment-methods/default', setDefaultPaymentMethod)
 router.delete('/payment-methods/:paymentMethodId', removePaymentMethod)

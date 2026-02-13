@@ -103,8 +103,16 @@ export const createEvent = async (req, res, next) => {
           event: { _id: event._id, title, startDate, endDate }
         });
 
-        // Also emit to conversation room for anyone viewing
+        // Also emit to conversation room and both user rooms for anyone viewing
         io.to(conversation._id.toString()).emit('new_message', {
+          message,
+          conversationId: conversation._id,
+        });
+        io.to(inviteeId.toString()).emit('new_message', {
+          message,
+          conversationId: conversation._id,
+        });
+        io.to(creatorId.toString()).emit('new_message', {
           message,
           conversationId: conversation._id,
         });

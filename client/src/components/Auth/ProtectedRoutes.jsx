@@ -29,6 +29,19 @@ export const PublicRoute = ({ children }) => {
   return children
 }
 
+// Route for public landing pages only
+export const PublicLandingRoute = ({ children }) => {
+  const currentUser = useSelector(selectCurrentUser)
+
+  if (currentUser) {
+    return (
+      <Navigate to={currentUser.role === 'admin' ? '/admin' : '/dashboard'} replace />
+    )
+  }
+
+  return children
+}
+
 // Route for admin users only
 export const AdminRoute = ({ children }) => {
   const currentUser = useSelector(selectCurrentUser)
