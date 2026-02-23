@@ -16,7 +16,7 @@ import {
     MessageCircle,
     MessageSquare,
     Newspaper,
-    Search,
+    Send,
     Settings,
     Shield,
     Trash2,
@@ -46,8 +46,21 @@ import { messageService } from '../../services/messageService'
 import { notificationService } from '../../services/notificationService'
 import { profileService } from '../../services/profileService'
 import { pushService } from '../../services/pushService'
+import { scoutService } from '../../services/scoutService'
 import { socketService } from '../../services/socketService'
 import { getImageUrl } from '../../utils/imageUtils'
+
+const SCOUT_STORAGE_KEY = 'signil_scout_chat_v1'
+const SCOUT_SIDEBAR_STATE_KEY = 'signil_scout_sidebar_open_v1'
+const DEFAULT_SCOUT_MESSAGES = [
+  {
+    id: 'scout-welcome',
+    role: 'assistant',
+    content:
+      'Hi there. I can help you find the right people on Signil. Share the role, sport, or expertise you need.',
+    suggestions: [],
+  },
+]
 
 const DashboardLayout = ({ children, hideSidebar = false }) => {
   const navigate = useNavigate()
@@ -67,6 +80,10 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
   const unreadMessagesCount = useSelector(selectUnreadMessagesCount) || 0
   const activeConversationId = useSelector(selectActiveConversationId)
   const [isScoutOpen, setIsScoutOpen] = useState(false)
+  const [isScoutSidebarOpen, setIsScoutSidebarOpen] = useState(true)
+  const [scoutInput, setScoutInput] = useState('')
+  const [isScoutLoading, setIsScoutLoading] = useState(false)
+  const [scoutMessages, setScoutMessages] = useState(DEFAULT_SCOUT_MESSAGES)
   const [hoveredTooltip, setHoveredTooltip] = useState(null)
   const [activeTab, setActiveTab] = useState('all')
   const profileRef = useRef(null)
@@ -75,6 +92,7 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
   const processedMessageIdsRef = useRef(new Set())
   const notificationsSupportedRef = useRef(false)
   const notificationsEnabledRef = useRef(false)
+  const scoutEndRef = useRef(null)
 
   // Handle click outside for profile dropdown
   useEffect(() => {
@@ -526,6 +544,145 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
     navigate('/')
   }
 
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(SCOUT_STORAGE_KEY)
+      if (!stored) return
+      const parsed = JSON.parse(stored)
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        setScoutMessages(parsed)
+      }
+    } catch (_) {
+      // Ignore bad local storage payloads and keep defaults.
+    }
+  }, [])
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(SCOUT_SIDEBAR_STATE_KEY)
+      if (stored === null) return
+      setIsScoutSidebarOpen(stored === 'true')
+    } catch (_) {
+      // Ignore bad local storage payloads and keep defaults.
+    }
+  }, [])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SCOUT_STORAGE_KEY, JSON.stringify(scoutMessages))
+    } catch (_) {
+      // Ignore storage write errors.
+    }
+  }, [scoutMessages])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SCOUT_SIDEBAR_STATE_KEY, String(isScoutSidebarOpen))
+    } catch (_) {
+      // Ignore storage write errors.
+    }
+  }, [isScoutSidebarOpen])
+
+  const scrollScoutToBottom = () => {
+    if (scoutEndRef.current) {
+      scoutEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
+  }
+
+  useEffect(() => {
+    scrollScoutToBottom()
+  }, [scoutMessages, isScoutLoading, isScoutOpen])
+
+  const sendScoutMessage = async (overrideText) => {
+    const rawText = overrideText ?? scoutInput
+    const trimmed = rawText.trim()
+    if (!trimmed || isScoutLoading) return
+
+    const userMessage = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      content: trimmed,
+      suggestions: [],
+      options: [],
+    }
+
+    const historyPayload = scoutMessages
+      .filter(
+        (item) =>
+          item &&
+          (item.role === 'user' || item.role === 'assistant') &&
+          typeof item.content === 'string'
+      )
+      .slice(-8)
+      .map((item) => ({
+        role: item.role,
+        content: item.content,
+      }))
+
+    setScoutMessages((prev) => [...prev, userMessage])
+    setScoutInput('')
+    setIsScoutLoading(true)
+
+    try {
+      const response = await scoutService.chat({
+        message: trimmed,
+        history: historyPayload,
+      })
+
+      const assistantMessage = {
+        id: `assistant-${Date.now()}`,
+        role: 'assistant',
+        content:
+          response?.data?.reply ||
+          'I can help you discover Signil accounts. Share the role and capabilities you need.',
+        suggestions: Array.isArray(response?.data?.suggestions)
+          ? response.data.suggestions
+          : [],
+        options: Array.isArray(response?.data?.options)
+          ? response.data.options
+          : [],
+      }
+
+      setScoutMessages((prev) => [...prev, assistantMessage])
+    } catch (error) {
+      const fallbackMessage = {
+        id: `assistant-error-${Date.now()}`,
+        role: 'assistant',
+        content:
+          error?.response?.data?.message ||
+          'Scout is unavailable right now. Please try again in a moment.',
+        suggestions: [],
+        options: [],
+      }
+      setScoutMessages((prev) => [...prev, fallbackMessage])
+    } finally {
+      setIsScoutLoading(false)
+    }
+  }
+
+  const handleScoutKeyDown = (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault()
+      sendScoutMessage()
+    }
+  }
+
+  const handleScoutOptionClick = (optionValue) => {
+    if (!optionValue) return
+    sendScoutMessage(optionValue)
+  }
+
+  const startNewScoutChat = () => {
+    if (isScoutLoading) return
+    setScoutInput('')
+    setScoutMessages([
+      {
+        ...DEFAULT_SCOUT_MESSAGES[0],
+        id: `scout-welcome-${Date.now()}`,
+      },
+    ])
+  }
+
   // Tooltip Component
   const Tooltip = ({ text, visible }) => (
     <AnimatePresence>
@@ -553,7 +710,7 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
     <div className='flex min-h-screen bg-gray-50'>
       {/* Desktop Sidebar */}
       {!hideSidebar && (
-        <div className='hidden md:flex fixed left-6 top-1/2 transform -translate-y-1/2 z-40'>
+        <div className='hidden md:flex fixed left-6 top-1/2 transform -translate-y-1/2 z-40 items-center gap-4'>
           <div className='bg-white rounded-full p-3 border border-gray-200'>
             <div className='flex flex-col gap-2'>
               {/* Navigation Bubbles */}
@@ -612,6 +769,32 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
                 })}
                 {/* Divider */}
                 <div className='h-px bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200'></div>
+                {/* Scout Toggle */}
+                <div className='relative'>
+                  <motion.button
+                    onClick={() => setIsScoutSidebarOpen((prev) => !prev)}
+                    className={`relative w-11 h-11 rounded-full flex items-center justify-center transition-colors ${
+                      isScoutSidebarOpen
+                        ? 'bg-gray-200 text-gray-700'
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                    whileHover={{ scale: 1.2 }}
+                    whileTap={{ scale: 0.85 }}
+                    transition={{ duration: 0.12 }}
+                    onMouseEnter={() => setHoveredTooltip('scout-toggle')}
+                    onMouseLeave={() => setHoveredTooltip(null)}
+                  >
+                    <img
+                      src='/scout.png'
+                      alt='Scout AI'
+                      className='w-5 h-5 object-contain'
+                    />
+                  </motion.button>
+                  <Tooltip
+                    text={isScoutSidebarOpen ? 'Hide Scout' : 'Show Scout'}
+                    visible={hoveredTooltip === 'scout-toggle'}
+                  />
+                </div>
                 {/* Logout Button */}
                 <div className='relative'>
                   <motion.button
@@ -631,6 +814,109 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
               </div>
             </div>
           </div>
+          {isScoutSidebarOpen && (
+          <div className='hidden lg:flex w-[320px] h-[520px] bg-white border border-gray-200 rounded-3xl shadow-sm flex-col overflow-hidden'>
+            <div className='px-4 py-3 bg-[#163146] text-white flex items-center justify-between'>
+              <div className='flex items-center gap-2.5'>
+                <img src='/scout.png' alt='Signil Scout' className='w-7 h-7 rounded-full bg-white/90 p-1' />
+                <div>
+                  <p className='text-sm font-bold leading-none'>Scout AI</p>
+                  <p className='text-[10px] text-gray-200 mt-1'>Signil assistant</p>
+                </div>
+              </div>
+              <div className='flex items-center gap-2'>
+                <button
+                  onClick={startNewScoutChat}
+                  className='px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-[10px] font-bold uppercase tracking-wide transition-colors'
+                  aria-label='New chat'
+                >
+                  New chat
+                </button>
+                <button
+                  onClick={() => setIsScoutSidebarOpen(false)}
+                  className='w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors'
+                  aria-label='Close Scout'
+                >
+                  <X size={14} className='text-white' />
+                </button>
+              </div>
+            </div>
+
+            <div className='flex-1 overflow-y-auto px-3 py-3 space-y-3 bg-gray-50/70'>
+              {scoutMessages.map((message) => (
+                <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div
+                    className={`max-w-[92%] rounded-2xl px-3 py-2 ${
+                      message.role === 'user'
+                        ? 'bg-[#163146] text-white rounded-br-md'
+                        : 'bg-white text-gray-700 border border-gray-200 rounded-bl-md'
+                    }`}
+                  >
+                    <p className='text-xs leading-relaxed whitespace-pre-wrap'>{message.content}</p>
+                    {Array.isArray(message.suggestions) && message.suggestions.length > 0 && (
+                      <div className='mt-2.5 space-y-2'>
+                        {message.suggestions.map((suggestion) => (
+                          <button
+                            key={suggestion.userId}
+                            onClick={() => navigate(suggestion.profilePath || `/profile/public/${suggestion.userId}`)}
+                            className='w-full text-left bg-[#f7f8fa] border border-gray-200 rounded-xl p-2.5 hover:border-[#163146]/30 hover:bg-white transition-colors'
+                          >
+                            <p className='text-xs font-semibold text-gray-900'>{suggestion.name}</p>
+                            <p className='text-[11px] text-gray-600 mt-0.5 capitalize'>
+                              {suggestion.userType}
+                              {suggestion.sport ? ` • ${suggestion.sport}` : ''}
+                            </p>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {Array.isArray(message.options) && message.options.length > 0 && (
+                      <div className='mt-2.5 flex flex-wrap gap-2'>
+                        {message.options.map((option) => (
+                          <button
+                            key={`${message.id}-${option.value}`}
+                            onClick={() => handleScoutOptionClick(option.value)}
+                            className='px-2.5 py-1.5 rounded-full text-[10px] font-semibold bg-white text-[#163146] border border-[#163146]/20 hover:border-[#163146]/40 transition-colors'
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {isScoutLoading && (
+                <div className='flex justify-start'>
+                  <div className='bg-white text-gray-500 border border-gray-200 rounded-2xl rounded-bl-md px-3 py-2 text-xs'>
+                    Scout is finding the best matches...
+                  </div>
+                </div>
+              )}
+              <div ref={scoutEndRef} />
+            </div>
+
+            <div className='border-t border-gray-100 p-3 bg-white'>
+              <div className='flex items-center gap-2'>
+                <input
+                  type='text'
+                  value={scoutInput}
+                  onChange={(event) => setScoutInput(event.target.value)}
+                  onKeyDown={handleScoutKeyDown}
+                  placeholder='Ask for athletes, advisors, or skills...'
+                  className='flex-1 px-3 py-2.5 bg-gray-100 rounded-xl text-xs text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#163146]/30'
+                />
+                <button
+                  onClick={sendScoutMessage}
+                  disabled={isScoutLoading || !scoutInput.trim()}
+                  className='w-10 h-10 rounded-xl bg-[#986a41] text-white flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed'
+                >
+                  <Send size={16} />
+                </button>
+              </div>
+            </div>
+          </div>
+          )}
         </div>
       )}
 
@@ -649,23 +935,6 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
               alt='Signil'
               className='h-8 w-auto object-contain'
             />
-            {/* Center - Search */}
-            <motion.div
-              className='flex-1 max-w-sm mx-2 md:mx-4 items-center gap-2.5 bg-gray-100 rounded-lg px-3.5 py-2 focus-within:outline-none focus-within:ring-2 focus-within:ring-[#163146] focus-within:ring-opacity-50 transition-all hidden sm:flex'
-              whileFocus={{ scale: 1.02 }}
-            >
-              <img
-                src='/scout.png'
-                alt='Scout'
-                className='w-5 h-5 flex-shrink-0'
-              />
-              <input
-                type='text'
-                placeholder='Ask Scout a Question…'
-                className='bg-transparent outline-none text-gray-900 placeholder-gray-400 text-sm flex-1'
-              />
-              <Search size={18} className='text-gray-400 flex-shrink-0' />
-            </motion.div>
 
             {/* Right Section - Bubble Style */}
             <div className='flex items-center gap-2'>
@@ -1403,53 +1672,114 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
               <div className='bg-gradient-to-r from-[#986a41] to-[#7a5633] px-6 py-4 flex items-center justify-between'>
                 <div className='flex items-center gap-3'>
                   <div className='w-10 h-10 bg-white rounded-full flex items-center justify-center'>
-                    <Bot size={24} style={{ color: '#986a41' }} />
+                    <img
+                      src='/scout.png'
+                      alt='Scout AI'
+                      className='w-6 h-6 object-contain'
+                    />
                   </div>
                   <div>
-                    <h3 className='text-white font-bold'>Scout</h3>
-                    <p className='text-xs text-amber-100'>AI Assistant</p>
+                    <h3 className='text-white font-bold'>Scout AI</h3>
+                    <p className='text-xs text-amber-100'>Signil assistant</p>
                   </div>
                 </div>
-                <motion.button
-                  onClick={() => setIsScoutOpen(false)}
-                  className='text-white hover:text-amber-100 transition-colors'
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <X size={24} />
-                </motion.button>
+                <div className='flex items-center gap-2'>
+                  <button
+                    onClick={startNewScoutChat}
+                    className='px-2.5 py-1.5 rounded-lg bg-white/20 text-[10px] font-bold uppercase tracking-wide text-white'
+                  >
+                    New chat
+                  </button>
+                  <motion.button
+                    onClick={() => setIsScoutOpen(false)}
+                    className='text-white hover:text-amber-100 transition-colors'
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <X size={24} />
+                  </motion.button>
+                </div>
               </div>
 
               {/* Chat Area */}
               <div className='p-6 flex flex-col h-full max-h-[calc(90vh-120px)]'>
-                <div className='flex-1 overflow-y-auto mb-4 flex flex-col items-center justify-center text-center'>
-                  <div className='inline-flex items-center justify-center w-16 h-16 bg-amber-50 rounded-full mb-4'>
-                    <Bot size={32} style={{ color: '#986a41' }} />
-                  </div>
-                  <h4 className='text-lg font-semibold text-gray-900 mb-2'>
-                    Hey! I'm Scout
-                  </h4>
-                  <p className='text-sm text-gray-600 mb-6'>
-                    Ask me anything about NIL deals, partnerships, or how to
-                    make the most of Signil
-                  </p>
+                <div className='flex-1 overflow-y-auto mb-4 space-y-3 pr-1'>
+                  {scoutMessages.map((message) => (
+                    <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      <div
+                        className={`max-w-[88%] rounded-2xl px-3 py-2 ${
+                          message.role === 'user'
+                            ? 'bg-[#163146] text-white rounded-br-md'
+                            : 'bg-gray-100 text-gray-700 rounded-bl-md'
+                        }`}
+                      >
+                        <p className='text-sm leading-relaxed whitespace-pre-wrap'>{message.content}</p>
+                        {Array.isArray(message.suggestions) && message.suggestions.length > 0 && (
+                          <div className='mt-2.5 space-y-2'>
+                            {message.suggestions.map((suggestion) => (
+                              <button
+                                key={suggestion.userId}
+                                onClick={() => {
+                                  navigate(suggestion.profilePath || `/profile/public/${suggestion.userId}`)
+                                  setIsScoutOpen(false)
+                                }}
+                                className='w-full text-left bg-white border border-gray-200 rounded-xl p-2.5'
+                              >
+                                <p className='text-xs font-semibold text-gray-900'>{suggestion.name}</p>
+                                <p className='text-[11px] text-gray-600 mt-0.5 capitalize'>
+                                  {suggestion.userType}
+                                  {suggestion.sport ? ` • ${suggestion.sport}` : ''}
+                                </p>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {Array.isArray(message.options) && message.options.length > 0 && (
+                          <div className='mt-2.5 flex flex-wrap gap-2'>
+                            {message.options.map((option) => (
+                              <button
+                                key={`${message.id}-${option.value}`}
+                                onClick={() => handleScoutOptionClick(option.value)}
+                                className='px-2.5 py-1.5 rounded-full text-[10px] font-semibold bg-white text-[#163146] border border-[#163146]/20'
+                              >
+                                {option.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  {isScoutLoading && (
+                    <div className='flex justify-start'>
+                      <div className='bg-gray-100 text-gray-600 rounded-2xl rounded-bl-md px-3 py-2 text-sm'>
+                        Scout is finding the best matches...
+                      </div>
+                    </div>
+                  )}
+                  <div ref={scoutEndRef} />
                 </div>
 
                 {/* Input Area */}
                 <div className='flex gap-2 items-end'>
                   <input
                     type='text'
-                    placeholder='Ask Scout a question...'
+                    value={scoutInput}
+                    onChange={(event) => setScoutInput(event.target.value)}
+                    onKeyDown={handleScoutKeyDown}
+                    placeholder='Ask for athletes or expertise...'
                     className='flex-1 px-4 py-3 bg-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2'
                     style={{ '--tw-ring-color': '#986a41' }}
                   />
                   <motion.button
+                    onClick={sendScoutMessage}
+                    disabled={isScoutLoading || !scoutInput.trim()}
                     className='p-3 rounded-lg text-white flex items-center justify-center flex-shrink-0'
                     style={{ backgroundColor: '#986a41' }}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                   >
-                    <Search size={20} />
+                    <Send size={20} />
                   </motion.button>
                 </div>
               </div>

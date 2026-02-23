@@ -1,0 +1,168 @@
+[
+  {
+    "id": "what_is_signil",
+    "patterns": [
+      "what is signil",
+      "what is signal",
+      "about signil",
+      "tell me about signil",
+      "signil app",
+      "signil platform"
+    ],
+    "answer": "Signil is a networking and NIL collaboration platform that matches athletes with trusted advisors and agents. It is fast, AI-powered, and free for athletes, with vetted professionals on the other side.",
+    "quickReplies": ["How Signil works", "Signil pricing", "Find athletes"]
+  },
+  {
+    "id": "how_signil_works",
+    "patterns": [
+      "how signil works",
+      "how does signil work",
+      "how signil work",
+      "how does signal work",
+      "what can i do on signil",
+      "how it works"
+    ],
+    "answer": "Signil uses AI-powered matching to connect NIL athletes with vetted advisors and agents. You can explore profiles, connect, and message securely to build NIL partnerships and guidance.",
+    "quickReplies": ["Signil features", "Signil pricing", "Find advisors"]
+  },
+  {
+    "id": "best_thing_signil",
+    "patterns": [
+      "best thing on signil",
+      "best part of signil",
+      "why signil",
+      "why use signil",
+      "value of signil"
+    ],
+    "answer": "Signil is built around fast, AI-powered matching with vetted professionals, and it is free for athletes. The platform focuses on trust, protection, and high-quality NIL connections.",
+    "quickReplies": ["What is Signil", "How Signil works", "Signil pricing"]
+  },
+  {
+    "id": "signil_features",
+    "patterns": [
+      "signil features",
+      "features",
+      "what can i do",
+      "what do you offer"
+    ],
+    "answer": "Signil offers AI-powered matching, vetted professionals, secure messaging, and profile discovery for NIL athletes, advisors, and agents. It is designed to build trusted, high-quality NIL connections.",
+    "quickReplies": ["How Signil works", "Signil pricing", "Find athletes"]
+  },
+  {
+    "id": "pricing_overview",
+    "patterns": [
+      "pricing",
+      "price",
+      "cost",
+      "tiers",
+      "membership",
+      "plans"
+    ],
+    "answer": "Athlete membership is $0 for a lifetime. Advisor and Agent tiers include Associate ($0/month) and upcoming Business, Corporation, and Enterprise plans with expanded matching, analytics, and support.",
+    "quickReplies": ["Athlete membership", "Advisor pricing", "Agent pricing"]
+  },
+  {
+    "id": "athlete_membership",
+    "patterns": [
+      "athlete pricing",
+      "athlete membership",
+      "athlete plan",
+      "athlete tier",
+      "free for athletes"
+    ],
+    "answer": "Athlete membership is ASSOCIATE at $0 per lifetime. It includes personalized advisor matching, unlimited secure messaging, contract and opportunity screening, brand growth resources, and NIL marketplace access.",
+    "quickReplies": ["Athlete benefits", "How Signil works", "Find advisors"]
+  },
+  {
+    "id": "advisor_pricing",
+    "patterns": [
+      "advisor pricing",
+      "advisor tier",
+      "advisor plans"
+    ],
+    "answer": "Advisor tiers include ASSOCIATE ($0/month) with Scout access, basic listing, standard matching, and secure messaging. BUSINESS, CORPORATION, and ENTERPRISE tiers are coming soon with enhanced recommendations, analytics, and priority matching.",
+    "quickReplies": ["Advisor features", "Agent pricing", "Find athletes"]
+  },
+  {
+    "id": "agent_pricing",
+    "patterns": [
+      "agent pricing",
+      "agent tier",
+      "agent plans"
+    ],
+    "answer": "Agent tiers include ASSOCIATE ($0/month) with Scout access, basic listing, standard matching, and secure messaging. BUSINESS, CORPORATION, and ENTERPRISE tiers are coming soon with expanded athlete matching and analytics.",
+    "quickReplies": ["Agent features", "Advisor pricing", "Find athletes"]
+  },
+  {
+    "id": "athlete_features",
+    "patterns": [
+      "athlete features",
+      "athlete benefits",
+      "benefits for athletes",
+      "what athletes get"
+    ],
+    "answer": "Athletes get legal protection for NIL compliance, contract review and eligibility, brand building support to grow a personal brand, and financial growth guidance including tax planning and long-term wealth.",
+    "quickReplies": ["Athlete membership", "Find advisors", "How Signil works"]
+  },
+  {
+    "id": "advisor_features",
+    "patterns": [
+      "advisor features",
+      "benefits for advisors",
+      "advisor dashboard"
+    ],
+    "answer": "Advisors get AI matching aligned to their expertise, a verified status badge after vetting, and an advisor dashboard to manage clients and grow a NIL practice.",
+    "quickReplies": ["Advisor pricing", "Find athletes", "How Signil works"]
+  },
+  {
+    "id": "agent_features",
+    "patterns": [
+      "agent features",
+      "benefits for agents",
+      "agent discovery"
+    ],
+    "answer": "Agents get smart athlete discovery based on specialization, trust-first matching, and verified status to build credibility with athletes and families.",
+    "quickReplies": ["Agent pricing", "Find athletes", "How Signil works"]
+  },
+  {
+    "id": "who_are_you",
+    "patterns": [
+      "who are you",
+      "what are you",
+      "introduce yourself",
+      "tell me about yourself"
+    ],
+    "answer": "I am Scout AI, your Signil assistant. I help with Signil questions, pricing, features, and profile discovery.",
+    "quickReplies": ["What is Signil", "How Signil works", "Find athletes"]
+  },
+  {
+    "id": "small_talk",
+    "patterns": [
+      "hi",
+      "hello",
+      "hey",
+      "how are you",
+      "how r you",
+      "what's up",
+      "whats up",
+      "good bot",
+      "hola",
+      "bonjour",
+      "salam",
+      "namaste"
+    ],
+    "answer": "Hi. What can I help you with on Signil today?",
+    "quickReplies": ["What is Signil", "Find athletes", "Signil pricing"]
+  },
+  {
+    "id": "thanks",
+    "patterns": [
+      "thanks",
+      "thank you",
+      "appreciate it",
+      "thx"
+    ],
+    "answer": "You are welcome. Want to find profiles or learn about Signil?",
+    "quickReplies": ["Find best athletes", "How Signil works", "Signil pricing"]
+  }
+]
