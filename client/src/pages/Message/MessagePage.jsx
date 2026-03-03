@@ -9,7 +9,7 @@ import imageCompression from 'browser-image-compression'
 import EmojiPicker from 'emoji-picker-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { AlertCircle, Ban, Bell, Calendar, Check, Clock, Download, FileText, Image as ImageIcon, LayoutGrid, Loader2, MapPin, Menu, MessageSquare, MoreVertical, Paperclip, Paperclip as PaperclipIcon, PenLine, Search, Send, Smile, Trash2, X } from 'lucide-react'
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -158,6 +158,55 @@ const formatLastSeen = (value) => {
     hour: 'numeric',
     minute: '2-digit',
   })}`
+}
+
+const MAX_CACHED_CONVERSATIONS = 60
+const MAX_MESSAGES_PER_CONVERSATION = 120
+
+const moveConversationToTop = (list, index, updatedConversation) => {
+  if (index <= 0) {
+    const next = [...list]
+    next[0] = updatedConversation
+    return next
+  }
+  return [updatedConversation, ...list.slice(0, index), ...list.slice(index + 1)]
+}
+
+const trimConversationMessages = (messages = []) => {
+  if (messages.length <= MAX_MESSAGES_PER_CONVERSATION) return messages
+  return messages.slice(messages.length - MAX_MESSAGES_PER_CONVERSATION)
+}
+
+const trimMessageCacheByConversations = (cache, orderedConversationIds, preferredConversationId) => {
+  const keys = Object.keys(cache)
+  if (keys.length <= MAX_CACHED_CONVERSATIONS) return cache
+
+  const keysToKeep = new Set((orderedConversationIds || []).filter(Boolean).slice(0, MAX_CACHED_CONVERSATIONS))
+  if (preferredConversationId) keysToKeep.add(preferredConversationId)
+
+  const next = { ...cache }
+  keys.forEach((key) => {
+    if (!keysToKeep.has(key)) {
+      delete next[key]
+    }
+  })
+  return next
+}
+
+const updateConversationById = (list, conversationId, updater, moveToTop = false) => {
+  const index = list.findIndex((conversation) => conversation._id === conversationId)
+  if (index === -1) return list
+
+  const current = list[index]
+  const updated = updater(current)
+  if (!updated || updated === current) return list
+
+  if (moveToTop) {
+    return moveConversationToTop(list, index, updated)
+  }
+  const next = [...list]
+  next[index] = updated
+  return next
 }
 
 // Expanded Profile View Component - Matches ProfilePopup styling
@@ -555,10 +604,59 @@ function MessagePage() {
   const selectedIdRef = useRef(selectedConversationId)
   const selectedUserRef = useRef(selectedUser)
   const conversationsRef = useRef(conversations)
+  const loadConversationsRef = useRef(null)
   const notificationsSupportedRef = useRef(false)
   const notificationsEnabledRef = useRef(false)
   
   const dispatch = useDispatch()
+
+  const updateConversation = useCallback((conversationId, updater, moveToTop = false) => {
+    if (!conversationId) return
+    setConversations((prev) => updateConversationById(prev, conversationId, updater, moveToTop))
+  }, [])
+
+  const appendMessageToConversationCache = useCallback((conversationId, message) => {
+    if (!conversationId || !message?._id) return
+    setMessageCache((prev) => {
+      const current = prev[conversationId] || []
+      if (current.some((msg) => msg._id === message._id)) return prev
+
+      const trimmedMessages = trimConversationMessages([...current, message])
+
+      const next = {
+        ...prev,
+        [conversationId]: trimmedMessages,
+      }
+      return trimMessageCacheByConversations(
+        next,
+        conversationsRef.current.map((conv) => conv._id),
+        conversationId
+      )
+    })
+  }, [])
+
+  const applyIncomingMessageToConversations = useCallback((conversationId, message) => {
+    updateConversation(
+      conversationId,
+      (currentConversation) => {
+        if (currentConversation.lastMessage?._id === message._id) return currentConversation
+
+        const isActive = selectedIdRef.current === conversationId
+        const unreadCount = isActive
+          ? currentConversation.unreadCount || 0
+          : (currentConversation.unreadCount || 0) + 1
+
+        return {
+          ...currentConversation,
+          lastMessage: message,
+          lastMessageAt: message.createdAt || new Date(),
+          unreadCount,
+          showUnreadDot: !isActive && unreadCount > 0,
+        }
+      },
+      true
+    )
+  }, [updateConversation])
 
   // Sync refs
   useEffect(() => {
@@ -571,14 +669,14 @@ function MessagePage() {
 
   useEffect(() => {
     if (!selectedConversationId) return
-    setConversations((prev) =>
-      prev.map((c) =>
-        c._id === selectedConversationId
-          ? { ...c, unreadCount: 0, showUnreadDot: false }
-          : c
-      )
+    updateConversation(
+      selectedConversationId,
+      (conversation) => {
+        if (!conversation.unreadCount && !conversation.showUnreadDot) return conversation
+        return { ...conversation, unreadCount: 0, showUnreadDot: false }
+      }
     )
-  }, [selectedConversationId])
+  }, [selectedConversationId, updateConversation])
 
   useEffect(() => {
     selectedUserRef.current = selectedUser
@@ -729,9 +827,7 @@ function MessagePage() {
       const socket = socketService.connect(localStorage.getItem('token'))
 
       // Handle new message - prevent duplicates
-      socket.on('new_message', ({ message, conversationId }) => {
-        console.log('Socket: new_message received', message._id, 'for conv', conversationId)
-        
+      const handleNewMessage = ({ message, conversationId }) => {
         // Update messages if this is the active conversation
         if (selectedIdRef.current === conversationId) {
           setMessages((prev) => {
@@ -741,29 +837,11 @@ function MessagePage() {
             }
             return [...prev, message]
           })
-          
-          // Also update cache for active conversation
-          setMessageCache(prev => ({
-            ...prev,
-            [conversationId]: [...(prev[conversationId] || []), message]
-          }))
+
+          appendMessageToConversationCache(conversationId, message)
         }
         
-        // Always update conversation list to show snippet and unread dot
-        setConversations((prev) =>
-          prev.map((c) => {
-            if (c._id !== conversationId) return c
-            if (c.lastMessage?._id === message._id) return c
-            const isActive = selectedIdRef.current === conversationId
-            return {
-              ...c,
-              lastMessage: message,
-              lastMessageAt: message.createdAt || new Date(),
-              unreadCount: isActive ? c.unreadCount : (c.unreadCount || 0) + 1,
-              showUnreadDot: !isActive,
-            }
-          }).sort((a, b) => new Date(b.lastMessageAt || b.updatedAt) - new Date(a.lastMessageAt || a.updatedAt))
-        )
+        applyIncomingMessageToConversations(conversationId, message)
 
         const shouldNotify = notificationsSupportedRef.current
           && notificationsEnabledRef.current
@@ -776,10 +854,11 @@ function MessagePage() {
           // Avoid duplicate notifications from both socket + push.
           return
         }
-      })
+      }
+      socket.on('new_message', handleNewMessage)
 
       // Handle typing indicator with auto-timeout
-      socket.on('typing_update', ({ userId, isTyping }) => {
+      const handleTypingUpdate = ({ userId, isTyping }) => {
         if (selectedUserRef.current?._id === userId) {
           setOtherUserTyping(isTyping)
           
@@ -797,78 +876,120 @@ function MessagePage() {
             }
           }
         }
-      })
+      }
+      socket.on('typing_update', handleTypingUpdate)
 
       // Handle presence updates
-      socket.on('presence_update', ({ userId, status, lastSeen }) => {
-        console.log('Presence update received:', { userId, status, lastSeen })
-        setConversations((prev) =>
-          prev.map((c) => {
-            if (c.otherUser?._id === userId) {
-              return {
-                ...c,
-                otherUser: { ...c.otherUser, status, lastSeen: lastSeen ?? null },
-              }
-            }
-            return c
-          })
-        )
-      })
+      const handlePresenceUpdate = ({ userId, status, lastSeen }) => {
+        if (!userId) return
+        setConversations((prev) => {
+          const index = prev.findIndex((conversation) => conversation.otherUser?._id === userId)
+          if (index === -1) return prev
 
-      socket.on('conversation_read', ({ conversationId, readerId, readAt }) => {
+          const current = prev[index]
+          const prevUser = current.otherUser || {}
+          if (
+            prevUser.status === status &&
+            (prevUser.lastSeen ?? null) === (lastSeen ?? null)
+          ) {
+            return prev
+          }
+
+          const next = [...prev]
+          next[index] = {
+            ...current,
+            otherUser: { ...prevUser, status, lastSeen: lastSeen ?? null },
+          }
+          return next
+        })
+      }
+      socket.on('presence_update', handlePresenceUpdate)
+
+      const handleConversationRead = ({ conversationId, readerId, readAt }) => {
         if (!conversationId || !readerId) return
         if (readerId === currentLoggedInUser?._id) return
+        const resolvedReadAt = readAt || new Date().toISOString()
 
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.sender === currentLoggedInUser?._id && !msg.isRead
-              ? { ...msg, isRead: true, readAt: readAt || new Date().toISOString() }
-              : msg
-          )
-        )
+        setMessages((prev) => {
+          let changed = false
+          const next = prev.map((msg) => {
+            if (msg.sender === currentLoggedInUser?._id && !msg.isRead) {
+              changed = true
+              return { ...msg, isRead: true, readAt: resolvedReadAt }
+            }
+            return msg
+          })
+          return changed ? next : prev
+        })
 
         setMessageCache((prev) => {
           const convoMessages = prev[conversationId]
           if (!convoMessages?.length) return prev
-          return {
-            ...prev,
-            [conversationId]: convoMessages.map((msg) =>
-              msg.sender === currentLoggedInUser?._id && !msg.isRead
-                ? { ...msg, isRead: true, readAt: readAt || new Date().toISOString() }
-                : msg
-            ),
-          }
-        })
-      })
 
-      socket.on('conversation_block_status', ({ conversationId, isBlocked, blockedBy }) => {
+          let changed = false
+          const updatedMessages = convoMessages.map((msg) => {
+            if (msg.sender === currentLoggedInUser?._id && !msg.isRead) {
+              changed = true
+              return { ...msg, isRead: true, readAt: resolvedReadAt }
+            }
+            return msg
+          })
+          if (!changed) return prev
+
+          return { ...prev, [conversationId]: updatedMessages }
+        })
+      }
+      socket.on('conversation_read', handleConversationRead)
+
+      const handleConversationBlockStatus = ({ conversationId, isBlocked, blockedBy }) => {
         if (!conversationId) return
-        setConversations((prev) =>
-          prev.map((conv) =>
-            conv._id === conversationId ? { ...conv, isBlocked, blockedBy } : conv
-          )
+        updateConversation(
+          conversationId,
+          (conversation) => {
+            if (
+              conversation.isBlocked === isBlocked &&
+              conversation.blockedBy?.toString() === blockedBy?.toString()
+            ) {
+              return conversation
+            }
+            return { ...conversation, isBlocked, blockedBy }
+          }
         )
-      })
+      }
+      socket.on('conversation_block_status', handleConversationBlockStatus)
 
       // Handle message deletion
-      socket.on('message_deleted', ({ messageId, conversationId }) => {
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg._id === messageId ? { ...msg, isDeleted: true } : msg
-          )
-        )
+      const handleMessageDeleted = ({ messageId, conversationId }) => {
+        setMessages((prev) => {
+          let changed = false
+          const next = prev.map((msg) => {
+            if (msg._id !== messageId || msg.isDeleted) return msg
+            changed = true
+            return { ...msg, isDeleted: true }
+          })
+          return changed ? next : prev
+        })
         
         // Update cache
-        setMessageCache(prev => ({
-          ...prev,
-          [conversationId]: (prev[conversationId] || []).map(msg =>
-            msg._id === messageId ? { ...msg, isDeleted: true } : msg
-          )
-        }))
-      })
+        setMessageCache((prev) => {
+          const list = prev[conversationId] || []
+          if (!list.length) return prev
+
+          let changed = false
+          const updatedList = list.map((msg) => {
+            if (msg._id !== messageId || msg.isDeleted) return msg
+            changed = true
+            return { ...msg, isDeleted: true }
+          })
+          if (!changed) return prev
+
+          return { ...prev, [conversationId]: updatedList }
+        })
+      }
+      socket.on('message_deleted', handleMessageDeleted)
 
       // Handle conversation deletion
-      socket.on('conversation_deleted', ({ conversationId }) => {
+      const handleConversationDeleted = ({ conversationId }) => {
         setConversations((prev) => prev.filter(c => c._id !== conversationId))
         if (selectedIdRef.current === conversationId) {
           setSelectedConversationId(null)
@@ -882,41 +1003,44 @@ function MessagePage() {
           delete newCache[conversationId]
           return newCache
         })
-      })
+      }
+      socket.on('conversation_deleted', handleConversationDeleted)
 
       // Handle new event invitation
-      socket.on('event_invitation', ({ message, conversationId }) => {
-        loadConversations()
+      const handleEventInvitation = ({ message }) => {
+        loadConversationsRef.current?.()
         toast.info(`New event invitation: ${message.eventInfo?.title || 'Event'}`)
-      })
+      }
+      socket.on('event_invitation', handleEventInvitation)
 
       // Handle event invitation response updates
-      socket.on('event_invitation_response', ({ messageId, status, eventId }) => {
+      const handleEventInvitationResponse = ({ messageId, status }) => {
         setMessages((prev) => prev.map(msg => 
           msg._id === messageId 
             ? { ...msg, eventInfo: { ...msg.eventInfo, invitationStatus: status } }
             : msg
         ))
-      })
+      }
+      socket.on('event_invitation_response', handleEventInvitationResponse)
 
       return () => {
         // Cleanup listeners
-        socket.off('new_message')
-        socket.off('typing_update')
-        socket.off('presence_update')
-        socket.off('conversation_read')
-        socket.off('conversation_block_status')
-        socket.off('message_deleted')
-        socket.off('conversation_deleted')
-        socket.off('event_invitation')
-        socket.off('event_invitation_response')
+        socket.off('new_message', handleNewMessage)
+        socket.off('typing_update', handleTypingUpdate)
+        socket.off('presence_update', handlePresenceUpdate)
+        socket.off('conversation_read', handleConversationRead)
+        socket.off('conversation_block_status', handleConversationBlockStatus)
+        socket.off('message_deleted', handleMessageDeleted)
+        socket.off('conversation_deleted', handleConversationDeleted)
+        socket.off('event_invitation', handleEventInvitation)
+        socket.off('event_invitation_response', handleEventInvitationResponse)
         
         if (typingTimeoutRef.current) {
           clearTimeout(typingTimeoutRef.current)
         }
       }
     }
-  }, [currentLoggedInUser])
+  }, [applyIncomingMessageToConversations, appendMessageToConversationCache, currentLoggedInUser])
 
   // Join conversation room and sync active ID
   useEffect(() => {
@@ -937,12 +1061,6 @@ function MessagePage() {
       const response = await messageService.getConversations()
       if (response.data.status === 'success') {
         const convs = response.data.data.conversations
-        console.log('Conversations loaded:', convs.map(c => ({
-          id: c._id,
-          otherUser: c.otherUser?.name,
-          lastSeen: c.otherUser?.lastSeen,
-          lastSeenType: typeof c.otherUser?.lastSeen
-        })))
         setConversations(convs)
         
         // Handle navigation from profile "Message" button or Dashboard
@@ -1008,6 +1126,8 @@ function MessagePage() {
     }
   }, [currentLoggedInUser, location.state?.recipientId, selectedConversationId, dispatch])
 
+  loadConversationsRef.current = loadConversations
+
   // Fetch conversations on mount
   useEffect(() => {
     if (currentLoggedInUser) {
@@ -1034,17 +1154,20 @@ function MessagePage() {
       try {
         const response = await messageService.getMessages(selectedConversationId, 1, 30)
         if (response.data.status === 'success') {
-          const newMessages = response.data.data.messages
+          const newMessages = trimConversationMessages(response.data.data.messages || [])
           setMessages(newMessages)
           forceScrollRef.current = true
           setMessagesPage(response.data.currentPage || 1)
           setMessagesTotalPages(response.data.totalPages || 1)
 
           // Update cache
-          setMessageCache(prev => ({
-            ...prev,
-            [selectedConversationId]: newMessages
-          }))
+          setMessageCache((prev) =>
+            trimMessageCacheByConversations(
+              { ...prev, [selectedConversationId]: newMessages },
+              conversationsRef.current.map((conv) => conv._id),
+              selectedConversationId
+            )
+          )
 
           // Mark conversation read on server and refresh unread count
           await messageService.markConversationRead(selectedConversationId)
@@ -1380,19 +1503,29 @@ function MessagePage() {
         })
         
         // Update cache for persistence between switches
-        setMessageCache(prev => ({
-          ...prev,
-          [selectedConversationId]: prev[selectedConversationId] 
-            ? (prev[selectedConversationId].some(m => m._id === sentMsg._id) 
-                ? prev[selectedConversationId] 
-                : [...prev[selectedConversationId], sentMsg])
-            : [sentMsg]
-        }))
+        setMessageCache((prev) => {
+          const current = prev[selectedConversationId] || []
+          const updatedMessages = current.some((m) => m._id === sentMsg._id)
+            ? current
+            : trimConversationMessages([...current, sentMsg])
+
+          return trimMessageCacheByConversations(
+            { ...prev, [selectedConversationId]: updatedMessages },
+            conversationsRef.current.map((conv) => conv._id),
+            selectedConversationId
+          )
+        })
         
         // Update last message in conversations list
-        setConversations(prev => prev.map(c => 
-          c._id === selectedConversationId ? { ...c, lastMessage: sentMsg, lastMessageAt: sentMsg.createdAt || new Date() } : c
-        ).sort((a, b) => new Date(b.lastMessageAt || b.updatedAt) - new Date(a.lastMessageAt || a.updatedAt)))
+        updateConversation(
+          selectedConversationId,
+          (conversation) => ({
+            ...conversation,
+            lastMessage: sentMsg,
+            lastMessageAt: sentMsg.createdAt || new Date(),
+          }),
+          true
+        )
 
         // Reset file state
         setUploadedFileData(null)
@@ -1501,13 +1634,17 @@ function MessagePage() {
           // Refresh messages to show updated status
           messageService.getMessages(selectedConversationId, 1, 30).then(msgRes => {
             if (msgRes.data.status === 'success') {
-              setMessages(msgRes.data.data.messages);
+              const refreshedMessages = trimConversationMessages(msgRes.data.data.messages || [])
+              setMessages(refreshedMessages);
               setMessagesPage(msgRes.data.currentPage || 1);
               setMessagesTotalPages(msgRes.data.totalPages || 1);
-              setMessageCache(prev => ({
-                ...prev,
-                [selectedConversationId]: msgRes.data.data.messages
-              }))
+              setMessageCache((prev) =>
+                trimMessageCacheByConversations(
+                  { ...prev, [selectedConversationId]: refreshedMessages },
+                  conversationsRef.current.map((conv) => conv._id),
+                  selectedConversationId
+                )
+              )
             }
           });
           return `Event ${status}`;
@@ -1533,13 +1670,20 @@ function MessagePage() {
       if (response.data.status === 'success') {
         const olderMessages = response.data.data.messages || []
         skipAutoScrollRef.current = true
-        setMessages(prev => [...olderMessages, ...prev])
+        setMessages((prev) => trimConversationMessages([...olderMessages, ...prev]))
         setMessagesPage(response.data.currentPage || nextPage)
         setMessagesTotalPages(response.data.totalPages || messagesTotalPages)
-        setMessageCache(prev => ({
-          ...prev,
-          [selectedConversationId]: [...olderMessages, ...(prev[selectedConversationId] || [])]
-        }))
+        setMessageCache((prev) => {
+          const updatedMessages = trimConversationMessages([
+            ...olderMessages,
+            ...(prev[selectedConversationId] || []),
+          ])
+          return trimMessageCacheByConversations(
+            { ...prev, [selectedConversationId]: updatedMessages },
+            conversationsRef.current.map((conv) => conv._id),
+            selectedConversationId
+          )
+        })
 
         requestAnimationFrame(() => {
           const newScrollHeight = container.scrollHeight
@@ -1615,21 +1759,23 @@ function MessagePage() {
     }
   }
 
-  const filteredItems =
-    activeTab === 'network'
-      ? conversations.filter((conv) => {
-          const user = conv.otherUser
-          const searchLower = searchQuery.toLowerCase()
-          return (
-            user?.name?.toLowerCase().includes(searchLower) ||
-            conv.lastMessage?.content?.toLowerCase().includes(searchLower)
-          )
-        })
-      : requests.filter(
-          (req) =>
-            req.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            req.message?.toLowerCase().includes(searchLower)
+  const filteredItems = useMemo(() => {
+    const searchLower = searchQuery.toLowerCase()
+    if (activeTab === 'network') {
+      return conversations.filter((conv) => {
+        const user = conv.otherUser
+        return (
+          user?.name?.toLowerCase().includes(searchLower) ||
+          conv.lastMessage?.content?.toLowerCase().includes(searchLower)
         )
+      })
+    }
+    return requests.filter(
+      (req) =>
+        req.name.toLowerCase().includes(searchLower) ||
+        req.message?.toLowerCase().includes(searchLower)
+    )
+  }, [activeTab, conversations, requests, searchQuery])
 
   return (
     <DashboardLayout>
