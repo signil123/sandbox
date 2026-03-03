@@ -7,6 +7,26 @@ import User from '../models/User.js'
 import { getIO } from '../socket.js'
 import { sendPushToUser } from './push.js'
 
+const emitConversationRead = ({ conversation, readerId, readResult }) => {
+  const modifiedCount = readResult?.modifiedCount ?? readResult?.nModified ?? 0
+  if (!modifiedCount) return
+
+  const io = getIO()
+  const readAt = new Date()
+  const otherParticipantId = conversation.getOtherParticipant(readerId).toString()
+
+  io.to(conversation._id.toString()).emit('conversation_read', {
+    conversationId: conversation._id,
+    readerId,
+    readAt,
+  })
+  io.to(otherParticipantId).emit('conversation_read', {
+    conversationId: conversation._id,
+    readerId,
+    readAt,
+  })
+}
+
 /**
  * Start a new conversation or get existing one
  */
@@ -104,6 +124,11 @@ export const sendMessage = async (req, res, next) => {
       conversation.participant2.toString() !== senderId
     ) {
       return next(createError(403, 'You are not a participant in this conversation'))
+    }
+
+    // Respect block state at API level (not only UI level).
+    if (conversation.isBlocked) {
+      return next(createError(403, 'This conversation is blocked'))
     }
 
     const recipientId = conversation.getOtherParticipant(senderId)
@@ -298,8 +323,9 @@ export const getMessages = async (req, res, next) => {
 
     const total = await Message.countDocuments({ conversation: conversationId })
 
-    // Mark messages as read if they weren't sent by current user
-    await conversation.markAllMessagesAsRead(userId)
+    // Mark messages as read if they weren't sent by current user and notify peer.
+    const readResult = await conversation.markAllMessagesAsRead(userId)
+    emitConversationRead({ conversation, readerId: userId, readResult })
 
     res.status(200).json({
       status: 'success',
@@ -337,7 +363,8 @@ export const markConversationRead = async (req, res, next) => {
       return next(createError(403, 'You are not a participant in this conversation'))
     }
 
-    await conversation.markAllMessagesAsRead(userId)
+    const readResult = await conversation.markAllMessagesAsRead(userId)
+    emitConversationRead({ conversation, readerId: userId, readResult })
 
     res.status(200).json({
       status: 'success',
@@ -488,11 +515,32 @@ export const blockUser = async (req, res, next) => {
       return next(createError(403, 'You are not a participant in this conversation'))
     }
 
-    const otherUserId = conversation.getOtherParticipant(userId)
+    const otherUserId = conversation.getOtherParticipant(userId).toString()
 
     conversation.isBlocked = true
     conversation.blockedBy = userId
     await conversation.save()
+
+    try {
+      const io = getIO()
+      io.to(conversationId).emit('conversation_block_status', {
+        conversationId,
+        isBlocked: true,
+        blockedBy: userId,
+      })
+      io.to(userId.toString()).emit('conversation_block_status', {
+        conversationId,
+        isBlocked: true,
+        blockedBy: userId,
+      })
+      io.to(otherUserId).emit('conversation_block_status', {
+        conversationId,
+        isBlocked: true,
+        blockedBy: userId,
+      })
+    } catch (socketErr) {
+      console.warn('Socket emit failed in blockUser:', socketErr.message)
+    }
 
     res.status(200).json({
       status: 'success',
@@ -583,6 +631,8 @@ export const unblockUser = async (req, res, next) => {
       return next(createError(403, 'You are not a participant in this conversation'))
     }
 
+    const otherUserId = conversation.getOtherParticipant(userId).toString()
+
     // Only the blocker can unblock
     if (conversation.blockedBy && conversation.blockedBy.toString() !== userId) {
        return next(createError(403, 'You cannot unblock this conversation'))
@@ -591,6 +641,27 @@ export const unblockUser = async (req, res, next) => {
     conversation.isBlocked = false
     conversation.blockedBy = null
     await conversation.save()
+
+    try {
+      const io = getIO()
+      io.to(conversationId).emit('conversation_block_status', {
+        conversationId,
+        isBlocked: false,
+        blockedBy: null,
+      })
+      io.to(userId.toString()).emit('conversation_block_status', {
+        conversationId,
+        isBlocked: false,
+        blockedBy: null,
+      })
+      io.to(otherUserId).emit('conversation_block_status', {
+        conversationId,
+        isBlocked: false,
+        blockedBy: null,
+      })
+    } catch (socketErr) {
+      console.warn('Socket emit failed in unblockUser:', socketErr.message)
+    }
 
     res.status(200).json({
       status: 'success',

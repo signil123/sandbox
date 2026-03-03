@@ -4,6 +4,7 @@ import { Server } from 'socket.io'
 import User from './models/User.js'
 
 let io
+const userSocketCounts = new Map()
 
 export const initSocket = (server) => {
   io = new Server(server, {
@@ -35,17 +36,28 @@ export const initSocket = (server) => {
 
   io.on('connection', (socket) => {
     // Join user-specific room for receiving personal notifications (e.g., event invitations)
-    socket.join(socket.user._id.toString());
-    
-    socket.user.status = 'online'
-    socket.user.lastSeen = new Date()
-    socket.user.save().then((user) => {
-      io.emit('presence_update', {
-        userId: user._id,
-        status: 'online',
-        lastSeen: user.settings?.showLastSeen ? user.lastSeen : null,
+    const userId = socket.user._id.toString()
+    socket.join(userId)
+
+    const nextCount = (userSocketCounts.get(userId) || 0) + 1
+    userSocketCounts.set(userId, nextCount)
+
+    if (nextCount === 1) {
+      User.findByIdAndUpdate(
+        userId,
+        { status: 'online', lastSeen: new Date() },
+        { new: true, select: 'status lastSeen settings' }
+      ).then((user) => {
+        if (!user) return
+        io.emit('presence_update', {
+          userId: user._id,
+          status: 'online',
+          lastSeen: user.settings?.showLastSeen ? user.lastSeen : null,
+        })
+      }).catch((error) => {
+        console.warn('Socket online presence update failed:', error.message)
       })
-    })
+    }
 
     socket.on('join_conversation', (conversationId) => {
       socket.join(conversationId)
@@ -64,20 +76,27 @@ export const initSocket = (server) => {
 
     socket.on('disconnect', async () => {
       if (socket.user) {
-        // Use findByIdAndUpdate to avoid version error (ParallelSaveError)
-        // Ensure we project the settings field to have the latest privacy info
-        const updatedUser = await User.findByIdAndUpdate(
-          socket.user._id,
-          { status: 'offline', lastSeen: new Date() },
-          { new: true, select: 'status lastSeen settings' }
-        )
-        
-        if (updatedUser) {
-          io.emit('presence_update', {
-            userId: updatedUser._id,
-            status: 'offline',
-            lastSeen: updatedUser.settings?.showLastSeen ? updatedUser.lastSeen : null,
-          })
+        const disconnectedUserId = socket.user._id.toString()
+        const remainingCount = Math.max((userSocketCounts.get(disconnectedUserId) || 1) - 1, 0)
+
+        if (remainingCount === 0) {
+          userSocketCounts.delete(disconnectedUserId)
+          // Mark offline only when user has no active sockets left (multi-tab safe).
+          const updatedUser = await User.findByIdAndUpdate(
+            disconnectedUserId,
+            { status: 'offline', lastSeen: new Date() },
+            { new: true, select: 'status lastSeen settings' }
+          )
+
+          if (updatedUser) {
+            io.emit('presence_update', {
+              userId: updatedUser._id,
+              status: 'offline',
+              lastSeen: updatedUser.settings?.showLastSeen ? updatedUser.lastSeen : null,
+            })
+          }
+        } else {
+          userSocketCounts.set(disconnectedUserId, remainingCount)
         }
       }
     })

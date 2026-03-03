@@ -27,12 +27,14 @@ import {
 import React, { useEffect, useRef, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 import {
     clearNotifications,
     fetchUnreadMessages,
     incrementUnreadMessagesCount,
     logoutUser,
     markNotificationRead,
+    setActiveConversationId,
     selectActiveConversationId,
     selectCurrentUser,
     selectNotifications,
@@ -75,12 +77,22 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
   const [notificationPermission, setNotificationPermission] = useState('default')
   const [notificationsEnabled, setNotificationsEnabled] = useState(false)
   const [inAppNotificationsEnabled, setInAppNotificationsEnabled] = useState(true)
+  const [isUpdatingPanelNotifications, setIsUpdatingPanelNotifications] = useState(false)
+  const [isUpdatingMessageNotifications, setIsUpdatingMessageNotifications] = useState(false)
   const notifications = useSelector(selectNotifications) || []
   const unreadCount = useSelector(selectUnreadCount) || 0
   const unreadMessagesCount = useSelector(selectUnreadMessagesCount) || 0
   const activeConversationId = useSelector(selectActiveConversationId)
   const [isScoutOpen, setIsScoutOpen] = useState(false)
-  const [isScoutSidebarOpen, setIsScoutSidebarOpen] = useState(true)
+  const [isScoutSidebarOpen, setIsScoutSidebarOpen] = useState(() => {
+    try {
+      const stored = localStorage.getItem(SCOUT_SIDEBAR_STATE_KEY)
+      if (stored === null) return false
+      return stored === 'true'
+    } catch {
+      return false
+    }
+  })
   const [scoutInput, setScoutInput] = useState('')
   const [isScoutLoading, setIsScoutLoading] = useState(false)
   const [scoutMessages, setScoutMessages] = useState(DEFAULT_SCOUT_MESSAGES)
@@ -93,6 +105,14 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
   const notificationsSupportedRef = useRef(false)
   const notificationsEnabledRef = useRef(false)
   const scoutEndRef = useRef(null)
+
+  useEffect(() => {
+    // Prevent stale persisted conversation IDs from suppressing unread updates
+    // when user is not actively in the inbox page.
+    if (!location.pathname.startsWith('/inbox')) {
+      dispatch(setActiveConversationId(null))
+    }
+  }, [location.pathname, dispatch])
 
   // Handle click outside for profile dropdown
   useEffect(() => {
@@ -163,15 +183,17 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
     notificationsSupportedRef.current = isSupported
     if (!isSupported) return
 
+    pushService.ensureServiceWorker().catch(() => {})
+
     const permission = pushService.getPermission()
-    const enabled = pushService.getEnabled() && permission === 'granted'
+    const enabled = pushService.getMessageNotificationsEnabled() && permission === 'granted'
     setNotificationPermission(permission)
     setNotificationsEnabled(enabled)
     notificationsEnabledRef.current = enabled
   }, [])
 
   const persistNotificationsEnabled = (enabled) => {
-    pushService.setEnabled(enabled)
+    pushService.setMessageNotificationsEnabled(enabled)
     setNotificationsEnabled(enabled)
     notificationsEnabledRef.current = enabled
   }
@@ -181,13 +203,49 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
 
     const result = await pushService.subscribe()
     const permission = pushService.getPermission()
-    const enabled = pushService.getEnabled() && permission === 'granted'
+    const enabled = pushService.getMessageNotificationsEnabled() && permission === 'granted'
     setNotificationPermission(permission)
     setNotificationsEnabled(enabled)
     notificationsEnabledRef.current = enabled
 
     if (!result.ok) {
       persistNotificationsEnabled(false)
+      if (result.reason === 'denied') {
+        toast.error('Message notifications are blocked in your browser settings.')
+        return
+      }
+      toast.error('Could not enable message notifications.')
+      return
+    }
+    toast.success('Message notifications turned on.')
+  }
+
+  const toggleMessageNotifications = async () => {
+    if (isUpdatingMessageNotifications) return
+    if (!notificationsSupportedRef.current) return
+    setIsUpdatingMessageNotifications(true)
+    try {
+      if (notificationsEnabled && notificationPermission === 'granted') {
+        await pushService.unsubscribe()
+        persistNotificationsEnabled(false)
+        toast.success('Message notifications turned off.')
+        return
+      }
+      await requestNotificationPermission()
+    } finally {
+      setIsUpdatingMessageNotifications(false)
+    }
+  }
+
+  const togglePanelNotifications = () => {
+    if (isUpdatingPanelNotifications) return
+    setIsUpdatingPanelNotifications(true)
+    try {
+      const next = !inAppNotificationsEnabled
+      persistInAppNotificationsEnabled(next)
+      toast.success(next ? 'Notification panel turned on.' : 'Notification panel turned off.')
+    } finally {
+      setIsUpdatingPanelNotifications(false)
     }
   }
 
@@ -196,23 +254,23 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
 
     const refreshSettings = () => {
       const permission = pushService.getPermission()
-      const enabled = pushService.getEnabled() && permission === 'granted'
+      const enabled = pushService.getMessageNotificationsEnabled() && permission === 'granted'
       setNotificationPermission(permission)
       setNotificationsEnabled(enabled)
       notificationsEnabledRef.current = enabled
     }
 
     const handleStorage = (event) => {
-      if (event.key === 'messageNotificationsEnabled') {
+      if (event.key === pushService.keys.MESSAGE_STORAGE_KEY) {
         refreshSettings()
       }
     }
 
-    window.addEventListener('message-notifications-updated', refreshSettings)
+    window.addEventListener(pushService.events.MESSAGE_EVENT_NAME, refreshSettings)
     window.addEventListener('storage', handleStorage)
 
     return () => {
-      window.removeEventListener('message-notifications-updated', refreshSettings)
+      window.removeEventListener(pushService.events.MESSAGE_EVENT_NAME, refreshSettings)
       window.removeEventListener('storage', handleStorage)
     }
   }, [notificationsSupported])
@@ -227,6 +285,8 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
       const socket = socketService.connect(localStorage.getItem('token'))
 
       const handleNewMessage = ({ message, conversationId }) => {
+        if (message?.sender === currentUser?._id) return
+
         if (message?._id) {
           if (processedMessageIdsRef.current.has(message._id)) return
           processedMessageIdsRef.current.add(message._id)
@@ -241,6 +301,9 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
         if (activeConversationId !== conversationId) {
             dispatch(incrementUnreadMessagesCount())
         }
+
+        // Keep unread badge accurate even if local active conversation state is stale.
+        dispatch(fetchUnreadMessages())
       }
 
       socket.on('new_message', handleNewMessage)
@@ -252,34 +315,66 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
   }, [currentUser, dispatch, activeConversationId])
 
   useEffect(() => {
-    const stored = localStorage.getItem('inAppNotificationsEnabled')
-    const enabled = stored === null ? true : stored === 'true'
-    setInAppNotificationsEnabled(enabled)
+    if (!currentUser) return
+
+    const refreshUnread = () => {
+      dispatch(fetchUnreadMessages())
+    }
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        refreshUnread()
+      }
+    }
+
+    window.addEventListener('focus', refreshUnread)
+    document.addEventListener('visibilitychange', handleVisibility)
+
+    return () => {
+      window.removeEventListener('focus', refreshUnread)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
+  }, [currentUser, dispatch])
+
+  useEffect(() => {
+    if (!currentUser) return
+
+    const interval = setInterval(() => {
+      dispatch(fetchUnreadMessages())
+    }, 30000)
+
+    return () => clearInterval(interval)
+  }, [currentUser, dispatch])
+
+  useEffect(() => {
+    setInAppNotificationsEnabled(pushService.getPanelNotificationsEnabled())
   }, [])
 
   const persistInAppNotificationsEnabled = (enabled) => {
-    localStorage.setItem('inAppNotificationsEnabled', enabled ? 'true' : 'false')
+    pushService.setPanelNotificationsEnabled(enabled)
     setInAppNotificationsEnabled(enabled)
-    window.dispatchEvent(new Event('in-app-notifications-updated'))
   }
 
   useEffect(() => {
     const refresh = () => {
-      const stored = localStorage.getItem('inAppNotificationsEnabled')
-      const enabled = stored === null ? true : stored === 'true'
-      setInAppNotificationsEnabled(enabled)
+      setInAppNotificationsEnabled(pushService.getPanelNotificationsEnabled())
     }
 
     const handleStorage = (event) => {
-      if (event.key === 'inAppNotificationsEnabled') {
+      if (
+        event.key === pushService.keys.PANEL_STORAGE_KEY ||
+        event.key === pushService.keys.LEGACY_PANEL_STORAGE_KEY
+      ) {
         refresh()
       }
     }
 
+    window.addEventListener(pushService.events.PANEL_EVENT_NAME, refresh)
     window.addEventListener('in-app-notifications-updated', refresh)
     window.addEventListener('storage', handleStorage)
 
     return () => {
+      window.removeEventListener(pushService.events.PANEL_EVENT_NAME, refresh)
       window.removeEventListener('in-app-notifications-updated', refresh)
       window.removeEventListener('storage', handleStorage)
     }
@@ -552,17 +647,7 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
       if (Array.isArray(parsed) && parsed.length > 0) {
         setScoutMessages(parsed)
       }
-    } catch (_) {
-      // Ignore bad local storage payloads and keep defaults.
-    }
-  }, [])
-
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(SCOUT_SIDEBAR_STATE_KEY)
-      if (stored === null) return
-      setIsScoutSidebarOpen(stored === 'true')
-    } catch (_) {
+    } catch {
       // Ignore bad local storage payloads and keep defaults.
     }
   }, [])
@@ -570,7 +655,7 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
   useEffect(() => {
     try {
       localStorage.setItem(SCOUT_STORAGE_KEY, JSON.stringify(scoutMessages))
-    } catch (_) {
+    } catch {
       // Ignore storage write errors.
     }
   }, [scoutMessages])
@@ -578,7 +663,7 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
   useEffect(() => {
     try {
       localStorage.setItem(SCOUT_SIDEBAR_STATE_KEY, String(isScoutSidebarOpen))
-    } catch (_) {
+    } catch {
       // Ignore storage write errors.
     }
   }, [isScoutSidebarOpen])
@@ -1193,50 +1278,41 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
                           </button>
                         </div>
 
-                        {notificationsSupported && (
-                          <div className='px-6 pt-4'>
-                            <div className='flex items-center justify-between gap-3 rounded-2xl border border-amber-100 bg-amber-50/70 px-4 py-3'>
-                              <div className='flex items-center gap-3 min-w-0'>
-                                <div className='w-8 h-8 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center flex-shrink-0'>
-                                  <Bell size={16} />
-                                </div>
-                                <div className='min-w-0'>
-                                  <p className='text-xs font-bold text-amber-900 leading-tight'>Browser notifications</p>
-                                  <p className='text-[11px] text-amber-700 leading-tight'>
-                                    Get alerts when new messages arrive
-                                  </p>
-                                </div>
+                        <div className='px-6 pt-4'>
+                          <div className='flex items-center justify-between gap-3 rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3'>
+                            <div className='flex items-center gap-3 min-w-0'>
+                              <div className='w-8 h-8 rounded-full bg-gray-200 text-gray-700 flex items-center justify-center flex-shrink-0'>
+                                <Bell size={16} />
                               </div>
-                              {notificationPermission === 'granted' ? (
-                                <button
-                                  onClick={async () => {
-                                    if (notificationsEnabled) {
-                                      await pushService.unsubscribe()
-                                      persistNotificationsEnabled(false)
-                                    } else {
-                                      await requestNotificationPermission()
-                                    }
-                                  }}
-                                  className='text-[11px] font-bold text-amber-900/80 hover:text-amber-900 transition whitespace-nowrap'
-                                >
-                                  {notificationsEnabled ? 'Turn off' : 'Turn on'}
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={requestNotificationPermission}
-                                  disabled={notificationPermission === 'denied'}
-                                  className={`text-[11px] font-bold transition whitespace-nowrap ${
-                                    notificationPermission === 'denied'
-                                      ? 'text-amber-300 cursor-not-allowed'
-                                      : 'text-amber-900 hover:text-amber-800'
-                                  }`}
-                                >
-                                  {notificationPermission === 'denied' ? 'Blocked' : 'Enable'}
-                                </button>
-                              )}
+                              <div className='min-w-0'>
+                                <p className='text-xs font-bold text-gray-900 leading-tight'>Notification panel</p>
+                                <p className='text-[11px] text-gray-600 leading-tight'>
+                                  Control bell drawer updates and badges
+                                </p>
+                                {isUpdatingPanelNotifications && (
+                                  <p className='text-[11px] text-gray-500 leading-tight'>Updating...</p>
+                                )}
+                              </div>
                             </div>
+                            <button
+                              type='button'
+                              role='switch'
+                              aria-checked={inAppNotificationsEnabled}
+                              aria-label='Toggle notification panel'
+                              onClick={togglePanelNotifications}
+                              disabled={isUpdatingPanelNotifications}
+                              className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
+                                inAppNotificationsEnabled ? 'bg-emerald-500' : 'bg-gray-300'
+                              } ${isUpdatingPanelNotifications ? 'opacity-60 cursor-not-allowed' : ''}`}
+                            >
+                              <span
+                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                                  inAppNotificationsEnabled ? 'translate-x-6' : 'translate-x-1'
+                                }`}
+                              />
+                            </button>
                           </div>
-                        )}
+                        </div>
 
                         {/* Tabs Header */}
                         <div className='px-6 pt-4 pb-2 bg-white/80 backdrop-blur-md sticky top-0 z-20 border-b border-gray-50/50'>

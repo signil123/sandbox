@@ -2,12 +2,36 @@
 import webpush from 'web-push'
 import PushSubscription from '../models/PushSubscription.js'
 
+let generatedDevVapidConfig = null
+let hasLoggedDevFallback = false
+
 const getVapidConfig = () => {
   const publicKey = process.env.VAPID_PUBLIC_KEY
   const privateKey = process.env.VAPID_PRIVATE_KEY
   const subject = process.env.VAPID_SUBJECT || 'mailto:support@signilai.com'
-  if (!publicKey || !privateKey) return null
-  return { publicKey, privateKey, subject }
+
+  if (publicKey && privateKey) {
+    return { publicKey, privateKey, subject }
+  }
+
+  // Development fallback to keep push flow functional even if .env is not loaded.
+  if (process.env.NODE_ENV !== 'production') {
+    if (!generatedDevVapidConfig) {
+      const keys = webpush.generateVAPIDKeys()
+      generatedDevVapidConfig = {
+        publicKey: keys.publicKey,
+        privateKey: keys.privateKey,
+        subject,
+      }
+    }
+    if (!hasLoggedDevFallback) {
+      console.warn('[push] VAPID keys missing in env; using generated development keys for this process.')
+      hasLoggedDevFallback = true
+    }
+    return generatedDevVapidConfig
+  }
+
+  return null
 }
 
 const ensureVapidConfigured = () => {

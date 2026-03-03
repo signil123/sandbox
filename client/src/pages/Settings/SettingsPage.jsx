@@ -12,6 +12,8 @@ import {
 } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
+import { useSearchParams } from 'react-router-dom'
+import { toast } from 'sonner'
 import ProBadge from '../../components/Common/ProBadge'
 import DocumentManager from '../../components/Profile/DocumentManager'
 import UpgradeModal from '../../components/Subscription/UpgradeModal'
@@ -19,6 +21,7 @@ import AddCardModal from '../../components/Subscription/AddCardModal'
 import { TIERS, TIER_DETAILS, VERIFICATION_STATUS } from '../../constants/tiers'
 import { selectCurrentUser, selectUserTier, selectVerificationStatus, setUser } from '../../redux/userSlice'
 import axiosInstance from '../../config'
+import { profileService } from '../../services/profileService'
 import { subscriptionService } from '../../services/subscriptionService'
 import { pushService } from '../../services/pushService'
 import DashboardLayout from '../Layout/DashboardLayout'
@@ -36,6 +39,7 @@ const formatDate = (dateValue) => {
 
 const SettingsPage = () => {
   const dispatch = useDispatch()
+  const [searchParams, setSearchParams] = useSearchParams()
   const currentUser = useSelector(selectCurrentUser)
   const currentTier = useSelector(selectUserTier)
   const verificationStatus = useSelector(selectVerificationStatus)
@@ -57,6 +61,10 @@ const SettingsPage = () => {
   const [notificationPermission, setNotificationPermission] = useState('default')
   const [notificationsEnabled, setNotificationsEnabled] = useState(false)
   const [inAppNotificationsEnabled, setInAppNotificationsEnabled] = useState(true)
+  const [showLastSeen, setShowLastSeen] = useState(true)
+  const [isUpdatingPanelNotifications, setIsUpdatingPanelNotifications] = useState(false)
+  const [isUpdatingMessageNotifications, setIsUpdatingMessageNotifications] = useState(false)
+  const [isUpdatingLastSeen, setIsUpdatingLastSeen] = useState(false)
   const currentUserRef = useRef(currentUser)
   const refreshInFlightRef = useRef(false)
   const hasLoadedRef = useRef(false)
@@ -70,6 +78,7 @@ const SettingsPage = () => {
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'security', label: 'Security', icon: Lock },
   ]
+  const validTabIds = useMemo(() => tabs.map((tab) => tab.id), [tabs])
 
   const currentSubscriptionTier = subscription?.plan?.tier || currentTier
 
@@ -95,26 +104,28 @@ const SettingsPage = () => {
     if (!isSupported) return
 
     const permission = pushService.getPermission()
-    const enabled = pushService.getEnabled() && permission === 'granted'
+    const enabled = pushService.getMessageNotificationsEnabled() && permission === 'granted'
     setNotificationPermission(permission)
     setNotificationsEnabled(enabled)
   }, [])
 
   useEffect(() => {
-    const stored = localStorage.getItem('inAppNotificationsEnabled')
-    const enabled = stored === null ? true : stored === 'true'
-    setInAppNotificationsEnabled(enabled)
+    setInAppNotificationsEnabled(pushService.getPanelNotificationsEnabled())
   }, [])
 
+  useEffect(() => {
+    const enabled = currentUser?.settings?.showLastSeen
+    setShowLastSeen(enabled === undefined ? true : Boolean(enabled))
+  }, [currentUser?.settings?.showLastSeen])
+
   const persistNotificationsEnabled = (enabled) => {
-    pushService.setEnabled(enabled)
+    pushService.setMessageNotificationsEnabled(enabled)
     setNotificationsEnabled(enabled)
   }
 
   const persistInAppNotificationsEnabled = (enabled) => {
-    localStorage.setItem('inAppNotificationsEnabled', enabled ? 'true' : 'false')
+    pushService.setPanelNotificationsEnabled(enabled)
     setInAppNotificationsEnabled(enabled)
-    window.dispatchEvent(new Event('in-app-notifications-updated'))
   }
 
   const requestNotificationPermission = async () => {
@@ -122,12 +133,92 @@ const SettingsPage = () => {
 
     const result = await pushService.subscribe()
     const permission = pushService.getPermission()
-    const enabled = pushService.getEnabled() && permission === 'granted'
+    const enabled = pushService.getMessageNotificationsEnabled() && permission === 'granted'
     setNotificationPermission(permission)
     setNotificationsEnabled(enabled)
 
     if (!result.ok) {
       persistNotificationsEnabled(false)
+      if (result.reason === 'denied') {
+        toast.error('Message notifications are blocked in your browser settings.')
+        return
+      }
+      toast.error('Could not enable message notifications.')
+      return
+    }
+
+    toast.success('Message notifications turned on.')
+  }
+
+  const togglePanelNotifications = () => {
+    if (isUpdatingPanelNotifications) return
+    setIsUpdatingPanelNotifications(true)
+    try {
+      const next = !inAppNotificationsEnabled
+      persistInAppNotificationsEnabled(next)
+      toast.success(next ? 'Notification panel turned on.' : 'Notification panel turned off.')
+    } finally {
+      setIsUpdatingPanelNotifications(false)
+    }
+  }
+
+  const toggleMessageNotifications = async () => {
+    if (isUpdatingMessageNotifications) return
+    if (!notificationsSupported) return
+
+    setIsUpdatingMessageNotifications(true)
+    try {
+      if (notificationsEnabled && notificationPermission === 'granted') {
+        await pushService.unsubscribe()
+        persistNotificationsEnabled(false)
+        toast.success('Message notifications turned off.')
+        return
+      }
+
+      await requestNotificationPermission()
+    } finally {
+      setIsUpdatingMessageNotifications(false)
+    }
+  }
+
+  const toggleLastSeen = async () => {
+    if (isUpdatingLastSeen) return
+    setIsUpdatingLastSeen(true)
+    const next = !showLastSeen
+
+    try {
+      const response = await profileService.updateSettings({ showLastSeen: next })
+      setShowLastSeen(next)
+
+      const updatedUser = response?.data?.user
+      if (updatedUser && currentUser) {
+        dispatch(
+          setUser({
+            ...currentUser,
+            ...updatedUser,
+            settings: {
+              ...(currentUser.settings || {}),
+              ...(updatedUser.settings || {}),
+            },
+          })
+        )
+      } else if (currentUser) {
+        dispatch(
+          setUser({
+            ...currentUser,
+            settings: {
+              ...(currentUser.settings || {}),
+              showLastSeen: next,
+            },
+          })
+        )
+      }
+
+      toast.success(next ? 'Last seen turned on.' : 'Last seen turned off.')
+    } catch (error) {
+      toast.error(error || 'Failed to update last seen setting.')
+    } finally {
+      setIsUpdatingLastSeen(false)
     }
   }
 
@@ -136,47 +227,76 @@ const SettingsPage = () => {
 
     const refreshSettings = () => {
       const permission = pushService.getPermission()
-      const enabled = pushService.getEnabled() && permission === 'granted'
+      const enabled = pushService.getMessageNotificationsEnabled() && permission === 'granted'
       setNotificationPermission(permission)
       setNotificationsEnabled(enabled)
     }
 
     const handleStorage = (event) => {
-      if (event.key === 'messageNotificationsEnabled') {
+      if (event.key === pushService.keys.MESSAGE_STORAGE_KEY) {
         refreshSettings()
       }
     }
 
-    window.addEventListener('message-notifications-updated', refreshSettings)
+    window.addEventListener(pushService.events.MESSAGE_EVENT_NAME, refreshSettings)
     window.addEventListener('storage', handleStorage)
 
     return () => {
-      window.removeEventListener('message-notifications-updated', refreshSettings)
+      window.removeEventListener(pushService.events.MESSAGE_EVENT_NAME, refreshSettings)
       window.removeEventListener('storage', handleStorage)
     }
   }, [notificationsSupported])
 
   useEffect(() => {
     const refreshSettings = () => {
-      const stored = localStorage.getItem('inAppNotificationsEnabled')
-      const enabled = stored === null ? true : stored === 'true'
-      setInAppNotificationsEnabled(enabled)
+      setInAppNotificationsEnabled(pushService.getPanelNotificationsEnabled())
     }
 
     const handleStorage = (event) => {
-      if (event.key === 'inAppNotificationsEnabled') {
+      if (
+        event.key === pushService.keys.PANEL_STORAGE_KEY ||
+        event.key === pushService.keys.LEGACY_PANEL_STORAGE_KEY
+      ) {
         refreshSettings()
       }
     }
 
+    window.addEventListener(pushService.events.PANEL_EVENT_NAME, refreshSettings)
     window.addEventListener('in-app-notifications-updated', refreshSettings)
     window.addEventListener('storage', handleStorage)
 
     return () => {
+      window.removeEventListener(pushService.events.PANEL_EVENT_NAME, refreshSettings)
       window.removeEventListener('in-app-notifications-updated', refreshSettings)
       window.removeEventListener('storage', handleStorage)
     }
   }, [])
+
+  useEffect(() => {
+    if (!validTabIds.length) return
+
+    const tabParam = searchParams.get('tab')
+    const fallbackTab = validTabIds[0]
+    const resolvedTab = tabParam && validTabIds.includes(tabParam) ? tabParam : fallbackTab
+
+    if (activeTab !== resolvedTab) {
+      setActiveTab(resolvedTab)
+    }
+
+    if (tabParam !== resolvedTab) {
+      const nextParams = new URLSearchParams(searchParams)
+      nextParams.set('tab', resolvedTab)
+      setSearchParams(nextParams, { replace: true })
+    }
+  }, [activeTab, searchParams, setSearchParams, validTabIds])
+
+  const handleTabChange = (tabId) => {
+    if (!validTabIds.includes(tabId)) return
+    setActiveTab(tabId)
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.set('tab', tabId)
+    setSearchParams(nextParams, { replace: true })
+  }
 
   const refreshSubscription = useCallback(async () => {
     if (!isSubscriptionEligible) return
@@ -382,7 +502,7 @@ const SettingsPage = () => {
               </p>
             </div>
             <Button
-              onClick={() => setActiveTab('plans')}
+              onClick={() => handleTabChange('plans')}
               className="bg-[#986a41] hover:bg-[#855c38] text-white font-bold rounded-2xl px-8 py-6 text-lg shadow-xl shadow-[#986a41]/20 transition-all border-none"
             >
               Manage Subscription
@@ -740,77 +860,133 @@ const SettingsPage = () => {
         <div>
           <h3 className="text-xl font-bold text-gray-900">Notifications</h3>
           <p className="text-sm text-gray-500 mt-1">
-            Control how you receive message alerts across the app.
+            Control notification panel updates and message alerts separately.
           </p>
         </div>
       </div>
 
-      {!notificationsSupported && (
-        <div className="rounded-2xl border border-gray-100 bg-gray-50 px-5 py-4 text-sm text-gray-500">
-          Browser notifications are not supported on this device.
-        </div>
-      )}
-
-      {notificationsSupported && (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-gray-100 bg-gray-50 px-5 py-4">
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-gray-900 leading-tight">In-app notifications</p>
-              <p className="text-xs text-gray-500 leading-tight">
-                Show updates inside the app (bell drawer and badges).
-              </p>
-            </div>
-            <button
-              onClick={() => persistInAppNotificationsEnabled(!inAppNotificationsEnabled)}
-              className="px-4 py-2 rounded-xl text-xs font-bold bg-white text-gray-800 border border-gray-200 hover:border-gray-300 transition whitespace-nowrap"
-            >
-              {inAppNotificationsEnabled ? 'Turn off' : 'Turn on'}
-            </button>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-100 bg-amber-50/70 px-5 py-4">
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-amber-900 leading-tight">Browser notifications</p>
-              <p className="text-xs text-amber-700 leading-tight">
-                Get alerts when new messages arrive, even if you’re not in the chat.
-              </p>
-            </div>
-            {notificationPermission === 'granted' ? (
-              <button
-                onClick={async () => {
-                  if (notificationsEnabled) {
-                    await pushService.unsubscribe()
-                    persistNotificationsEnabled(false)
-                  } else {
-                    await requestNotificationPermission()
-                  }
-                }}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-white text-amber-900 border border-amber-200 hover:border-amber-300 transition whitespace-nowrap"
-              >
-                {notificationsEnabled ? 'Turn off' : 'Turn on'}
-              </button>
-            ) : (
-              <button
-                onClick={requestNotificationPermission}
-                disabled={notificationPermission === 'denied'}
-                className={`px-4 py-2 rounded-xl text-xs font-bold border transition whitespace-nowrap ${
-                  notificationPermission === 'denied'
-                    ? 'bg-gray-100 text-gray-300 border-gray-200 cursor-not-allowed'
-                    : 'bg-white text-amber-900 border-amber-200 hover:border-amber-300'
-                }`}
-              >
-                {notificationPermission === 'denied' ? 'Blocked' : 'Enable'}
-              </button>
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-gray-100 bg-gray-50 px-5 py-4">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-gray-900 leading-tight">Notification panel</p>
+            <p className="text-xs text-gray-500 leading-tight">
+              Show updates in the bell drawer and notification badges.
+            </p>
+            {isUpdatingPanelNotifications && (
+              <p className="text-xs text-gray-400 leading-tight mt-1">Updating...</p>
             )}
           </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={inAppNotificationsEnabled}
+            aria-label="Toggle notification panel"
+            onClick={togglePanelNotifications}
+            disabled={isUpdatingPanelNotifications}
+            className={`relative inline-flex h-7 w-12 items-center rounded-full transition ${
+              inAppNotificationsEnabled ? 'bg-emerald-500' : 'bg-gray-300'
+            } ${isUpdatingPanelNotifications ? 'opacity-60 cursor-not-allowed' : ''}`}
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${
+                inAppNotificationsEnabled ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </div>
 
-          {notificationPermission === 'denied' && (
-            <div className="rounded-2xl border border-gray-100 bg-gray-50 px-5 py-4 text-xs text-gray-500">
-              Notifications are blocked in your browser settings. Allow them there to enable alerts.
+        {!notificationsSupported ? (
+          <div className="rounded-2xl border border-gray-100 bg-gray-50 px-5 py-4 text-sm text-gray-500">
+            Message/browser push notifications are not supported on this device.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-100 bg-amber-50/70 px-5 py-4">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-amber-900 leading-tight">Message notifications</p>
+                <p className="text-xs text-amber-700 leading-tight">
+                  Receive browser push alerts for new messages, even outside chat.
+                </p>
+                {isUpdatingMessageNotifications && (
+                  <p className="text-xs text-amber-700/80 leading-tight mt-1">Updating...</p>
+                )}
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={notificationsEnabled && notificationPermission === 'granted'}
+                aria-label="Toggle message notifications"
+                onClick={toggleMessageNotifications}
+                disabled={notificationPermission === 'denied' || isUpdatingMessageNotifications}
+                className={`relative inline-flex h-7 w-12 items-center rounded-full transition ${
+                  notificationsEnabled && notificationPermission === 'granted'
+                    ? 'bg-emerald-500'
+                    : 'bg-gray-300'
+                } ${notificationPermission === 'denied' || isUpdatingMessageNotifications ? 'cursor-not-allowed opacity-60' : ''}`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${
+                    notificationsEnabled && notificationPermission === 'granted'
+                      ? 'translate-x-6'
+                      : 'translate-x-1'
+                  }`}
+                />
+              </button>
             </div>
+
+            {notificationPermission === 'denied' && (
+              <div className="rounded-2xl border border-gray-100 bg-gray-50 px-5 py-4 text-xs text-gray-500">
+                Notifications are blocked in your browser settings. Allow them there to enable alerts.
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
+  const renderSecurityTab = () => (
+    <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8 md:p-10">
+      <div className="flex items-start gap-4 mb-8">
+        <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-700 flex items-center justify-center">
+          <Lock size={22} />
+        </div>
+        <div>
+          <h3 className="text-xl font-bold text-gray-900">Security</h3>
+          <p className="text-sm text-gray-500 mt-1">
+            Privacy and account visibility controls.
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-gray-100 bg-gray-50 px-5 py-4">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-gray-900 leading-tight">Last seen</p>
+          <p className="text-xs text-gray-500 leading-tight">
+            Let other users see when you were last active.
+          </p>
+          {isUpdatingLastSeen && (
+            <p className="text-xs text-gray-400 leading-tight mt-1">Updating...</p>
           )}
         </div>
-      )}
+        <button
+          type="button"
+          role="switch"
+          aria-checked={showLastSeen}
+          aria-label="Toggle last seen visibility"
+          onClick={toggleLastSeen}
+          disabled={isUpdatingLastSeen}
+          className={`relative inline-flex h-7 w-12 items-center rounded-full transition ${
+            showLastSeen ? 'bg-emerald-500' : 'bg-gray-300'
+          } ${isUpdatingLastSeen ? 'opacity-60 cursor-not-allowed' : ''}`}
+        >
+          <span
+            className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${
+              showLastSeen ? 'translate-x-6' : 'translate-x-1'
+            }`}
+          />
+        </button>
+      </div>
     </div>
   )
 
@@ -826,7 +1002,7 @@ const SettingsPage = () => {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => handleTabChange(tab.id)}
                   className={`flex-1 md:flex-none flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-[20px] text-xs font-black uppercase tracking-widest transition-colors relative border-2 focus:outline-none focus-visible:ring-0 ${
                     isActive
                       ? 'bg-[#163146] text-white border-[#163146] shadow-xl shadow-blue-900/10'
@@ -846,10 +1022,14 @@ const SettingsPage = () => {
                 {activeTab === 'subscription' && renderSubscriptionTab()}
                 {activeTab === 'plans' && renderPlansTab()}
                 {activeTab === 'notifications' && renderNotificationsTab()}
-                {activeTab !== 'subscription' && activeTab !== 'plans' && activeTab !== 'notifications' && (
+                {activeTab === 'security' && renderSecurityTab()}
+                {activeTab !== 'subscription' && activeTab !== 'plans' && activeTab !== 'notifications' && activeTab !== 'security' && (
                   <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-12 text-center">
                     <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6 text-gray-300">
-                      {tabs.find((t) => t.id === activeTab)?.icon({ size: 40 })}
+                      {(() => {
+                        const ActiveTabIcon = tabs.find((t) => t.id === activeTab)?.icon
+                        return ActiveTabIcon ? <ActiveTabIcon size={40} /> : null
+                      })()}
                     </div>
                     <h3 className="text-2xl font-bold text-gray-900 mb-2">{tabs.find((t) => t.id === activeTab)?.label}</h3>
                     <p className="text-gray-500">This section is currently being refined.</p>

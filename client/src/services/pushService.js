@@ -1,8 +1,11 @@
 // File: client/src/services/pushService.js
 import axiosInstance from '../config'
 
-const STORAGE_KEY = 'messageNotificationsEnabled'
-const EVENT_NAME = 'message-notifications-updated'
+const MESSAGE_STORAGE_KEY = 'messageNotificationsEnabled'
+const PANEL_STORAGE_KEY = 'panelNotificationsEnabled'
+const LEGACY_PANEL_STORAGE_KEY = 'inAppNotificationsEnabled'
+const MESSAGE_EVENT_NAME = 'message-notifications-updated'
+const PANEL_EVENT_NAME = 'panel-notifications-updated'
 
 const urlBase64ToUint8Array = (base64String) => {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
@@ -23,23 +26,55 @@ const isSupported = () =>
 
 const getPermission = () => (typeof Notification !== 'undefined' ? Notification.permission : 'default')
 
-const getEnabled = () => localStorage.getItem(STORAGE_KEY) === 'true'
+const getMessageNotificationsEnabled = () => localStorage.getItem(MESSAGE_STORAGE_KEY) === 'true'
 
-const setEnabled = (enabled) => {
-  localStorage.setItem(STORAGE_KEY, enabled ? 'true' : 'false')
-  window.dispatchEvent(new Event(EVENT_NAME))
+const setMessageNotificationsEnabled = (enabled) => {
+  localStorage.setItem(MESSAGE_STORAGE_KEY, enabled ? 'true' : 'false')
+  window.dispatchEvent(new Event(MESSAGE_EVENT_NAME))
+}
+
+const getPanelNotificationsEnabled = () => {
+  const next = localStorage.getItem(PANEL_STORAGE_KEY)
+  if (next === null) {
+    const legacy = localStorage.getItem(LEGACY_PANEL_STORAGE_KEY)
+    if (legacy !== null) return legacy === 'true'
+    return true
+  }
+  return next === 'true'
+}
+
+const setPanelNotificationsEnabled = (enabled) => {
+  const serialized = enabled ? 'true' : 'false'
+  localStorage.setItem(PANEL_STORAGE_KEY, serialized)
+  // Keep legacy key synchronized for backward compatibility.
+  localStorage.setItem(LEGACY_PANEL_STORAGE_KEY, serialized)
+  window.dispatchEvent(new Event(PANEL_EVENT_NAME))
+  window.dispatchEvent(new Event('in-app-notifications-updated'))
 }
 
 const registerServiceWorker = async () => {
   if (!('serviceWorker' in navigator)) return null
-  const existing = await navigator.serviceWorker.getRegistration()
-  if (existing) return existing
-  return navigator.serviceWorker.register('/sw.js')
+
+  const existing = await navigator.serviceWorker.getRegistration('/sw.js')
+  if (existing) {
+    existing.update().catch(() => {})
+    await navigator.serviceWorker.ready
+    return existing
+  }
+
+  const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+  registration.update().catch(() => {})
+  await navigator.serviceWorker.ready
+  return registration
 }
 
 const getPublicKey = async () => {
-  const res = await axiosInstance.get('/push/public-key')
-  return res?.data?.publicKey
+  try {
+    const res = await axiosInstance.get('/push/public-key')
+    return res?.data?.publicKey || null
+  } catch {
+    return null
+  }
 }
 
 const subscribe = async () => {
@@ -71,13 +106,13 @@ const subscribe = async () => {
     userAgent: navigator.userAgent,
   })
 
-  setEnabled(true)
+  setMessageNotificationsEnabled(true)
   return { ok: true }
 }
 
 const unsubscribe = async () => {
   if (!isSupported()) {
-    setEnabled(false)
+    setMessageNotificationsEnabled(false)
     return { ok: true }
   }
 
@@ -90,15 +125,30 @@ const unsubscribe = async () => {
     await subscription.unsubscribe()
   }
 
-  setEnabled(false)
+  setMessageNotificationsEnabled(false)
   return { ok: true }
 }
 
 export const pushService = {
   isSupported,
   getPermission,
-  getEnabled,
-  setEnabled,
+  ensureServiceWorker: registerServiceWorker,
+  getMessageNotificationsEnabled,
+  setMessageNotificationsEnabled,
+  getPanelNotificationsEnabled,
+  setPanelNotificationsEnabled,
+  // Backward compatible aliases.
+  getEnabled: getMessageNotificationsEnabled,
+  setEnabled: setMessageNotificationsEnabled,
   subscribe,
   unsubscribe,
+  keys: {
+    MESSAGE_STORAGE_KEY,
+    PANEL_STORAGE_KEY,
+    LEGACY_PANEL_STORAGE_KEY,
+  },
+  events: {
+    MESSAGE_EVENT_NAME,
+    PANEL_EVENT_NAME,
+  },
 }

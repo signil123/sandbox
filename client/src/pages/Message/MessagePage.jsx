@@ -148,6 +148,18 @@ const formatDate = (value) => {
   })
 }
 
+const formatLastSeen = (value) => {
+  if (!value) return 'Last seen hidden'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Last seen hidden'
+  return `Last seen ${date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })}`
+}
+
 // Expanded Profile View Component - Matches ProfilePopup styling
 function ExpandedProfileView({
   user,
@@ -517,6 +529,9 @@ function MessagePage() {
   const [notificationsSupported, setNotificationsSupported] = useState(false)
   const [notificationPermission, setNotificationPermission] = useState('default')
   const [notificationsEnabled, setNotificationsEnabled] = useState(false)
+  const [isUpdatingMessageNotifications, setIsUpdatingMessageNotifications] = useState(false)
+  const [showLastSeen, setShowLastSeen] = useState(true)
+  const [isUpdatingLastSeen, setIsUpdatingLastSeen] = useState(false)
   const [confirmationModal, setConfirmationModal] = useState({
     isOpen: false,
     title: '',
@@ -574,20 +589,27 @@ function MessagePage() {
   }, [conversations])
 
   useEffect(() => {
+    const enabled = currentLoggedInUser?.settings?.showLastSeen
+    setShowLastSeen(enabled === undefined ? true : Boolean(enabled))
+  }, [currentLoggedInUser?.settings?.showLastSeen])
+
+  useEffect(() => {
     const isSupported = pushService.isSupported()
     setNotificationsSupported(isSupported)
     notificationsSupportedRef.current = isSupported
     if (!isSupported) return
 
+    pushService.ensureServiceWorker().catch(() => {})
+
     const permission = pushService.getPermission()
-    const enabled = pushService.getEnabled() && permission === 'granted'
+    const enabled = pushService.getMessageNotificationsEnabled() && permission === 'granted'
     setNotificationPermission(permission)
     setNotificationsEnabled(enabled)
     notificationsEnabledRef.current = enabled
   }, [])
 
   const persistNotificationsEnabled = (enabled) => {
-    pushService.setEnabled(enabled)
+    pushService.setMessageNotificationsEnabled(enabled)
     setNotificationsEnabled(enabled)
     notificationsEnabledRef.current = enabled
   }
@@ -597,30 +619,81 @@ function MessagePage() {
 
     const result = await pushService.subscribe()
     const permission = pushService.getPermission()
-    const enabled = pushService.getEnabled() && permission === 'granted'
+    const enabled = pushService.getMessageNotificationsEnabled() && permission === 'granted'
     setNotificationPermission(permission)
     setNotificationsEnabled(enabled)
     notificationsEnabledRef.current = enabled
 
     if (result.ok) {
-      toast.success('Browser notifications enabled.')
+      toast.success('Message notifications turned on.')
       return
     }
 
     if (result.reason === 'denied') {
       toast.error('Notifications are blocked in your browser settings.')
+      return
+    }
+    if (!result.ok) {
+      toast.error('Could not enable message notifications.')
     }
   }
 
-  const buildNotificationBody = (message) => {
-    if (!message) return 'You have a new message.'
-    if (message.content) return message.content
-    if (message.type === 'image') return 'Sent an image.'
-    if (message.type === 'document') return 'Sent a file.'
-    if (message.type === 'event_invitation') return 'Sent an event invitation.'
-    if (message.type === 'event') return 'Sent an event.'
-    if (message.attachments?.length) return 'Sent an attachment.'
-    return 'You have a new message.'
+  const toggleMessageNotifications = async () => {
+    if (isUpdatingMessageNotifications) return
+    if (!notificationsSupported) return
+    setIsUpdatingMessageNotifications(true)
+    try {
+      if (notificationsEnabled && notificationPermission === 'granted') {
+        await pushService.unsubscribe()
+        persistNotificationsEnabled(false)
+        toast.success('Message notifications turned off.')
+        return
+      }
+      await requestNotificationPermission()
+    } finally {
+      setIsUpdatingMessageNotifications(false)
+    }
+  }
+
+  const toggleLastSeen = async () => {
+    if (isUpdatingLastSeen) return
+    setIsUpdatingLastSeen(true)
+    const next = !showLastSeen
+
+    try {
+      const response = await profileService.updateSettings({ showLastSeen: next })
+      setShowLastSeen(next)
+
+      const updatedUser = response?.data?.user
+      if (updatedUser && currentLoggedInUser) {
+        dispatch(
+          setUser({
+            ...currentLoggedInUser,
+            ...updatedUser,
+            settings: {
+              ...(currentLoggedInUser.settings || {}),
+              ...(updatedUser.settings || {}),
+            },
+          })
+        )
+      } else if (currentLoggedInUser) {
+        dispatch(
+          setUser({
+            ...currentLoggedInUser,
+            settings: {
+              ...(currentLoggedInUser.settings || {}),
+              showLastSeen: next,
+            },
+          })
+        )
+      }
+
+      toast.success(next ? 'Last seen turned on.' : 'Last seen turned off.')
+    } catch (error) {
+      toast.error(error || 'Failed to update last seen setting.')
+    } finally {
+      setIsUpdatingLastSeen(false)
+    }
   }
 
   useEffect(() => {
@@ -628,23 +701,23 @@ function MessagePage() {
 
     const refreshSettings = () => {
       const permission = pushService.getPermission()
-      const enabled = pushService.getEnabled() && permission === 'granted'
+      const enabled = pushService.getMessageNotificationsEnabled() && permission === 'granted'
       setNotificationPermission(permission)
       setNotificationsEnabled(enabled)
       notificationsEnabledRef.current = enabled
     }
 
     const handleStorage = (event) => {
-      if (event.key === 'messageNotificationsEnabled') {
+      if (event.key === pushService.keys.MESSAGE_STORAGE_KEY) {
         refreshSettings()
       }
     }
 
-    window.addEventListener('message-notifications-updated', refreshSettings)
+    window.addEventListener(pushService.events.MESSAGE_EVENT_NAME, refreshSettings)
     window.addEventListener('storage', handleStorage)
 
     return () => {
-      window.removeEventListener('message-notifications-updated', refreshSettings)
+      window.removeEventListener(pushService.events.MESSAGE_EVENT_NAME, refreshSettings)
       window.removeEventListener('storage', handleStorage)
     }
   }, [notificationsSupported])
@@ -699,19 +772,9 @@ function MessagePage() {
           && (document.hidden || selectedIdRef.current !== conversationId)
 
         if (shouldNotify) {
-          const conv = conversationsRef.current.find((c) => c._id === conversationId)
-          const senderName = conv?.otherUser?.name || 'New message'
-          const icon = conv?.otherUser?.profileImage ? getImageUrl(conv.otherUser.profileImage) : undefined
-          const notification = new Notification(`New message from ${senderName}`, {
-            body: buildNotificationBody(message),
-            icon,
-            tag: conversationId,
-          })
-          notification.onclick = () => {
-            window.focus()
-            setActiveTab('network')
-            setSelectedConversationId(conversationId)
-          }
+          // If push notifications are enabled, service worker handles browser alerts.
+          // Avoid duplicate notifications from both socket + push.
+          return
         }
       })
 
@@ -749,6 +812,41 @@ function MessagePage() {
             }
             return c
           })
+        )
+      })
+
+      socket.on('conversation_read', ({ conversationId, readerId, readAt }) => {
+        if (!conversationId || !readerId) return
+        if (readerId === currentLoggedInUser?._id) return
+
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.sender === currentLoggedInUser?._id && !msg.isRead
+              ? { ...msg, isRead: true, readAt: readAt || new Date().toISOString() }
+              : msg
+          )
+        )
+
+        setMessageCache((prev) => {
+          const convoMessages = prev[conversationId]
+          if (!convoMessages?.length) return prev
+          return {
+            ...prev,
+            [conversationId]: convoMessages.map((msg) =>
+              msg.sender === currentLoggedInUser?._id && !msg.isRead
+                ? { ...msg, isRead: true, readAt: readAt || new Date().toISOString() }
+                : msg
+            ),
+          }
+        })
+      })
+
+      socket.on('conversation_block_status', ({ conversationId, isBlocked, blockedBy }) => {
+        if (!conversationId) return
+        setConversations((prev) =>
+          prev.map((conv) =>
+            conv._id === conversationId ? { ...conv, isBlocked, blockedBy } : conv
+          )
         )
       })
 
@@ -806,6 +904,8 @@ function MessagePage() {
         socket.off('new_message')
         socket.off('typing_update')
         socket.off('presence_update')
+        socket.off('conversation_read')
+        socket.off('conversation_block_status')
         socket.off('message_deleted')
         socket.off('conversation_deleted')
         socket.off('event_invitation')
@@ -1653,39 +1753,36 @@ function MessagePage() {
                       <Bell size={12} />
                     </div>
                     <div className='min-w-0'>
-                      <p className='text-[10px] font-bold text-amber-900 leading-tight'>Browser notifications</p>
+                      <p className='text-[10px] font-bold text-amber-900 leading-tight'>Message notifications</p>
                       <p className='text-[9px] text-amber-700 leading-tight'>
                         Get alerts when new messages arrive
                       </p>
+                      {isUpdatingMessageNotifications && (
+                        <p className='text-[9px] text-amber-700/80 leading-tight mt-0.5'>Updating...</p>
+                      )}
                     </div>
                   </div>
-                  {notificationPermission === 'granted' ? (
-                    <button
-                      onClick={async () => {
-                        if (notificationsEnabled) {
-                          await pushService.unsubscribe()
-                          persistNotificationsEnabled(false)
-                        } else {
-                          await requestNotificationPermission()
-                        }
-                      }}
-                      className='text-[10px] font-bold text-amber-900/80 hover:text-amber-900 transition whitespace-nowrap'
-                    >
-                      {notificationsEnabled ? 'Turn off' : 'Turn on'}
-                    </button>
-                  ) : (
-                    <button
-                      onClick={requestNotificationPermission}
-                      disabled={notificationPermission === 'denied'}
-                      className={`text-[10px] font-bold transition whitespace-nowrap ${
-                        notificationPermission === 'denied'
-                          ? 'text-amber-300 cursor-not-allowed'
-                          : 'text-amber-900 hover:text-amber-800'
+                  <button
+                    type='button'
+                    role='switch'
+                    aria-checked={notificationsEnabled && notificationPermission === 'granted'}
+                    aria-label='Toggle message notifications'
+                    onClick={toggleMessageNotifications}
+                    disabled={notificationPermission === 'denied' || isUpdatingMessageNotifications}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
+                      notificationsEnabled && notificationPermission === 'granted'
+                        ? 'bg-emerald-500'
+                        : 'bg-gray-300'
+                    } ${notificationPermission === 'denied' || isUpdatingMessageNotifications ? 'cursor-not-allowed opacity-60' : ''}`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                        notificationsEnabled && notificationPermission === 'granted'
+                          ? 'translate-x-6'
+                          : 'translate-x-1'
                       }`}
-                    >
-                      {notificationPermission === 'denied' ? 'Blocked' : 'Enable'}
-                    </button>
-                  )}
+                    />
+                  </button>
                 </div>
               </div>
             )}
@@ -1907,39 +2004,36 @@ function MessagePage() {
                       <Bell size={14} />
                     </div>
                     <div className='min-w-0'>
-                      <p className='text-[11px] font-bold text-amber-900 leading-tight'>Browser notifications</p>
+                      <p className='text-[11px] font-bold text-amber-900 leading-tight'>Message notifications</p>
                       <p className='text-[10px] text-amber-700 leading-tight'>
                         Get alerts when new messages arrive
                       </p>
+                      {isUpdatingMessageNotifications && (
+                        <p className='text-[10px] text-amber-700/80 leading-tight mt-0.5'>Updating...</p>
+                      )}
                     </div>
                   </div>
-                  {notificationPermission === 'granted' ? (
-                    <button
-                      onClick={async () => {
-                        if (notificationsEnabled) {
-                          await pushService.unsubscribe()
-                          persistNotificationsEnabled(false)
-                        } else {
-                          await requestNotificationPermission()
-                        }
-                      }}
-                      className='text-[11px] font-bold text-amber-900/80 hover:text-amber-900 transition whitespace-nowrap'
-                    >
-                      {notificationsEnabled ? 'Turn off' : 'Turn on'}
-                    </button>
-                  ) : (
-                    <button
-                      onClick={requestNotificationPermission}
-                      disabled={notificationPermission === 'denied'}
-                      className={`text-[11px] font-bold transition whitespace-nowrap ${
-                        notificationPermission === 'denied'
-                          ? 'text-amber-300 cursor-not-allowed'
-                          : 'text-amber-900 hover:text-amber-800'
+                  <button
+                    type='button'
+                    role='switch'
+                    aria-checked={notificationsEnabled && notificationPermission === 'granted'}
+                    aria-label='Toggle message notifications'
+                    onClick={toggleMessageNotifications}
+                    disabled={notificationPermission === 'denied' || isUpdatingMessageNotifications}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
+                      notificationsEnabled && notificationPermission === 'granted'
+                        ? 'bg-emerald-500'
+                        : 'bg-gray-300'
+                    } ${notificationPermission === 'denied' || isUpdatingMessageNotifications ? 'cursor-not-allowed opacity-60' : ''}`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                        notificationsEnabled && notificationPermission === 'granted'
+                          ? 'translate-x-6'
+                          : 'translate-x-1'
                       }`}
-                    >
-                      {notificationPermission === 'denied' ? 'Blocked' : 'Enable'}
-                    </button>
-                  )}
+                    />
+                  </button>
                 </div>
               </div>
             )}
@@ -2207,6 +2301,12 @@ function MessagePage() {
                       {selectedUser?.status === 'online' && (
                         <span className='text-green-600 font-medium'>Online</span>
                       )}
+                      {selectedUser?.status === 'away' && (
+                        <span className='text-amber-600 font-medium'>Away</span>
+                      )}
+                      {selectedUser?.status !== 'online' && selectedUser?.status !== 'away' && (
+                        <span className='text-gray-500 font-medium'>{formatLastSeen(selectedUser?.lastSeen)}</span>
+                      )}
                       {otherUserTyping && (
                         <span className='ml-2 text-[#986a41] font-medium animate-pulse'>typing...</span>
                       )}
@@ -2261,6 +2361,31 @@ function MessagePage() {
                                         Block User
                                     </button>
                                 )}
+                                <div className='px-4 py-2.5 flex items-center justify-between border-t border-gray-100'>
+                                  <div>
+                                    <p className='text-xs font-medium text-gray-700'>Last seen</p>
+                                    {isUpdatingLastSeen && (
+                                      <p className='text-[10px] text-gray-400'>Updating...</p>
+                                    )}
+                                  </div>
+                                  <button
+                                    type='button'
+                                    role='switch'
+                                    aria-checked={showLastSeen}
+                                    aria-label='Toggle last seen visibility'
+                                    onClick={toggleLastSeen}
+                                    disabled={isUpdatingLastSeen}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
+                                      showLastSeen ? 'bg-emerald-500' : 'bg-gray-300'
+                                    } ${isUpdatingLastSeen ? 'opacity-60 cursor-not-allowed' : ''}`}
+                                  >
+                                    <span
+                                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                                        showLastSeen ? 'translate-x-6' : 'translate-x-1'
+                                      }`}
+                                    />
+                                  </button>
+                                </div>
                                 <button
                                     onClick={handleArchiveConversation}
                                     className='w-full text-left px-4 py-2.5 text-xs font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors'
