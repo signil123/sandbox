@@ -587,10 +587,10 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
 
                     {/* Contact Grid */}
                     <div className='grid grid-cols-2 md:grid-cols-4 gap-4 mb-5'>
-                      <ContactItem icon={Mail} label="Email" value={profileData.email} />
-                      <ContactItem icon={Phone} label="Phone" value={profileData.phone} />
-                      <ContactItem icon={Briefcase} label="Agency/Org" value={profileData.organization} />
-                      <ContactItem icon={Globe} label="Website" value={profileData.socialMedia.website} />
+                      {profileData.email && <ContactItem icon={Mail} label="Email" value={profileData.email} />}
+                      {profileData.phone && <ContactItem icon={Phone} label="Phone" value={profileData.phone} />}
+                      {profileData.organization && <ContactItem icon={Briefcase} label="Agency/Org" value={profileData.organization} />}
+                      {profileData.socialMedia.website && <ContactItem icon={Globe} label="Website" value={profileData.socialMedia.website} />}
                     </div>
 
                     {/* Visibility Toggle */}
@@ -1356,8 +1356,8 @@ const ContactItem = ({ icon: Icon, label, value }) => (
     <p className='text-[10px] text-slate-500 font-semibold uppercase tracking-wide mb-1'>
       {label}
     </p>
-    <p className='text-xs text-slate-900 font-medium text-center truncate w-full'>
-      {value || 'N/A'}
+    <p className='text-xs text-slate-900 font-medium text-center w-full break-all'>
+      {value}
     </p>
   </div>
 )

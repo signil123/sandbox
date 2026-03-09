@@ -254,6 +254,113 @@ const ProfileSkeleton = () => (
   const [advisorPage, setAdvisorPage] = useState(0)
   const advisorsPerPage = 3
 
+  const getCompletionSnapshot = ({
+    nextProfileData = profileData,
+    nextInterests = interests,
+    nextPreferences = preferences,
+  } = {}) => {
+    const hasAnySocial =
+      nextProfileData?.socialMedia &&
+      Object.values(nextProfileData.socialMedia).some((v) =>
+        typeof v === 'string' ? v.trim().length > 0 : Boolean(v)
+      )
+
+    const hasAnyInterests =
+      nextInterests && Object.values(nextInterests).some(Boolean)
+
+    const hasNILPreferences =
+      Boolean(nextPreferences?.dealSize) &&
+      Boolean(nextPreferences?.timeline) &&
+      Array.isArray(nextPreferences?.focus) &&
+      nextPreferences.focus.length > 0
+
+    const fieldChecks = {
+      name: {
+        value: Boolean(nextProfileData?.name?.trim()),
+        weight: 10,
+        label: 'Name',
+      },
+      email: {
+        value: Boolean(nextProfileData?.email?.trim()),
+        weight: 10,
+        label: 'Email',
+      },
+      phone: {
+        value: Boolean(nextProfileData?.phone?.trim()),
+        weight: 5,
+        label: 'Phone Number',
+      },
+      profileImage: {
+        value: Boolean(nextProfileData?.photo),
+        weight: 10,
+        label: 'Profile Photo',
+      },
+      aboutMe: {
+        value: Boolean(nextProfileData?.aboutMe?.trim()),
+        weight: 10,
+        label: 'About Me',
+      },
+      socialMedia: {
+        value: hasAnySocial,
+        weight: 5,
+        label: 'Social Media',
+      },
+      sport: {
+        value: Boolean(nextProfileData?.sport?.trim()),
+        weight: 10,
+        label: 'Sport',
+      },
+      school: {
+        value: Boolean(nextProfileData?.school?.trim()),
+        weight: 10,
+        label: 'School',
+      },
+      position: {
+        value: Boolean(nextProfileData?.position?.trim()),
+        weight: 5,
+        label: 'Position',
+      },
+      classYear: {
+        value: Boolean(nextProfileData?.classYear?.trim()),
+        weight: 5,
+        label: 'Class Year',
+      },
+      interests: {
+        value: hasAnyInterests,
+        weight: 10,
+        label: 'Interests',
+      },
+      nilPreferences: {
+        value: hasNILPreferences,
+        weight: 10,
+        label: 'NIL Preferences',
+      },
+    }
+
+    let totalWeight = 0
+    let earnedWeight = 0
+    const nextMissingFields = []
+
+    for (const [key, check] of Object.entries(fieldChecks)) {
+      totalWeight += check.weight
+      if (check.value) {
+        earnedWeight += check.weight
+      } else {
+        nextMissingFields.push({ field: key, label: check.label })
+      }
+    }
+
+    const percentage = Math.round((earnedWeight / totalWeight) * 100)
+
+    return { percentage, missingFields: nextMissingFields }
+  }
+
+  const applyLiveCompletionUpdate = (options = {}) => {
+    const nextCompletion = getCompletionSnapshot(options)
+    setProfileCompletion(nextCompletion.percentage)
+    setMissingFields(nextCompletion.missingFields)
+  }
+
   // Fetch profile on mount
   useEffect(() => {
     fetchProfileData()
@@ -425,7 +532,9 @@ const ProfileSkeleton = () => (
       })
 
       if (response.status === 'success') {
-        setProfileData(editFormData)
+        const nextProfileData = { ...editFormData }
+        setProfileData(nextProfileData)
+        applyLiveCompletionUpdate({ nextProfileData })
         setEditModalOpen(false)
         toast.success('Profile updated successfully!')
         fetchProfileData()
@@ -449,6 +558,7 @@ const ProfileSkeleton = () => (
       })
 
       if (response.status === 'success') {
+        applyLiveCompletionUpdate({ nextPreferences: preferences })
         setPreferencesModalOpen(false)
         toast.success('Preferences updated successfully!')
         fetchProfileData()
@@ -468,6 +578,7 @@ const ProfileSkeleton = () => (
       const response = await profileService.updateAthleteInterests(interests)
 
       if (response.status === 'success') {
+        applyLiveCompletionUpdate({ nextInterests: interests })
         setInterestsModalOpen(false)
         toast.success('Interests updated successfully!')
         fetchProfileData()
@@ -502,7 +613,9 @@ const ProfileSkeleton = () => (
           profileImage: photoUrl
         })
         
-        setProfileData(prev => ({ ...prev, photo: photoUrl }))
+        const nextProfileData = { ...profileData, photo: photoUrl }
+        setProfileData(nextProfileData)
+        applyLiveCompletionUpdate({ nextProfileData })
         dispatch(updateProfileImage(photoUrl))
         toast.success('Profile photo updated successfully!')
       }
@@ -746,46 +859,53 @@ const ProfileSkeleton = () => (
                         </div>
 
                         <div className='mt-2 space-y-1'>
-                          <p className='text-sm font-semibold text-slate-700'>
-                            {profileData.position || 'Position'} •{' '}
-                            {profileData.sport || 'Sport'}
-                          </p>
-                          <p className='text-xs text-slate-500'>
-                            {profileData.school || 'School'} •{' '}
-                            {profileData.classYear || 'Class'}
-                          </p>
+                          {(profileData.position || profileData.sport) && (
+                            <p className='text-sm font-semibold text-slate-700'>
+                              {[profileData.position, profileData.sport].filter(Boolean).join(' • ')}
+                            </p>
+                          )}
+                          {(profileData.school || profileData.classYear) && (
+                            <p className='text-xs text-slate-500'>
+                              {[profileData.school, profileData.classYear].filter(Boolean).join(' • ')}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>
 
                     {/* About */}
-                    <div className='mb-5 pb-5 border-b border-slate-200'>
-                      <p className='text-sm text-slate-600 leading-relaxed text-center'>
-                        {profileData.aboutMe ||
-                          'Add a bio to tell others about yourself'}
-                      </p>
-                    </div>
+                    {profileData.aboutMe && (
+                      <div className='mb-5 pb-5 border-b border-slate-200'>
+                        <p className='text-sm text-slate-600 leading-relaxed text-center'>
+                          {profileData.aboutMe}
+                        </p>
+                      </div>
+                    )}
 
                     {/* Contact */}
                     <div className='grid grid-cols-2 gap-4 mb-5'>
-                      <div className='flex flex-col items-center p-3 bg-slate-50 rounded-xl'>
-                        <Mail size={16} className='text-slate-400 mb-1.5' />
-                        <p className='text-[10px] text-slate-500 font-semibold uppercase tracking-wide mb-1'>
-                          Email
-                        </p>
-                        <p className='text-xs text-slate-900 font-medium text-center truncate w-full'>
-                          {profileData.email || 'email@example.com'}
-                        </p>
-                      </div>
-                      <div className='flex flex-col items-center p-3 bg-slate-50 rounded-xl'>
-                        <Phone size={16} className='text-slate-400 mb-1.5' />
-                        <p className='text-[10px] text-slate-500 font-semibold uppercase tracking-wide mb-1'>
-                          Phone
-                        </p>
-                        <p className='text-xs text-slate-900 font-medium text-center'>
-                          {profileData.phone || '+1 (555) 000-0000'}
-                        </p>
-                      </div>
+                      {profileData.email && (
+                        <div className='flex flex-col items-center p-3 bg-slate-50 rounded-xl'>
+                          <Mail size={16} className='text-slate-400 mb-1.5' />
+                          <p className='text-[10px] text-slate-500 font-semibold uppercase tracking-wide mb-1'>
+                            Email
+                          </p>
+                          <p className='text-xs text-slate-900 font-medium text-center w-full break-all'>
+                            {profileData.email}
+                          </p>
+                        </div>
+                      )}
+                      {profileData.phone && (
+                        <div className='flex flex-col items-center p-3 bg-slate-50 rounded-xl'>
+                          <Phone size={16} className='text-slate-400 mb-1.5' />
+                          <p className='text-[10px] text-slate-500 font-semibold uppercase tracking-wide mb-1'>
+                            Phone
+                          </p>
+                          <p className='text-xs text-slate-900 font-medium text-center w-full break-all'>
+                            {profileData.phone}
+                          </p>
+                        </div>
+                      )}
                       <div className='flex flex-col items-center p-3 bg-slate-50 rounded-xl'>
                         <div className='flex items-center gap-1.5 mb-1.5'>
                           {profileData.socialMedia?.linkedin && <Linkedin size={14} className='text-slate-400' />}
@@ -813,12 +933,22 @@ const ProfileSkeleton = () => (
                       <motion.button
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
-                        onClick={() =>
+                        onClick={async () => {
+                          const newStatus = !profileData.contactVisible
                           setProfileData({
                             ...profileData,
-                            contactVisible: !profileData.contactVisible,
+                            contactVisible: newStatus,
                           })
-                        }
+                          try {
+                            await profileService.updateBasicProfile({ contactVisible: newStatus })
+                          } catch {
+                            toast.error('Failed to update contact visibility')
+                            setProfileData((prev) => ({
+                              ...prev,
+                              contactVisible: !newStatus,
+                            }))
+                          }
+                        }}
                         className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
                           profileData.contactVisible
                             ? 'bg-emerald-500'

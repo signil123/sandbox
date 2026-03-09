@@ -66,7 +66,7 @@ const DashboardPage = () => {
   const network = useSelector(state => state.user.network) || { advisors: [], roster: [], loading: false }
   const [showStats, setShowStats] = useState(false)
   const [timeRange, setTimeRange] = useState('1M')
-  const [advisorCarouselIndex, setAdvisorCarouselIndex] = useState(0)
+  const [advisorPageIndex, setAdvisorPageIndex] = useState(0)
   const [selectedProfile, setSelectedProfile] = useState(null)
   const [profilePopupOpen, setProfilePopupOpen] = useState(false)
   const [showConnectionModal, setShowConnectionModal] = useState(false)
@@ -74,6 +74,7 @@ const DashboardPage = () => {
   const [addNoteMode, setAddNoteMode] = useState(false)
   const [isSending, setIsSending] = useState(false)
   const [advisorsListData, setAdvisorsListData] = useState([])
+  const [stableAdvisors, setStableAdvisors] = useState([])
   const [loadingAdvisors, setLoadingAdvisors] = useState(true)
 
   // Fetch Network Summary
@@ -147,7 +148,7 @@ const DashboardPage = () => {
 
   // Reset carousel index/pagination when data changes
   useEffect(() => {
-    setAdvisorCarouselIndex(0)
+    setAdvisorPageIndex(0)
     setEventsPage(0)
   }, [advisorsListData.length, upcomingEvents.length])
 
@@ -240,6 +241,9 @@ const DashboardPage = () => {
           isBlurred: Boolean(u.isBlurred),
         }))
         setAdvisorsListData(mappedAdvisors)
+        if (mappedAdvisors.length > 0) {
+          setStableAdvisors(mappedAdvisors)
+        }
       }
     } catch (error) {
       console.error('Error fetching recommendations:', error)
@@ -253,9 +257,9 @@ const DashboardPage = () => {
     if (currentUser?._id && currentUser?.userType) {
       dispatch(fetchUserNetwork({ userId: currentUser._id, userType: currentUser.userType }))
     }
-  }, [fetchRecommendations, currentUser, dispatch])
+  }, [fetchRecommendations, currentUser?._id, currentUser?.userType, dispatch])
 
-  const advisors = advisorsListData
+  const advisors = advisorsListData.length > 0 ? advisorsListData : stableAdvisors
   // Upcoming Events
   // upcomingEvents state managed above
   // Latest News
@@ -275,16 +279,25 @@ const DashboardPage = () => {
   }, [statsSummary?.analytics])
   const currentStatsData = statisticsData[timeRange]
   // Advisor Carousel Navigation
+  const totalAdvisorPages = Math.max(1, Math.ceil(advisors.length / 3))
   const nextAdvisor = () => {
-    if (advisors.length <= 3) return
-    setAdvisorCarouselIndex((prev) => (prev + 3) % advisors.length)
+    if (totalAdvisorPages <= 1) return
+    setAdvisorPageIndex((prev) => Math.min(prev + 1, totalAdvisorPages - 1))
   }
   const prevAdvisor = () => {
-    if (advisors.length <= 3) return
-    setAdvisorCarouselIndex((prev) =>
-      (prev - 3 + advisors.length) % advisors.length
-    )
+    if (totalAdvisorPages <= 1) return
+    setAdvisorPageIndex((prev) => Math.max(prev - 1, 0))
   }
+
+  useEffect(() => {
+    if (advisors.length === 0) {
+      setAdvisorPageIndex(0)
+      return
+    }
+    if (advisorPageIndex >= totalAdvisorPages) {
+      setAdvisorPageIndex(totalAdvisorPages - 1)
+    }
+  }, [advisors.length, advisorPageIndex, totalAdvisorPages])
 
   const handleConnect = (user) => {
     setSelectedProfile(user)
@@ -316,14 +329,9 @@ const DashboardPage = () => {
     }
   }
   const visibleAdvisors = useMemo(() => {
-    // Show 3 advisors starting from the current index, wrapping around if needed
-    const result = [];
-    for (let i = 0; i < 3; i++) {
-        result.push(advisors[(advisorCarouselIndex + i) % advisors.length]);
-    }
-    // Filter out undefined if advisors array is smaller than 3 initially (though memo ensures valid array)
-    return result.filter(Boolean);
-  }, [advisors, advisorCarouselIndex])
+    const start = advisorPageIndex * 3
+    return advisors.slice(start, start + 3)
+  }, [advisors, advisorPageIndex])
 
   return (
     <DashboardLayout>
@@ -443,13 +451,15 @@ const DashboardPage = () => {
                         <div className="flex items-center gap-1 mr-2">
                              <button 
                                 onClick={prevAdvisor}
-                                className='p-2 rounded-lg bg-gray-50 text-gray-400 hover:text-[#163146] hover:bg-gray-100 transition-colors'
+                                disabled={advisorPageIndex === 0}
+                                className='p-2 rounded-lg bg-gray-50 text-gray-400 hover:text-[#163146] hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed'
                              >
                                 <ChevronLeft size={16} />
                              </button>
                              <button 
                                 onClick={nextAdvisor}
-                                className='p-2 rounded-lg bg-gray-50 text-gray-400 hover:text-[#163146] hover:bg-gray-100 transition-colors'
+                                disabled={advisorPageIndex >= totalAdvisorPages - 1}
+                                className='p-2 rounded-lg bg-gray-50 text-gray-400 hover:text-[#163146] hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed'
                              >
                                 <ChevronRight size={16} />
                              </button>
@@ -472,11 +482,11 @@ const DashboardPage = () => {
                       <SkeletonCard type="recommendation" />
                     </>
                   ) : visibleAdvisors.length === 0 ? (
-                    <div className='col-span-1 md:col-span-3 h-64 flex items-center justify-center'>
-                      <p className='text-gray-500 font-medium'>
-                        No advisors found for your profile.
-                      </p>
-                    </div>
+                    <>
+                      <SkeletonCard type="recommendation" />
+                      <SkeletonCard type="recommendation" />
+                      <SkeletonCard type="recommendation" />
+                    </>
                   ) : (
                     visibleAdvisors.map((advisor, index) => (
                       <AdvisorRecommendationCard 

@@ -49,6 +49,24 @@ const maskAthleteSocials = (profile) => {
   return masked
 }
 
+const shouldHideContactInfo = (viewer, ownerProfile) => {
+  if (!ownerProfile) return false
+  if (ownerProfile.contactVisible !== false) return false
+  if (!viewer) return true
+  return viewer._id?.toString() !== ownerProfile.user?._id?.toString()
+}
+
+const maskPrivateContactInfo = (profile) => {
+  if (!profile) return profile
+
+  const masked = profile.toObject ? profile.toObject() : { ...profile }
+  if (masked.user) {
+    masked.user.email = null
+    masked.user.phone = null
+  }
+  return masked
+}
+
 /**
  * Get or create user profile
  */
@@ -152,7 +170,11 @@ export const getUserProfile = async (req, res, next) => {
     }).countDocuments()
 
     const socialLocked = shouldLockAthleteSocials(req.user, profile)
-    const responseProfile = socialLocked ? maskAthleteSocials(profile) : profile
+    let responseProfile = socialLocked ? maskAthleteSocials(profile) : (profile.toObject ? profile.toObject() : profile)
+
+    if (shouldHideContactInfo(req.user, profile)) {
+      responseProfile = maskPrivateContactInfo(responseProfile)
+    }
 
     res.status(200).json({
       status: 'success',
@@ -329,6 +351,10 @@ export const updateAthleteProfile = async (req, res, next) => {
       if (photo !== undefined && profile.photo && photo !== profile.photo) {
         await deleteCloudinaryAsset(profile.photo)
       }
+      profile = await Profile.findOneAndUpdate({ user: userId }, updateData, {
+        new: true,
+        runValidators: true,
+      })
     }
 
     // Security Notification for name/email change
@@ -630,7 +656,13 @@ export const getProfileByUserId = async (req, res, next) => {
     }).countDocuments()
 
     const socialLocked = shouldLockAthleteSocials(req.user, profile)
-    const responseProfile = socialLocked ? maskAthleteSocials(profile) : profile
+    let responseProfile = socialLocked
+      ? maskAthleteSocials(profile)
+      : (profile.toObject ? profile.toObject() : profile)
+
+    if (shouldHideContactInfo(req.user, profile)) {
+      responseProfile = maskPrivateContactInfo(responseProfile)
+    }
 
     res.status(200).json({
       status: 'success',

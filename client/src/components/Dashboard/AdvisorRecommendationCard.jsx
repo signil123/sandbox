@@ -10,7 +10,7 @@ export const AdvisorRecommendationCard = ({ advisor, onConnect, onView }) => {
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -20 }}
       transition={{ duration: 0.3 }}
-      className='border border-gray-200 rounded-2xl overflow-hidden hover:shadow-lg transition-shadow flex flex-col bg-white h-full group'
+      className='relative border border-gray-200 rounded-2xl overflow-hidden hover:shadow-lg transition-shadow flex flex-col bg-white h-full group'
     >
       {advisor.isBlurred && (
         <ProfileBlurOverlay onClick={() => onView(advisor)} />

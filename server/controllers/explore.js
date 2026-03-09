@@ -146,15 +146,12 @@ export const exploreUsers = async (req, res, next) => {
       isActive: true,
       isBlocked: { $ne: true },
     })
-    const restrictedForAthleteIds = new Set(
-      user.userType === 'athlete'
-        ? matchingTypeUsers
-            .filter((candidate) => !canBeVisibleToAthletes(candidate))
-            .map((candidate) => candidate._id.toString())
-        : []
-    )
-
-    const matchingTypeUserIds = matchingTypeUsers.map((candidate) => candidate._id)
+    const matchingTypeUserIds = matchingTypeUsers
+      .filter((candidate) => {
+        if (user.userType !== 'athlete') return true
+        return canBeVisibleToAthletes(candidate)
+      })
+      .map((candidate) => candidate._id)
     
     query.user = { $in: matchingTypeUserIds }
 
@@ -392,30 +389,6 @@ export const exploreUsers = async (req, res, next) => {
       isBlurred: false,
       blurReason: null,
     }))
-
-    if (restrictedForAthleteIds.size > 0) {
-      enrichedResults = enrichedResults.map((entry) => {
-        if (!restrictedForAthleteIds.has(entry.userId.toString())) {
-          return entry
-        }
-
-        const maskedProfile = {
-          ...entry.profile?.toObject?.(),
-          aboutMe: '',
-          bio: '',
-          socialMedia: {},
-          socialLinks: {},
-          website: null,
-        }
-
-        return {
-          ...entry,
-          profile: maskedProfile,
-          isBlurred: true,
-          blurReason: 'upgrade_required',
-        }
-      })
-    }
 
     if (shouldBlurAthletes) {
       const athleteIndices = enrichedResults

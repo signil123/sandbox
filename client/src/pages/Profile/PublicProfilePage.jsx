@@ -283,6 +283,9 @@ const PublicProfilePage = () => {
 
   // Check if current user is viewing their own profile
   const isOwnProfile = currentUser && currentUser._id === user._id
+  const canShowContactInfo = isOwnProfile || profileData.contactVisible !== false
+  const publicEmail = canShowContactInfo ? (user.email || '') : 'Hidden by user'
+  const publicPhone = canShowContactInfo ? (user.phone || '') : 'Hidden by user'
 
   // Determine Connect Button Style
   // Using a distinct Gold/Brown gradient as requested
@@ -385,26 +388,31 @@ const PublicProfilePage = () => {
                                 <p className='text-base font-medium text-slate-600 flex items-center justify-center lg:justify-start gap-2'>
                                     {isAthlete ? (
                                         <>
-                                            <span className="text-slate-900 font-semibold">{profileData.position || 'Athlete'}</span>
-                                            <span className="w-1 h-1 rounded-full bg-slate-400" />
-                                            <span>{profileData.sport || 'Sport'}</span>
+                                            {[profileData.position, profileData.sport].filter(Boolean).map((item, idx) => (
+                                              <React.Fragment key={item}>
+                                                {idx > 0 && <span className="w-1 h-1 rounded-full bg-slate-400" />}
+                                                <span className={idx === 0 ? "text-slate-900 font-semibold" : ''}>{item}</span>
+                                              </React.Fragment>
+                                            ))}
                                         </>
                                     ) : (
-                                        <span>{profileData.title || (profileData.profileType.charAt(0).toUpperCase() + profileData.profileType.slice(1))}</span>
+                                        <span>{profileData.title || ''}</span>
                                     )}
                                 </p>
                                 <p className='text-sm text-slate-500 flex items-center justify-center lg:justify-start gap-1.5'>
                                     <MapPin size={14} />
                                     {isAthlete 
-                                        ? `${profileData.school || 'School'} • ${profileData.classYear || 'Class'}`
-                                        : profileData.location || 'Remote'}
+                                        ? [profileData.school, profileData.classYear].filter(Boolean).join(' • ')
+                                        : profileData.location || ''}
                                 </p>
                             </div>
 
                             {/* Bio */}
-                            <p className='text-sm text-slate-600 leading-relaxed max-w-2xl mx-auto lg:mx-0 bg-slate-50 p-4 rounded-xl border border-slate-100'>
-                                "{profileData.aboutMe || profileData.bio || 'No bio provided.'}"
-                            </p>
+                            {(profileData.aboutMe || profileData.bio) && (
+                              <p className='text-sm text-slate-600 leading-relaxed max-w-2xl mx-auto lg:mx-0 bg-slate-50 p-4 rounded-xl border border-slate-100'>
+                                  "{profileData.aboutMe || profileData.bio}"
+                              </p>
+                            )}
                         </div>
 
                         {/* Desktop Actions */}
@@ -479,13 +487,15 @@ const PublicProfilePage = () => {
 
                     <div className='mt-10 pt-10 border-t border-slate-100'>
                         <div className='grid grid-cols-2 md:grid-cols-4 gap-6'>
-                            <div className='flex flex-col items-center p-5 bg-slate-50/50 rounded-3xl border border-slate-100 transition-all hover:bg-white hover:border-slate-200 hover:shadow-sm group cursor-default'>
-                                <div className='p-2.5 bg-white rounded-2xl shadow-sm mb-4 group-hover:scale-110 transition-transform'>
-                                    <Mail size={20} className='text-slate-400 group-hover:text-blue-500 transition-colors' />
-                                </div>
-                                <p className='text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1.5'>Direct Email</p>
-                                <p className='text-xs font-bold text-slate-800 truncate w-full text-center px-1'>{user.email || 'Encrypted'}</p>
-                            </div>
+                            {(publicEmail || !canShowContactInfo) && (
+                              <div className='flex flex-col items-center p-5 bg-slate-50/50 rounded-3xl border border-slate-100 transition-all hover:bg-white hover:border-slate-200 hover:shadow-sm group cursor-default'>
+                                  <div className='p-2.5 bg-white rounded-2xl shadow-sm mb-4 group-hover:scale-110 transition-transform'>
+                                      <Mail size={20} className='text-slate-400 group-hover:text-blue-500 transition-colors' />
+                                  </div>
+                                  <p className='text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1.5'>Direct Email</p>
+                                  <p className='text-xs font-bold text-slate-800 w-full text-center px-1 break-all'>{publicEmail}</p>
+                              </div>
+                            )}
                             
                             <div className='flex flex-col items-center p-5 bg-slate-50/50 rounded-3xl border border-slate-100 transition-all hover:bg-white hover:border-slate-200 hover:shadow-sm group cursor-default'>
                                 <div className='p-2.5 bg-white rounded-2xl shadow-sm mb-4 group-hover:scale-110 transition-transform'>
@@ -527,15 +537,15 @@ const PublicProfilePage = () => {
                                 </p>
                             </div>
 
-                            <div className='flex flex-col items-center p-5 bg-slate-50/50 rounded-3xl border border-slate-100 transition-all hover:bg-white hover:border-slate-200 hover:shadow-sm group cursor-default'>
-                                <div className='p-2.5 bg-white rounded-2xl shadow-sm mb-4 group-hover:scale-110 transition-transform'>
-                                    <Trophy size={20} className='text-slate-400 group-hover:text-emerald-500 transition-colors' />
-                                </div>
-                                <p className='text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1.5'>On Signil</p>
-                                <p className='text-xs font-bold text-slate-800 truncate w-full text-center px-1'>
-                                    Since {new Date(user.createdAt || Date.now()).getFullYear()}
-                                </p>
-                            </div>
+                            {(publicPhone || !canShowContactInfo) && (
+                              <div className='flex flex-col items-center p-5 bg-slate-50/50 rounded-3xl border border-slate-100 transition-all hover:bg-white hover:border-slate-200 hover:shadow-sm group cursor-default'>
+                                  <div className='p-2.5 bg-white rounded-2xl shadow-sm mb-4 group-hover:scale-110 transition-transform'>
+                                      <Phone size={20} className='text-slate-400 group-hover:text-emerald-500 transition-colors' />
+                                  </div>
+                                  <p className='text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1.5'>Phone</p>
+                                  <p className='text-xs font-bold text-slate-800 w-full text-center px-1 break-all'>{publicPhone}</p>
+                              </div>
+                            )}
                         </div>
                     </div>
                   </div>

@@ -26,6 +26,17 @@ const TOKEN_ALIASES = new Map([
   ['social media growth', 'social media strategy'],
   ['social media strategy', 'social media strategy'],
   ['marketing', 'brand partnerships'],
+  ['brand deals', 'brand partnerships'],
+  ['brand strategy', 'brand building'],
+  ['sponsorship strategy', 'sponsorships'],
+  ['athlete representation', 'brand partnerships'],
+  ['deal structuring', 'contract negotiation'],
+  ['financial advisory', 'financial planning'],
+  ['investment strategy', 'financial planning'],
+  ['investment management', 'financial planning'],
+  ['wealth management', 'financial planning'],
+  ['sports law', 'legal compliance'],
+  ['compliance', 'legal compliance'],
   ['endorsements', 'endorsements'],
   ['sponsorship', 'sponsorships'],
   ['sponsorships', 'sponsorships'],
@@ -87,6 +98,34 @@ const tokenizeFreeText = (value = '') =>
     .split(' ')
     .filter((token) => token.length >= 3)
 
+const SPORT_KEYWORDS =
+  /football|basketball|baseball|soccer|tennis|track|volleyball|golf|swimming|hockey|wrestling|softball|lacrosse/i
+
+const extractAliasMatchesFromText = (value = '') => {
+  const normalized = normalizeText(value)
+  if (!normalized) return []
+
+  const matches = []
+  for (const alias of TOKEN_ALIASES.keys()) {
+    const normalizedAlias = normalizeText(alias)
+    if (!normalizedAlias) continue
+
+    if (normalizedAlias.includes(' ')) {
+      if (normalized.includes(normalizedAlias)) {
+        matches.push(normalizeToken(normalizedAlias))
+      }
+      continue
+    }
+
+    const pattern = new RegExp(`\\b${normalizedAlias}\\b`, 'i')
+    if (pattern.test(normalized)) {
+      matches.push(normalizeToken(normalizedAlias))
+    }
+  }
+
+  return matches.filter(Boolean)
+}
+
 const setFrom = (values = []) => new Set(uniqueNormalized(values))
 
 const setOverlapScore = (left, right) => {
@@ -112,6 +151,32 @@ const setOverlapScore = (left, right) => {
   const denominator = Math.max(left.size, right.size, 1)
   return {
     score: Math.min(1, overlap / denominator),
+    hasSignal: true,
+  }
+}
+
+const setCoverageScore = (required, offered) => {
+  if (!required.size || !offered.size) {
+    return { score: 0, hasSignal: false }
+  }
+
+  let covered = 0
+  for (const value of required) {
+    if (offered.has(value)) {
+      covered += 1
+      continue
+    }
+
+    const partialMatch = Array.from(offered).some(
+      (candidate) => candidate.includes(value) || value.includes(candidate)
+    )
+    if (partialMatch) {
+      covered += 0.7
+    }
+  }
+
+  return {
+    score: Math.min(1, covered / Math.max(required.size, 1)),
     hasSignal: true,
   }
 }
@@ -224,10 +289,11 @@ const extractSportsTokens = (user = {}, profile = {}) =>
     profile.sport,
     profile.position,
     ...(profile.specialization || []).filter((value) =>
-      /(football|basketball|baseball|soccer|tennis|track|volleyball|golf|swimming|hockey|wrestling|softball|lacrosse)/i.test(
-        value
-      )
+      SPORT_KEYWORDS.test(value)
     ),
+    ...tokenizeFreeText(profile.title).filter((value) => SPORT_KEYWORDS.test(value)),
+    ...tokenizeFreeText(profile.aboutMe).filter((value) => SPORT_KEYWORDS.test(value)),
+    ...tokenizeFreeText(profile.bio).filter((value) => SPORT_KEYWORDS.test(value)),
   ])
 
 const extractServiceNeedTokens = (user = {}, profile = {}, nil = {}, interests = []) =>
@@ -239,6 +305,9 @@ const extractServiceNeedTokens = (user = {}, profile = {}, nil = {}, interests =
     ...(profile.nilPreferences?.focusAreas || []),
     ...(nil.categories || []),
     ...Array.from(extractInterestTokens(interests, profile)),
+    ...extractAliasMatchesFromText(profile.title),
+    ...extractAliasMatchesFromText(profile.aboutMe),
+    ...extractAliasMatchesFromText(profile.bio),
     profile.title,
   ])
 
@@ -321,11 +390,13 @@ const calculateRoleAwareBreakdown = (leftBundle, rightBundle) => {
     advisorBundle.interests
   )
 
-  const serviceFit = setOverlapScore(athleteNeeds, advisorServices)
-  const sportFit = setOverlapScore(athleteSports, advisorSports)
+  // Directional scoring: reward how well advisor/agent covers athlete needs.
+  // Extra advisor services should not reduce match quality.
+  const serviceFit = setCoverageScore(athleteNeeds, advisorServices)
+  const sportFit = setCoverageScore(athleteSports, advisorSports)
   const interestFit = setOverlapScore(athleteInterestTokens, advisorInterestTokens)
 
-  const nilTokenFit = setOverlapScore(athleteNilTokens, advisorNilTokens)
+  const nilTokenFit = setCoverageScore(athleteNilTokens, advisorNilTokens)
   const nilRangeFit = calculateRangeCompatibility(
     athleteBundle.profile,
     athleteBundle.nil,

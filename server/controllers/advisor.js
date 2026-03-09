@@ -154,16 +154,16 @@ export const updateAdvisorInfo = async (req, res, next) => {
     }
 
     // Update user name
-    if (name) {
+    if (name !== undefined && String(name).trim()) {
       await User.findByIdAndUpdate(
         advisorId,
-        { name: name.trim() },
+        { name: String(name).trim() },
         { new: true, runValidators: true }
       )
     }
 
     // Update profile
-    if (phone) profile.phone = phone
+    if (phone !== undefined) profile.phone = String(phone || '').trim()
     if (profileImage) {
       if (profile.profileImage && profileImage !== profile.profileImage) {
         await deleteCloudinaryAsset(profile.profileImage)
@@ -176,7 +176,7 @@ export const updateAdvisorInfo = async (req, res, next) => {
       }
       profile.bannerImage = bannerImage
     }
-    if (aboutMe) profile.aboutMe = aboutMe.trim()
+    if (aboutMe !== undefined) profile.aboutMe = String(aboutMe || '').trim()
     if (socialLinks) {
       profile.socialLinks = { ...profile.socialLinks, ...socialLinks }
     }
@@ -184,7 +184,7 @@ export const updateAdvisorInfo = async (req, res, next) => {
     await profile.save()
 
     // Notify user of security update
-    if (name) {
+    if (name !== undefined && String(name).trim()) {
       await Notification.create({
         recipient: advisorId,
         type: 'security_update',
@@ -225,12 +225,12 @@ export const updateAdvisorProfessional = async (req, res, next) => {
       return next(createError(404, 'Advisor profile not found'))
     }
 
-    if (specialization) profile.specialization = specialization
-    if (experience) profile.experience = experience
-    if (certifications) profile.certifications = certifications
-    if (agencyName) profile.agencyName = agencyName
-    if (agencySince) profile.agencySince = agencySince
-    if (title) profile.title = title
+    if (specialization !== undefined) profile.specialization = specialization
+    if (experience !== undefined) profile.experience = experience
+    if (certifications !== undefined) profile.certifications = certifications
+    if (agencyName !== undefined) profile.agencyName = agencyName
+    if (agencySince !== undefined) profile.agencySince = agencySince
+    if (title !== undefined) profile.title = title
 
     await profile.save()
 
