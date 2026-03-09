@@ -19,7 +19,13 @@ import DocumentManager from '../../components/Profile/DocumentManager'
 import UpgradeModal from '../../components/Subscription/UpgradeModal'
 import AddCardModal from '../../components/Subscription/AddCardModal'
 import { TIERS, TIER_DETAILS, VERIFICATION_STATUS } from '../../constants/tiers'
-import { selectCurrentUser, selectUserTier, selectVerificationStatus, setUser } from '../../redux/userSlice'
+import {
+  selectCanAccessSubscriptionUi,
+  selectCurrentUser,
+  selectUserTier,
+  selectVerificationStatus,
+  setUser,
+} from '../../redux/userSlice'
 import axiosInstance from '../../config'
 import { profileService } from '../../services/profileService'
 import { subscriptionService } from '../../services/subscriptionService'
@@ -43,6 +49,7 @@ const SettingsPage = () => {
   const currentUser = useSelector(selectCurrentUser)
   const currentTier = useSelector(selectUserTier)
   const verificationStatus = useSelector(selectVerificationStatus)
+  const canAccessSubscriptionUi = useSelector(selectCanAccessSubscriptionUi)
 
   const [activeTab, setActiveTab] = useState('subscription')
   const [isDocumentManagerOpen, setIsDocumentManagerOpen] = useState(false)
@@ -72,7 +79,7 @@ const SettingsPage = () => {
   const hasLoadedRef = useRef(false)
 
   const isVerified = verificationStatus === VERIFICATION_STATUS.APPROVED
-  const isSubscriptionEligible = ['advisor', 'agent', 'athlete'].includes(currentUser?.userType)
+  const isSubscriptionEligible = canAccessSubscriptionUi
 
   const tabs = [
     ...(isSubscriptionEligible ? [{ id: 'subscription', label: 'Subscription', icon: CreditCard }] : []),
@@ -505,11 +512,16 @@ const SettingsPage = () => {
                 {subscription?.plan?.name || TIER_DETAILS[currentSubscriptionTier]?.name || 'Free'} Plan
               </h2>
               <p className="text-gray-400 text-sm">
-                Next billing date:{' '}
+                {subscription?.cancelAtPeriodEnd ? 'Downgrade takes effect:' : 'Next billing date:'}{' '}
                 <span className="text-white font-medium">
                   {formatDate(subscription?.currentPeriodEnd)}
                 </span>
               </p>
+              {subscription?.cancelAtPeriodEnd && (
+                <p className="text-amber-200 text-xs font-semibold mt-2 uppercase tracking-[0.15em]">
+                  Scheduled downgrade at period end
+                </p>
+              )}
             </div>
             <Button
               onClick={() => handleTabChange('plans')}
@@ -694,8 +706,11 @@ const SettingsPage = () => {
     </div>
   )
 
-  const renderPlansTab = () => (
-    <div className="space-y-6">
+  const renderPlansTab = () => {
+    const isPlansUiLoading = isLoadingPlans || isLoadingCards
+
+    return (
+      <div className="space-y-6">
       <div className="flex items-center justify-end">
         <Button
           onClick={handleManageSubscription}
@@ -707,7 +722,7 @@ const SettingsPage = () => {
       </div>
 
       <div className="bg-transparent">
-        {isLoadingPlans ? (
+        {isPlansUiLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-5">
             {Array.from({ length: 3 }).map((_, idx) => (
               <div key={idx} className="relative flex flex-col p-6 rounded-[28px] bg-white shadow-sm border border-slate-100 animate-pulse">
@@ -743,6 +758,9 @@ const SettingsPage = () => {
                 : isUpgrade
                   ? (isVerified && paymentMethods.length > 0)
                   : true
+              const actionButtonClass = isDowngrade
+                ? 'bg-white border-2 border-slate-200 text-slate-700 hover:bg-slate-50'
+                : 'bg-[#163146] hover:bg-[#1f4461] text-white shadow-md'
 
               return (
                 <div
@@ -830,19 +848,16 @@ const SettingsPage = () => {
                       )}
                       <Button
                         className={`w-full h-10 md:h-11 rounded-lg font-black text-[10px] md:text-[11px] tracking-widest uppercase transition-all duration-300
-                          ${isPro
-                            ? 'bg-[#163146] hover:bg-[#1f4461] text-white shadow-md'
-                            : 'bg-white border-2 border-[#163146] text-[#163146] hover:bg-[#163146] hover:text-white'
-                          } ${!canPurchase && 'grayscale opacity-60'}`}
+                          ${actionButtonClass} ${!canPurchase && 'grayscale opacity-60'}`}
                         disabled={!canPurchase || checkoutPlanId === plan._id}
                         onClick={() => handleCheckout(plan)}
                       >
                         {checkoutPlanId === plan._id
                           ? 'Processing...'
                           : isDowngrade
-                            ? 'Downgrade'
+                            ? 'Schedule Downgrade'
                             : isUpgrade
-                              ? 'Upgrade'
+                              ? 'Upgrade Now'
                               : 'Get Started'}
                       </Button>
                     </div>
@@ -853,8 +868,9 @@ const SettingsPage = () => {
           </div>
         )}
       </div>
-    </div>
-  )
+      </div>
+    )
+  }
 
   const Step = ({ number, title, desc, status }) => {
     const isCompleted = status === 'completed'
@@ -1041,7 +1057,7 @@ const SettingsPage = () => {
                   }`}
                 >
                   <Icon size={16} strokeWidth={2.5} />
-                  {tab.label}
+                          {tab.label}
                 </button>
               )
             })}
@@ -1087,6 +1103,7 @@ const SettingsPage = () => {
         checkoutPlanId={checkoutPlanId}
         currentSubscriptionTier={currentSubscriptionTier}
         hasCardOnFile={paymentMethods.length > 0}
+        allowSubscriptionUi={canAccessSubscriptionUi}
       />
 
       <AddCardModal

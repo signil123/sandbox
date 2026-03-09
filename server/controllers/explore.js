@@ -5,7 +5,9 @@ import Profile from '../models/Profile.js'
 import { Connection } from '../models/Relationship.js'
 import User from '../models/User.js'
 import {
+  canBeVisibleToAthletes,
   canViewFullAthleteProfiles,
+  getUserEntitlements,
   isAdvisorOrAgent,
   isPremiumFilterAllowed,
   isStandardFilterAllowed,
@@ -44,9 +46,14 @@ export const exploreUsers = async (req, res, next) => {
       search = '',
       expertise = '',
       nilFocus = '',
+      athleteNeeds = '',
+      areasOfExpertise = '',
+      school = '',
       location = '',
       locationPreference = '',
       education = '',
+      gradeLevel = '',
+      interest = '',
       experienceRange = '',
       certifications = '',
       sportSpecializations = '',
@@ -77,11 +84,21 @@ export const exploreUsers = async (req, res, next) => {
       interests: currentUserInterests,
       nil: currentUserNil,
     }
+    const entitlements = getUserEntitlements(user)
 
     if (isAdvisorOrAgent(user)) {
       const hasStandardFilter = Boolean(expertise || sportSpecializations)
+      const effectiveAthleteNeeds = athleteNeeds || areasOfExpertise || nilFocus
       const hasPremiumFilter = Boolean(
-        nilFocus || location || locationPreference || education || experienceRange || certifications
+        effectiveAthleteNeeds ||
+        location ||
+        locationPreference ||
+        education ||
+        gradeLevel ||
+        interest ||
+        experienceRange ||
+        certifications ||
+        school
       )
 
       if (hasStandardFilter && !isStandardFilterAllowed(user, 'explore')) {
@@ -113,11 +130,18 @@ export const exploreUsers = async (req, res, next) => {
     const targetUserTypes = getTargetUserTypes(user.userType)
     
     // Find users of target types
-    const matchingTypeUsers = await User.find({ 
+    const matchingTypeUsers = await User.find({
       userType: { $in: targetUserTypes },
-      _id: { $ne: userId }
+      _id: { $ne: userId },
+      isActive: true,
+      isBlocked: { $ne: true },
     })
-    const matchingTypeUserIds = matchingTypeUsers.map(u => u._id)
+    const matchingTypeUserIds = matchingTypeUsers
+      .filter((candidate) => {
+        if (user.userType !== 'athlete') return true
+        return canBeVisibleToAthletes(candidate)
+      })
+      .map((candidate) => candidate._id)
     
     query.user = { $in: matchingTypeUserIds }
 
@@ -152,8 +176,10 @@ export const exploreUsers = async (req, res, next) => {
     }
 
     // NIL FOCUS FILTER
-    if (nilFocus) {
-      const nilArray = nilFocus.split(',')
+    const effectiveAthleteNeeds = athleteNeeds || areasOfExpertise || nilFocus
+
+    if (effectiveAthleteNeeds) {
+      const nilArray = effectiveAthleteNeeds.split(',')
       const nilRegexArray = nilArray.map((n) => new RegExp(n.trim(), 'i'))
       
       // Find matching NIL preferences
@@ -179,6 +205,10 @@ export const exploreUsers = async (req, res, next) => {
       }
     }
 
+    if (school) {
+      query.school = { $regex: new RegExp(school, 'i') }
+    }
+
     // LOCATION FILTER
     if (location) {
       const locationRegex = new RegExp(location, 'i')
@@ -199,6 +229,17 @@ export const exploreUsers = async (req, res, next) => {
     // EDUCATION FILTER
     if (education) {
       query.education = { $regex: new RegExp(education, 'i') }
+    }
+
+    if (gradeLevel) {
+      query.classYear = { $regex: new RegExp(gradeLevel, 'i') }
+    }
+
+    if (interest) {
+      const interestRegexArray = interest
+        .split(',')
+        .map((item) => new RegExp(item.trim(), 'i'))
+      query.$and = [...(query.$and || []), { 'nilPreferences.focusAreas': { $in: interestRegexArray } }]
     }
 
     // EXPERIENCE RANGE FILTER
@@ -288,9 +329,19 @@ export const exploreUsers = async (req, res, next) => {
       )
     }
 
+    if (user.userType === 'athlete') {
+      const tierWeight = { pro: 2, growth: 1, free: 0 }
+      sorted = [...sorted].sort((a, b) => {
+        const tierDelta = (tierWeight[b.tier] ?? 0) - (tierWeight[a.tier] ?? 0)
+        if (tierDelta !== 0) return tierDelta
+        return (b.matchScore || 0) - (a.matchScore || 0)
+      })
+    }
+
     const shouldBlurAthletes =
       isAdvisorOrAgent(user) &&
       user.userType !== 'athlete' &&
+      entitlements.shouldBlurAthleteProfiles &&
       !canViewFullAthleteProfiles(user)
 
     let enrichedResults = sorted.map((entry) => ({
@@ -361,11 +412,18 @@ export const getTrendingUsers = async (req, res, next) => {
 
     // Trending only for target user types
     const targetUserTypes = getTargetUserTypes(user.userType)
-    const matchingTypeUsers = await User.find({ 
+    const matchingTypeUsers = await User.find({
       userType: { $in: targetUserTypes },
-      _id: { $ne: userId }
+      _id: { $ne: userId },
+      isActive: true,
+      isBlocked: { $ne: true },
     })
-    const matchingTypeUserIds = matchingTypeUsers.map(u => u._id)
+    const matchingTypeUserIds = matchingTypeUsers
+      .filter((candidate) => {
+        if (user.userType !== 'athlete') return true
+        return canBeVisibleToAthletes(candidate)
+      })
+      .map((candidate) => candidate._id)
 
     let query = { 
       verified: true, 

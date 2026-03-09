@@ -10,11 +10,13 @@ export const TIER_DETAILS = {
   [TIERS.FREE]: {
     name: 'Free',
     price: '$0',
-    description: 'Basic access for new advisors',
+    description: 'Limited athlete access with verification entry point',
     features: [
-      '2-3 Athlete profile visibility',
+      '2-3 athlete profiles visible in Explore',
+      'Blurred athlete profiles with upgrade prompt',
+      'Connect, message, and social links locked',
       'Upload verification documents',
-      'Standard search placement',
+      'Advisor profile hidden from athletes',
     ],
     limits: {
       connectionsSent: 0,
@@ -25,11 +27,14 @@ export const TIER_DETAILS = {
   [TIERS.GROWTH]: {
     name: 'Growth',
     price: '$49/mo',
-    description: 'For growing advisors',
+    description: 'Verified access with monthly connection limits',
     features: [
       'Full athlete profile visibility',
+      'Athlete social media visible',
+      'Advisor profile visible to athletes',
+      '15 connection requests per month',
+      '5 accepted connections per month',
       'Unlimited messaging',
-      'Standard search placement',
       'Basic filters (Sport, School)',
     ],
     limits: {
@@ -41,14 +46,16 @@ export const TIER_DETAILS = {
   [TIERS.PRO]: {
     name: 'Pro',
     price: '$99/mo',
-    description: 'Ultimate tools for professional advisors',
+    description: 'Verified unlimited access with premium visibility',
     features: [
       'Full athlete profile visibility',
+      'Athlete social media visible',
+      'Advisor profile visible to athletes',
       'Unlimited messaging',
       'Unlimited connections',
-      'Premium filters (Location, Interests, etc.)',
+      'Premium filters (Needs, Location, Grade, Interest, Experience)',
       'Premium algorithm visibility',
-      'Exclusive Pro badge',
+      'Pro badge',
     ],
     limits: {
       connectionsSent: Infinity,

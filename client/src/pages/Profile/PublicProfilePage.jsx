@@ -40,7 +40,7 @@ import {
 } from '../../components/ui/dialog'
 import { Textarea } from '../../components/ui/textarea'
 import { getThemeById } from '../../constants/themes'
-import { selectCurrentUser } from '../../redux/userSlice'
+import { selectCanAccessSubscriptionUi, selectCurrentUser } from '../../redux/userSlice'
 import { connectionService } from '../../services/connectionService'
 import { profileService } from '../../services/profileService'
 import { getImageUrl } from '../../utils/imageUtils'
@@ -82,13 +82,13 @@ const PublicProfilePage = () => {
   const { id } = useParams()
   const navigate = useNavigate()
   const currentUser = useSelector(selectCurrentUser)
+  const canAccessSubscriptionUi = useSelector(selectCanAccessSubscriptionUi)
   
   const [profileData, setProfileData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [showConnectionModal, setShowConnectionModal] = useState(false)
   const [connectionMessage, setConnectionMessage] = useState('')
   const [isSending, setIsSending] = useState(false)
-  const [scrolled, setScrolled] = useState(false)
   const [connectionsPreview, setConnectionsPreview] = useState([])
   const [showConnectionsList, setShowConnectionsList] = useState(false)
   
@@ -96,7 +96,6 @@ const PublicProfilePage = () => {
   const [addNoteMode, setAddNoteMode] = useState(false)
   const [connectionStatus, setConnectionStatus] = useState('not_connected')
   const [connectionRequestId, setConnectionRequestId] = useState(null)
-  const [connectionRequestMessage, setConnectionRequestMessage] = useState(null)
   const [socialLocked, setSocialLocked] = useState(false)
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false)
 
@@ -109,7 +108,6 @@ const PublicProfilePage = () => {
           profile,
           connectionStatus,
           connectionRequestId,
-          connectionRequestMessage,
           totalConnections,
           socialLocked,
         } = response.data
@@ -120,7 +118,6 @@ const PublicProfilePage = () => {
         setSocialLocked(Boolean(socialLocked))
         setConnectionStatus(connectionStatus || 'not_connected')
         setConnectionRequestId(connectionRequestId)
-        setConnectionRequestMessage(connectionRequestMessage)
       }
     } catch (error) {
       console.error('Error fetching profile:', error)
@@ -136,11 +133,6 @@ const PublicProfilePage = () => {
       fetchProfile()
     }
 
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 50)
-    }
-    window.addEventListener('scroll', handleScroll)
-    return () => window.removeEventListener('scroll', handleScroll)
   }, [id])
 
   useEffect(() => {
@@ -209,7 +201,6 @@ const PublicProfilePage = () => {
         setConnectionStatus('connected')
         // Optimistically update other related connection states
         setConnectionRequestId(null)
-        setConnectionRequestMessage(null)
       }
     } catch (error) {
       console.error('Error accepting request:', error)
@@ -224,7 +215,6 @@ const PublicProfilePage = () => {
       toast.success('Connection request declined')
       setConnectionStatus('not_connected')
       setConnectionRequestId(null)
-      setConnectionRequestMessage(null)
     } catch (error) {
       console.error('Error declining request:', error)
       toast.error('Failed to decline request')
@@ -286,7 +276,7 @@ const PublicProfilePage = () => {
     ? profileData.activeInterests 
     : typeof profileData.interests === 'object' 
       ? Object.entries(profileData.interests)
-          .filter(([_, active]) => active)
+          .filter(([, active]) => active)
           .map(([key]) => key)
       : []
 
@@ -508,9 +498,10 @@ const PublicProfilePage = () => {
                                         <button
                                           type='button'
                                           onClick={() => setUpgradeModalOpen(true)}
-                                          className='text-[10px] font-black text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1'
+                                          className='inline-flex items-center gap-2 rounded-full border border-amber-200 bg-[linear-gradient(135deg,rgba(255,251,235,0.98),rgba(255,237,213,0.95))] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-amber-700 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md'
                                         >
-                                          LOCKED
+                                          <Zap size={12} />
+                                          Unlock Socials
                                         </button>
                                      )}
                                      {!socialLocked && profileData.socialMedia?.instagram && (
@@ -908,6 +899,7 @@ const PublicProfilePage = () => {
         isOpen={upgradeModalOpen}
         onClose={() => setUpgradeModalOpen(false)}
         triggerAction='socials'
+        allowSubscriptionUi={canAccessSubscriptionUi}
       />
     </DashboardLayout>
   )

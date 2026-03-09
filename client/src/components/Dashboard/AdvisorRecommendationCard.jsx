@@ -1,8 +1,9 @@
 import { motion } from 'framer-motion'
 import { ExternalLink, Send, TrendingUp, UserPlus, Users } from 'lucide-react'
 import React from 'react'
+import ProfileBlurOverlay from '../Explore/ProfileBlurOverlay'
 
-export const AdvisorRecommendationCard = ({ advisor, onConnect, onView, isPrimary }) => {
+export const AdvisorRecommendationCard = ({ advisor, onConnect, onView }) => {
   return (
     <motion.div
       initial={{ opacity: 0, x: 20 }}
@@ -11,6 +12,9 @@ export const AdvisorRecommendationCard = ({ advisor, onConnect, onView, isPrimar
       transition={{ duration: 0.3 }}
       className='border border-gray-200 rounded-2xl overflow-hidden hover:shadow-lg transition-shadow flex flex-col bg-white h-full group'
     >
+      {advisor.isBlurred && (
+        <ProfileBlurOverlay onClick={() => onView(advisor)} />
+      )}
       {/* Banner */}
       <div
         className='h-32 relative'
@@ -151,18 +155,25 @@ export const AdvisorRecommendationCard = ({ advisor, onConnect, onView, isPrimar
           </motion.button>
           <motion.button
             onClick={() => onConnect(advisor)}
-            disabled={advisor.connectionStatus !== 'not_connected'}
+            disabled={advisor.isBlurred || advisor.connectionStatus !== 'not_connected'}
             className={`flex-1 py-2 px-2 rounded-lg font-medium text-xs transition-colors flex items-center justify-center gap-1 ${
-              advisor.connectionStatus === 'connected' 
+              advisor.isBlurred
+                ? 'bg-slate-100 text-slate-400'
+                : advisor.connectionStatus === 'connected' 
                 ? 'bg-emerald-100 text-emerald-700' 
                 : advisor.connectionStatus === 'pending' || advisor.connectionStatus === 'received'
                   ? 'bg-amber-100 text-amber-700'
                   : 'bg-[#163146] text-white hover:bg-[#0f2a36]'
             }`}
-            whileHover={advisor.connectionStatus === 'not_connected' ? { scale: 1.02 } : {}}
-            whileTap={advisor.connectionStatus === 'not_connected' ? { scale: 0.98 } : {}}
+            whileHover={!advisor.isBlurred && advisor.connectionStatus === 'not_connected' ? { scale: 1.02 } : {}}
+            whileTap={!advisor.isBlurred && advisor.connectionStatus === 'not_connected' ? { scale: 0.98 } : {}}
           >
-            {advisor.connectionStatus === 'connected' ? (
+            {advisor.isBlurred ? (
+              <>
+                <UserPlus size={14} />
+                Upgrade
+              </>
+            ) : advisor.connectionStatus === 'connected' ? (
               <>
                 <Users size={14} />
                 Connected

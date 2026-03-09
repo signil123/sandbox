@@ -3,6 +3,7 @@ import { Interest, NILPreference } from '../models/Content.js'
 import Profile from '../models/Profile.js'
 import { Connection } from '../models/Relationship.js'
 import User from '../models/User.js'
+import { canBeVisibleToAthletes, getUserEntitlements, isAdvisorOrAgent } from '../utils/entitlements.js'
 
 const MATCH_WEIGHTS = {
   serviceFit: 0.38,
@@ -446,11 +447,25 @@ export const getRecommendations = async (req, res, next) => {
       isBlocked: { $ne: true },
     }).limit(parseInt(limit, 10) * 4)
 
-    const recommendations = await calculateBatchMatches(
+    const filteredPotentialMatches =
+      currentUserData.user.userType === 'athlete'
+        ? potentialMatches.filter((candidate) => canBeVisibleToAthletes(candidate))
+        : potentialMatches
+
+    let recommendations = await calculateBatchMatches(
       userId,
-      potentialMatches,
+      filteredPotentialMatches,
       currentUserData
     )
+
+    if (currentUserData.user.userType === 'athlete') {
+      const tierWeight = { pro: 2, growth: 1, free: 0 }
+      recommendations = [...recommendations].sort((a, b) => {
+        const tierDelta = (tierWeight[b.user?.tier] ?? 0) - (tierWeight[a.user?.tier] ?? 0)
+        if (tierDelta !== 0) return tierDelta
+        return (b.matchScore || 0) - (a.matchScore || 0)
+      })
+    }
 
     const topMatches = await Promise.all(
       recommendations.slice(0, parseInt(limit, 10)).map(async (match) => {
@@ -483,11 +498,42 @@ export const getRecommendations = async (req, res, next) => {
       })
     )
 
+    const shouldBlurAthletesForRequester =
+      isAdvisorOrAgent(currentUserData.user) &&
+      getUserEntitlements(currentUserData.user).shouldBlurAthleteProfiles
+
+    const enrichedMatches = topMatches.map((match, index) => {
+      const shouldBlur = shouldBlurAthletesForRequester && match.userType === 'athlete' && index >= 3
+      if (!shouldBlur) {
+        return {
+          ...match,
+          isBlurred: false,
+          blurReason: null,
+        }
+      }
+
+      return {
+        ...match,
+        profile: match.profile
+          ? {
+              ...match.profile.toObject?.(),
+              aboutMe: '',
+              bio: '',
+              socialMedia: {},
+              socialLinks: {},
+              website: null,
+            }
+          : match.profile,
+        isBlurred: true,
+        blurReason: 'upgrade_required',
+      }
+    })
+
     res.status(200).json({
       status: 'success',
-      results: topMatches.length,
+      results: enrichedMatches.length,
       data: {
-        recommendations: topMatches,
+        recommendations: enrichedMatches,
       },
     })
   } catch (error) {

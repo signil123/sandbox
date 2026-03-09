@@ -2,7 +2,7 @@ import { createError } from '../error.js'
 import MonthlyUsage, { getMonthKeyUTC } from '../models/MonthlyUsage.js'
 import StripePlan from '../models/StripePlan.js'
 import User from '../models/User.js'
-import { getResolvedTierLimits } from '../utils/entitlements.js'
+import { canAccessSubscriptionUi, getResolvedTierLimits, getUserEntitlements } from '../utils/entitlements.js'
 import { stripeRequest } from '../utils/stripeClient.js'
 
 const ACTIVE_STATUSES = ['active', 'trialing', 'past_due', 'unpaid']
@@ -79,6 +79,12 @@ const FIXED_PLAN_TEMPLATES = [
 const FIXED_TIERS = new Set(FIXED_PLAN_TEMPLATES.map((plan) => plan.tier))
 
 const getFrontEndUrl = () => process.env.FRONTEND_URL || 'http://localhost:5173'
+
+const assertSubscriptionEligible = (user) => {
+  if (!canAccessSubscriptionUi(user)) {
+    throw createError(403, 'Subscriptions are only available for advisors and agents')
+  }
+}
 
 const getCurrentPeriodEnd = (subscription) => {
   if (!subscription?.current_period_end) return null
@@ -307,6 +313,33 @@ const upgradeSubscriptionNow = async (subscription, nextPriceId) => {
       ],
     },
   })
+}
+
+const createSubscriptionFromSavedCard = async (customerId, priceId, user, plan) => {
+  const defaultPaymentMethodId = await ensureDefaultPaymentMethod(customerId)
+
+  if (!defaultPaymentMethodId) {
+    throw createError(400, 'Add a card before purchasing a paid plan')
+  }
+
+  const subscription = await stripeRequest('/subscriptions', {
+    method: 'POST',
+    data: {
+      customer: customerId,
+      collection_method: 'charge_automatically',
+      default_payment_method: defaultPaymentMethodId,
+      items: [{ price: priceId }],
+      metadata: {
+        userId: user._id.toString(),
+        planId: plan._id.toString(),
+        tier: plan.tier,
+      },
+      expand: ['items.data.price'],
+    },
+  })
+
+  await syncUserFromStripeSubscription(user, subscription, plan)
+  return subscription
 }
 
 export const getAdminPlans = async (req, res, next) => {
@@ -563,6 +596,7 @@ export const updateAdminPlan = async (req, res, next) => {
 
 export const getPlans = async (req, res, next) => {
   try {
+    assertSubscriptionEligible(req.user)
     const plans = await StripePlan.find({ active: true }).sort({ amount: 1, createdAt: -1 })
 
     res.status(200).json({
@@ -589,6 +623,7 @@ export const createCheckoutSession = async (req, res, next) => {
     }
 
     const user = await User.findById(req.user._id)
+    assertSubscriptionEligible(user)
 
     if (plan.tier === 'free') {
       if (user.stripeSubscriptionId) {
@@ -668,36 +703,15 @@ export const createCheckoutSession = async (req, res, next) => {
       return next(createError(400, 'Add a card before purchasing a paid plan'))
     }
 
-    const successUrl = `${getFrontEndUrl()}/settings?checkout=success&session_id={CHECKOUT_SESSION_ID}`
-    const cancelUrl = `${getFrontEndUrl()}/settings?checkout=cancelled`
-
-    const session = await stripeRequest('/checkout/sessions', {
-      method: 'POST',
-      data: {
-        mode: 'subscription',
-        customer: customerId,
-        allow_promotion_codes: true,
-        line_items: [
-          {
-            price: plan.stripePriceId,
-            quantity: 1,
-          },
-        ],
-        success_url: successUrl,
-        cancel_url: cancelUrl,
-        metadata: {
-          userId: user._id.toString(),
-          planId: plan._id.toString(),
-          tier: plan.tier,
-        },
-      },
-    })
+    await createSubscriptionFromSavedCard(customerId, plan.stripePriceId, user, plan)
 
     res.status(200).json({
       status: 'success',
+      message: 'Plan activated successfully',
       data: {
-        checkoutUrl: session.url,
-        sessionId: session.id,
+        tier: plan.tier,
+        checkoutUrl: null,
+        sessionId: null,
       },
     })
   } catch (error) {
@@ -729,6 +743,7 @@ export const syncCheckoutSession = async (req, res, next) => {
     }
 
     const user = await User.findById(req.user._id)
+    assertSubscriptionEligible(user)
 
     const stripeSubscription = session.subscription
     if (!stripeSubscription) {
@@ -771,6 +786,7 @@ export const syncCheckoutSession = async (req, res, next) => {
 export const createBillingPortalSession = async (req, res, next) => {
   try {
     const user = await User.findById(req.user._id)
+    assertSubscriptionEligible(user)
     const customerId = await ensureStripeCustomer(user)
 
     const portalSession = await stripeRequest('/billing_portal/sessions', {
@@ -795,6 +811,11 @@ export const createBillingPortalSession = async (req, res, next) => {
 const getStripeCustomer = async (customerId) => {
   if (!customerId) return null
   return stripeRequest(`/customers/${customerId}`, { method: 'GET' })
+}
+
+const getStripePaymentMethod = async (paymentMethodId) => {
+  if (!paymentMethodId) return null
+  return stripeRequest(`/payment_methods/${paymentMethodId}`, { method: 'GET' })
 }
 
 const ensureDefaultPaymentMethod = async (customerId) => {
@@ -830,6 +851,7 @@ const ensureDefaultPaymentMethod = async (customerId) => {
 export const createSetupSession = async (req, res, next) => {
   try {
     const user = await User.findById(req.user._id)
+    assertSubscriptionEligible(user)
     const customerId = await ensureStripeCustomer(user)
 
     const successUrl = `${getFrontEndUrl()}/settings?setup=success&session_id={CHECKOUT_SESSION_ID}`
@@ -861,6 +883,7 @@ export const createSetupSession = async (req, res, next) => {
 export const createSetupIntent = async (req, res, next) => {
   try {
     const user = await User.findById(req.user._id)
+    assertSubscriptionEligible(user)
     const customerId = await ensureStripeCustomer(user)
 
     const setupIntent = await stripeRequest('/setup_intents', {
@@ -886,6 +909,7 @@ export const createSetupIntent = async (req, res, next) => {
 export const getPaymentMethods = async (req, res, next) => {
   try {
     const user = await User.findById(req.user._id)
+    assertSubscriptionEligible(user)
     if (!user.stripeCustomerId) {
       return res.status(200).json({
         status: 'success',
@@ -926,7 +950,26 @@ export const setDefaultPaymentMethod = async (req, res, next) => {
     }
 
     const user = await User.findById(req.user._id)
+    assertSubscriptionEligible(user)
     const customerId = await ensureStripeCustomer(user)
+    const paymentMethod = await getStripePaymentMethod(paymentMethodId)
+
+    const paymentMethodCustomerId =
+      paymentMethod?.customer?._id ||
+      paymentMethod?.customer?.id ||
+      paymentMethod?.customer ||
+      null
+
+    if (!paymentMethodCustomerId) {
+      await stripeRequest(`/payment_methods/${paymentMethodId}/attach`, {
+        method: 'POST',
+        data: {
+          customer: customerId,
+        },
+      })
+    } else if (paymentMethodCustomerId !== customerId) {
+      return next(createError(400, 'This payment method belongs to a different customer'))
+    }
 
     await stripeRequest(`/customers/${customerId}`, {
       method: 'POST',
@@ -955,6 +998,9 @@ export const removePaymentMethod = async (req, res, next) => {
       return next(createError(400, 'paymentMethodId is required'))
     }
 
+    const user = await User.findById(req.user._id)
+    assertSubscriptionEligible(user)
+
     await stripeRequest(`/payment_methods/${paymentMethodId}/detach`, {
       method: 'POST',
     })
@@ -973,11 +1019,13 @@ export const removePaymentMethod = async (req, res, next) => {
 export const getMySubscription = async (req, res, next) => {
   try {
     const user = await User.findById(req.user._id)
+    assertSubscriptionEligible(user)
     const { subscription, plan } = await refreshAndResolveUserSubscription(user)
     const plans = await StripePlan.find({ active: true }).sort({ amount: 1, createdAt: -1 })
     const monthKey = getMonthKeyUTC()
     const usage = await MonthlyUsage.getUsageForUserMonth(user._id, monthKey)
     const limits = getResolvedTierLimits(user.tier)
+    const entitlements = getUserEntitlements(user)
 
     res.status(200).json({
       status: 'success',
@@ -1005,6 +1053,16 @@ export const getMySubscription = async (req, res, next) => {
         user: {
           tier: user.tier,
           verificationStatus: user.verificationStatus,
+        },
+        entitlements: {
+          canAccessSubscriptionUi: entitlements.canAccessSubscriptionUi,
+          canViewFullAthleteProfiles: entitlements.canViewFullAthleteProfiles,
+          canViewAthleteSocials: entitlements.canViewAthleteSocials,
+          canConnectWithAthlete: entitlements.canConnectWithAthlete,
+          canMessageAthlete: entitlements.canMessageAthlete,
+          canUseStandardFilters: entitlements.canUseStandardFilters,
+          canUsePremiumFilters: entitlements.canUsePremiumFilters,
+          canBeVisibleToAthletes: entitlements.canBeVisibleToAthletes,
         },
       },
     })

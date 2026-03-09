@@ -22,6 +22,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Crown,
   ExternalLink,
   Lock,
   MapPin,
@@ -36,7 +37,7 @@ import {
   X,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useDispatch, useSelector } from 'react-redux'
+import { useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import ProBadge from '../../components/Common/ProBadge'
@@ -44,9 +45,14 @@ import ProfilePopup from '../../components/Dashboard/ProfilePopup'
 import ProfileBlurOverlay from '../../components/Explore/ProfileBlurOverlay'
 import UpgradeModal from '../../components/Subscription/UpgradeModal'
 import SkeletonCard from '../../components/ui/SkeletonCard'
-import { getThemeById, themes } from '../../constants/themes'
+import { getThemeById } from '../../constants/themes'
 import { TIERS } from '../../constants/tiers'
-import { selectCurrentUser, selectIsFree, selectIsPro, selectIsVerified, selectUserTier } from '../../redux/userSlice'
+import {
+  selectCanAccessSubscriptionUi,
+  selectCurrentUser,
+  selectIsFree,
+  selectIsPro,
+} from '../../redux/userSlice'
 import { connectionService } from '../../services/connectionService'
 import { exploreService } from '../../services/exploreService'
 import DashboardLayout from '../Layout/DashboardLayout'
@@ -556,6 +562,7 @@ function CompactFilterDropdown({
   children,
   activeCount,
   widthClass = 'sm:w-72',
+  isLocked = false,
 }) {
   return (
     <motion.div className='w-full relative'>
@@ -563,25 +570,38 @@ function CompactFilterDropdown({
         onClick={onToggle}
         className='w-full flex items-center justify-between px-3 py-2.5 rounded-lg border transition-all'
         style={{
-          borderColor: activeCount > 0 ? COLORS.primary : '#e5e7eb',
-          background: activeCount > 0 ? `${COLORS.lightAccent}` : 'white',
+          borderColor: isLocked
+            ? 'rgba(152,106,65,0.35)'
+            : activeCount > 0
+              ? COLORS.primary
+              : '#e5e7eb',
+          background: isLocked
+            ? 'linear-gradient(135deg, rgba(248,244,238,1) 0%, rgba(255,251,247,1) 100%)'
+            : activeCount > 0
+              ? `${COLORS.lightAccent}`
+              : 'white',
         }}
-        whileHover={{ borderColor: COLORS.primary }}
+        whileHover={{ borderColor: isLocked ? COLORS.accent : COLORS.primary }}
       >
         <div className='flex items-center gap-2 min-w-0'>
           {Icon && (
             <Icon
               size={16}
-              style={{ color: COLORS.primary }}
+              style={{ color: isLocked ? COLORS.accent : COLORS.primary }}
               className='flex-shrink-0'
             />
           )}
           <span
             className='text-sm font-medium truncate'
-            style={{ color: activeCount > 0 ? COLORS.primary : '#6b7280' }}
+            style={{ color: isLocked ? '#163146' : activeCount > 0 ? COLORS.primary : '#6b7280' }}
           >
             {title}
           </span>
+          {isLocked && (
+            <span className='inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#986a41] text-white shadow-[0_8px_16px_-10px_rgba(152,106,65,0.9)]'>
+              <Crown size={10} strokeWidth={2.4} />
+            </span>
+          )}
           {activeCount > 0 && (
             <span
               className='ml-1 text-xs font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0'
@@ -599,7 +619,11 @@ function CompactFilterDropdown({
           transition={{ duration: 0.2 }}
           className='flex-shrink-0'
         >
-          <ChevronDown size={16} style={{ color: COLORS.primary }} />
+          {isLocked ? (
+            <Lock size={15} style={{ color: COLORS.accent }} />
+          ) : (
+            <ChevronDown size={16} style={{ color: COLORS.primary }} />
+          )}
         </motion.div>
       </motion.button>
 
@@ -664,15 +688,18 @@ function ExplorePageContent() {
   const [connectionMessage, setConnectionMessage] = useState('')
 
   // Tier states
-  const userTier = useSelector(selectUserTier)
   const isPro = useSelector(selectIsPro)
   const isFree = useSelector(selectIsFree)
-  const isVerified = useSelector(selectIsVerified)
-  const canUseStandardFilters = !isFree
-  const canUsePremiumFilters = isPro
+  const canAccessSubscriptionUi = useSelector(selectCanAccessSubscriptionUi)
+  const isAthleteUser = currentUser?.userType === 'athlete'
+  const canUseStandardFilters = isAthleteUser || !isFree
+  const canUsePremiumFilters = isAthleteUser || isPro
   const [upgradeModalState, setUpgradeModalState] = useState({ isOpen: false, action: '' })
 
-  const openUpgradeModal = (action) => setUpgradeModalState({ isOpen: true, action })
+  const openUpgradeModal = useCallback((action) => {
+    if (!canAccessSubscriptionUi) return
+    setUpgradeModalState({ isOpen: true, action })
+  }, [canAccessSubscriptionUi])
 
   const ITEMS_PER_PAGE = 9
 
@@ -688,8 +715,8 @@ function ExplorePageContent() {
         limit: ITEMS_PER_PAGE,
         locationPreference: filters.locationPreference,
         education: filters.education.join(','),
+        athleteNeeds: filters.areasOfExpertise.join(','),
         experienceRange: filters.experienceRange.join(','),
-        areasOfExpertise: filters.areasOfExpertise.join(','),
         sportSpecializations: filters.sportSpecializations.join(','),
       }
       
@@ -740,12 +767,12 @@ function ExplorePageContent() {
       console.error('Error fetching explore data:', error)
       const errorCode = error?.response?.data?.code
       if (errorCode === 'UPGRADE_REQUIRED') {
-        setUpgradeModalState({ isOpen: true, action: 'filters' })
+        openUpgradeModal('filters')
       }
     } finally {
       setLoading(false)
     }
-  }, [currentUser?._id, searchQuery, filters, currentPage])
+  }, [currentUser?._id, searchQuery, filters, currentPage, openUpgradeModal])
 
   useEffect(() => {
     fetchExploreData()
@@ -1015,6 +1042,7 @@ function ExplorePageContent() {
                   icon={Star}
                   widthClass="sm:w-[520px]"
                   isOpen={openDropdown === 'areasOfExpertise'}
+                  isLocked={!isPro}
                   onToggle={() => {
                     if (!isPro) {
                       openUpgradeModal('filters')
@@ -1106,6 +1134,7 @@ function ExplorePageContent() {
                   title='Education & Experience'
                   icon={Settings}
                   isOpen={openDropdown === 'education'}
+                  isLocked={!isPro}
                   onToggle={() => {
                     if (!isPro) {
                       openUpgradeModal('filters')
@@ -1176,6 +1205,7 @@ function ExplorePageContent() {
                   title='Sports'
                   icon={Users}
                   isOpen={openDropdown === 'sports'}
+                  isLocked={!canUseStandardFilters}
                   onToggle={() => {
                     if (!canUseStandardFilters) {
                       openUpgradeModal('filters')
@@ -1975,6 +2005,7 @@ function ExplorePageContent() {
           isOpen={upgradeModalState.isOpen} 
           onClose={() => setUpgradeModalState({ ...upgradeModalState, isOpen: false })} 
           triggerAction={upgradeModalState.action}
+          allowSubscriptionUi={canAccessSubscriptionUi}
         />
       </div>
     </>

@@ -237,6 +237,7 @@ const DashboardPage = () => {
           certifications: u.profile?.certifications || [],
           expertise: u.specialization || [],
           connectionStatus: u.connectionStatus || 'not_connected',
+          isBlurred: Boolean(u.isBlurred),
         }))
         setAdvisorsListData(mappedAdvisors)
       }
@@ -483,6 +484,10 @@ const DashboardPage = () => {
                         advisor={advisor}
                         onConnect={handleConnect}
                         onView={(a) => {
+                          if (a.isBlurred && ['advisor', 'agent'].includes(currentUser?.userType) && currentUser?.tier === 'free') {
+                            navigate('/settings?tab=plans')
+                            return
+                          }
                           setSelectedProfile(a)
                           setProfilePopupOpen(true)
                         }}

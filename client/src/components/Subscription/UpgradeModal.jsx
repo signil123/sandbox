@@ -76,7 +76,7 @@ const ModalContent = ({
       case 'explore':
         return 'See all 99+ athletes looking for advisors like you'
       case 'filters':
-        return 'Access premium filters to find the perfect match'
+        return 'Use more precise athlete filters to find the perfect fit'
       case 'limit_reached':
         return 'You reached your Growth monthly limit. Upgrade to Pro for unlimited access'
       default:
@@ -159,7 +159,6 @@ const ModalContent = ({
               const tier = plan.tier || 'free'
               const isCurrent = currentTier === tier
               const isPro = tier === 'pro'
-              const requiresCard = tier !== 'free'
               const currentRank = TIER_ORDER[currentTier] ?? 0
               const targetRank = TIER_ORDER[tier] ?? 0
               const isUpgrade = targetRank > currentRank
@@ -169,6 +168,9 @@ const ModalContent = ({
                 : isUpgrade
                   ? (isVerified && hasCardOnFile)
                   : true
+              const actionButtonClass = isDowngrade
+                ? 'bg-white border-2 border-slate-200 text-slate-700 hover:bg-slate-50'
+                : 'bg-[#163146] hover:bg-[#1f4461] text-white shadow-md'
 
               return (
                 <div
@@ -231,19 +233,16 @@ const ModalContent = ({
                       )}
                       <Button
                         className={`w-full h-10 md:h-11 rounded-lg font-black text-[10px] md:text-[11px] tracking-widest uppercase transition-all duration-300
-                          ${isPro
-                            ? 'bg-[#163146] hover:bg-[#1f4461] text-white shadow-md'
-                            : 'bg-white border-2 border-[#163146] text-[#163146] hover:bg-[#163146] hover:text-white'
-                          } ${!canPurchase && 'grayscale opacity-60'}`}
+                          ${actionButtonClass} ${!canPurchase && 'grayscale opacity-60'}`}
                         disabled={!canPurchase || checkoutPlanId === plan._id}
                         onClick={() => onCheckout(plan)}
                       >
                         {checkoutPlanId === plan._id
                           ? 'Redirecting...'
                           : isDowngrade
-                            ? 'Downgrade'
+                            ? 'Schedule Downgrade'
                             : isUpgrade
-                              ? 'Upgrade'
+                              ? 'Upgrade Now'
                               : 'Get Started'}
                       </Button>
                     </div>
@@ -268,6 +267,7 @@ const UpgradeModal = ({
   checkoutPlanId = null,
   currentSubscriptionTier = null,
   hasCardOnFile = false,
+  allowSubscriptionUi = true,
 }) => {
   const currentTier = useSelector(selectUserTier)
   const verificationStatus = useSelector(selectVerificationStatus)
@@ -281,6 +281,10 @@ const UpgradeModal = ({
   }, [])
 
   const effectiveTier = currentSubscriptionTier || currentTier
+
+  if (!allowSubscriptionUi) {
+    return null
+  }
 
   const content = (
     <ModalContent

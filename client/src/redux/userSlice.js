@@ -75,7 +75,7 @@ export const updateUserStatus = createAsyncThunk(
 
 export const logoutUser = createAsyncThunk(
   'user/logout',
-  async (_, { rejectWithValue }) => {
+  async () => {
     try {
       await authService.logout()
       return null
@@ -305,6 +305,8 @@ export const selectIsAdvisor = (state) =>
   state.user.currentUser?.userType === 'advisor'
 export const selectIsAgent = (state) =>
   state.user.currentUser?.userType === 'agent'
+export const selectCanAccessSubscriptionUi = (state) =>
+  ['advisor', 'agent'].includes(state.user.currentUser?.userType)
 
 export const selectUserTier = (state) => state.user.currentUser?.tier || 'free'
 export const selectVerificationStatus = (state) => state.user.currentUser?.verificationStatus || 'not_submitted'

@@ -1112,6 +1112,11 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
                         <p className='text-xs text-gray-500 mt-0.5'>
                           {userEmail}
                         </p>
+                        {currentUser?.role !== 'admin' && (
+                          <div className='mt-2 inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-[#163146]'>
+                            {(currentUser?.tier || 'free')} plan
+                          </div>
+                        )}
                       </div>
 
                       {currentUser?.role !== 'admin' && (
@@ -1162,16 +1167,18 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
                       {/* Menu Items */}
                       {currentUser?.role !== 'admin' && (
                         <div className='py-2'>
-                          <Link to="/settings">
-                            <motion.div
-                              className='flex items-center gap-3 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer'
-                              whileHover={{ x: 4 }}
-                              transition={{ duration: 0.1 }}
-                            >
-                              <CreditCard size={18} className='text-gray-400' />
-                              <span className='font-medium'>Subscription</span>
-                            </motion.div>
-                          </Link>
+                          {['advisor', 'agent'].includes(currentUser?.userType) && (
+                            <Link to="/settings">
+                              <motion.div
+                                className='flex items-center gap-3 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer'
+                                whileHover={{ x: 4 }}
+                                transition={{ duration: 0.1 }}
+                              >
+                                <CreditCard size={18} className='text-gray-400' />
+                                <span className='font-medium'>Subscription</span>
+                              </motion.div>
+                            </Link>
+                          )}
                           <Link to="/settings">
                             <motion.div
                               className='flex items-center gap-3 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer'

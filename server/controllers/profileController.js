@@ -6,7 +6,11 @@ import { ProfileView } from '../models/ProfileView.js'
 import { Connection, ConnectionRequest } from '../models/Relationship.js'
 import User from '../models/User.js'
 import { deleteCloudinaryAsset } from '../utils/cloudinaryCleanup.js'
-import { canViewAthleteSocials, isAdvisorOrAgent } from '../utils/entitlements.js'
+import {
+  canBeVisibleToAthletes,
+  canViewAthleteSocials,
+  isAdvisorOrAgent,
+} from '../utils/entitlements.js'
 
 const shouldLockAthleteSocials = (viewer, ownerProfile) => {
   if (!viewer || !ownerProfile) return false
@@ -17,6 +21,22 @@ const shouldLockAthleteSocials = (viewer, ownerProfile) => {
     ownerProfile.profileType === 'athlete' &&
     !canViewAthleteSocials(viewer)
   )
+}
+
+const canViewerAccessProfile = (viewer, profile) => {
+  if (!profile) return false
+  if (!viewer) return true
+  if (viewer._id?.toString() === profile.user?._id?.toString()) return true
+
+  if (
+    viewer.userType === 'athlete' &&
+    isAdvisorOrAgent(profile.user) &&
+    !canBeVisibleToAthletes(profile.user)
+  ) {
+    return false
+  }
+
+  return true
 }
 
 const maskAthleteSocials = (profile) => {
@@ -84,6 +104,10 @@ export const getUserProfile = async (req, res, next) => {
 
     if (!profile.isPublic && profile.user._id.toString() !== req.user.id) {
       return next(createError(403, 'This profile is private'))
+    }
+
+    if (!canViewerAccessProfile(req.user, profile)) {
+      return next(createError(403, 'This profile is not visible yet'))
     }
 
     // Profile View Tracking & Notification
@@ -531,6 +555,10 @@ export const getProfileByUserId = async (req, res, next) => {
       return next(createError(403, 'This profile is private'))
     }
 
+    if (!canViewerAccessProfile(req.user, profile)) {
+      return next(createError(403, 'This profile is not visible yet'))
+    }
+
     // Profile View Tracking & Notification
     if (req.user && profile.user._id.toString() !== req.user.id) {
       const viewerId = req.user.id
@@ -637,6 +665,18 @@ export const getAllAdvisors = async (req, res, next) => {
       verified: true,
     }
 
+    if (req.user?.userType === 'athlete') {
+      const visibleAdvisorIds = (
+        await User.find({
+          userType: 'advisor',
+          tier: { $in: ['growth', 'pro'] },
+          isActive: true,
+          isBlocked: { $ne: true },
+        }).select('_id')
+      ).map((user) => user._id)
+      filter.user = { $in: visibleAdvisorIds }
+    }
+
     if (specialization) {
       filter.specialization = { $in: [specialization] }
     }
@@ -689,9 +729,13 @@ export const getRecommendedAdvisors = async (req, res, next) => {
       .populate('user', '-password')
       .limit(limit)
 
+    const filteredAdvisors = recommendedAdvisors.filter((profile) =>
+      canBeVisibleToAthletes(profile.user)
+    )
+
     res.status(200).json({
       status: 'success',
-      data: { advisors: recommendedAdvisors },
+      data: { advisors: filteredAdvisors },
     })
   } catch (error) {
     console.error('Error in getRecommendedAdvisors:', error)
