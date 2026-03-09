@@ -2,7 +2,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import {
     Bell,
-    Bot,
     Calendar,
     CheckCircle2,
     ChevronDown,
@@ -568,16 +567,142 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
     }
   }
 
+  const cleanNotificationText = (value = '') =>
+    String(value)
+      .replace(/\s+/g, ' ')
+      .replace(/^"+|"+$/g, '')
+      .trim()
+
+  const toSentenceCase = (value = '') => {
+    const text = cleanNotificationText(value)
+    if (!text) return ''
+    return text.charAt(0).toUpperCase() + text.slice(1)
+  }
+
+  const getDocumentNameFromDescription = (description = '') => {
+    const text = cleanNotificationText(description)
+    if (!text) return null
+    const matches = text.match(/^Your\s+(.+?)\s+has\s+/i)
+    return matches?.[1] || null
+  }
+
+  const getNotificationPresentation = (notif) => {
+    const senderName = notif?.sender?.name || 'A user'
+    const originalTitle = cleanNotificationText(notif?.title)
+    const originalDescription = cleanNotificationText(notif?.description)
+    const safeDescription = toSentenceCase(originalDescription)
+    const documentName = getDocumentNameFromDescription(originalDescription)
+    const hasCustomMessage = !!originalDescription && !/wants to connect/i.test(originalDescription)
+
+    switch (notif?.type) {
+      case 'message':
+        return {
+          title: `${senderName} sent you a message`,
+          description: safeDescription || 'Open the conversation to read and reply.',
+          tag: 'Message',
+        }
+      case 'connection_request':
+        return {
+          title: `${senderName} wants to connect`,
+          description: hasCustomMessage
+            ? safeDescription
+            : 'Review their profile and respond when you are ready.',
+          tag: 'Invitation',
+        }
+      case 'connection_accepted':
+        return {
+          title: `${senderName} accepted your request`,
+          description: `You are now connected with ${senderName}.`,
+          tag: 'Network',
+        }
+      case 'profile_view':
+        return {
+          title: `${senderName} viewed your profile`,
+          description: 'Open their profile to learn more and start a conversation.',
+          tag: 'Activity',
+        }
+      case 'event_invitation':
+        return {
+          title: originalTitle || 'Event invitation',
+          description: safeDescription || `${senderName} invited you to an event.`,
+          tag: 'Invitation',
+        }
+      case 'document_approved':
+        return {
+          title: `${documentName || 'Document'} verified`,
+          description: 'Your document was reviewed and approved.',
+          tag: 'Verification',
+        }
+      case 'document_declined':
+        return {
+          title: `${documentName || 'Document'} needs updates`,
+          description: safeDescription || 'Please review the feedback and resubmit.',
+          tag: 'Verification',
+        }
+      case 'document_expired':
+        return {
+          title: `${documentName || 'Document'} expired`,
+          description: safeDescription || 'Renew this document to keep your profile current.',
+          tag: 'Verification',
+        }
+      case 'security_update': {
+        const combined = `${originalTitle} ${originalDescription}`.toLowerCase()
+        if (combined.includes('verified')) {
+          return {
+            title: `${documentName || 'Document'} verified`,
+            description: 'Your document was approved and added to your profile.',
+            tag: 'Verification',
+          }
+        }
+        if (combined.includes('requires update') || combined.includes('update')) {
+          return {
+            title: `${documentName || 'Document'} needs updates`,
+            description: safeDescription || 'Please update this document to complete verification.',
+            tag: 'Verification',
+          }
+        }
+        if (combined.includes('expired')) {
+          return {
+            title: `${documentName || 'Document'} expired`,
+            description: safeDescription || 'Renew this document to keep your account in good standing.',
+            tag: 'Verification',
+          }
+        }
+        return {
+          title: originalTitle || 'Security update',
+          description: safeDescription || 'Your account security settings were updated.',
+          tag: 'Security',
+        }
+      }
+      default:
+        return {
+          title: originalTitle || 'New update',
+          description: safeDescription || 'You have a new notification in Signil.',
+          tag: 'Update',
+        }
+    }
+  }
+
   const getNotificationIcon = (type) => {
     switch (type) {
       case 'message':
-        return { icon: MessageSquare, bgColor: 'bg-[#fdf8f3]', iconColor: 'text-[#986a41]' }
+        return { icon: MessageSquare, bgColor: 'bg-[#f6efe8]', iconColor: 'text-[#7a532f]' }
       case 'profile_view':
-        return { icon: Eye, bgColor: 'bg-[#eef2f5]', iconColor: 'text-[#163146]' }
+        return { icon: Eye, bgColor: 'bg-[#eaf0f4]', iconColor: 'text-[#163146]' }
+      case 'connection_accepted':
+        return { icon: CheckCircle2, bgColor: 'bg-emerald-50', iconColor: 'text-emerald-700' }
       case 'security_update':
-        return { icon: Bot, bgColor: 'bg-red-50', iconColor: 'text-red-500' }
+        return { icon: Shield, bgColor: 'bg-red-50', iconColor: 'text-red-500' }
       case 'connection_request':
-        return { icon: UserPlus, bgColor: 'bg-[#fdf8f3]', iconColor: 'text-[#986a41]' }
+        return { icon: UserPlus, bgColor: 'bg-[#f6efe8]', iconColor: 'text-[#7a532f]' }
+      case 'event_invitation':
+        return { icon: Calendar, bgColor: 'bg-indigo-50', iconColor: 'text-indigo-700' }
+      case 'document_approved':
+        return { icon: CheckCircle2, bgColor: 'bg-emerald-50', iconColor: 'text-emerald-700' }
+      case 'document_declined':
+        return { icon: Clock, bgColor: 'bg-amber-50', iconColor: 'text-amber-700' }
+      case 'document_expired':
+        return { icon: Clock, bgColor: 'bg-amber-50', iconColor: 'text-amber-700' }
       default:
         return { icon: Bell, bgColor: 'bg-gray-50', iconColor: 'text-gray-400' }
     }
@@ -1270,8 +1395,8 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
                                 {!inAppNotificationsEnabled
                                   ? 'In-app notifications are off'
                                   : effectiveUnreadCount === 0
-                                    ? 'No new messages'
-                                    : `${effectiveUnreadCount} unread message${
+                                    ? "You're all caught up"
+                                    : `${effectiveUnreadCount} unread update${
                                         effectiveUnreadCount === 1 ? '' : 's'
                                       }`}
                               </p>
@@ -1447,6 +1572,7 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
                                                         {items.map((notif) => {
                                                             const isInvitation = invitationTypes.includes(notif.type)
                                                             const { icon: Icon, bgColor, iconColor } = getNotificationIcon(notif.type)
+                                                            const presentation = getNotificationPresentation(notif)
                                                             
                                                             return (
                                                                 <motion.div
@@ -1469,39 +1595,36 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
                                                                         <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-[#986a41]/5 to-transparent rounded-bl-full -mr-4 -mt-4 pointer-events-none" />
                                                                     )}
 
-                                                                    <div className='flex gap-4 p-4'>
+                                                                    <div className='flex gap-3 p-3.5'>
                                                                         {/* Icon */}
-                                                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${bgColor} ${isInvitation ? 'ring-2 ring-white shadow-sm' : ''}`}>
-                                                                            <Icon size={18} className={iconColor} />
+                                                                        <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 self-center ${bgColor} ${isInvitation ? 'ring-1 ring-white shadow-sm' : ''}`}>
+                                                                            <Icon size={16} className={iconColor} />
                                                                         </div>
                                                                         
                                                                         {/* Content */}
-                                                                        <div className='flex-1 min-w-0 pt-0.5 relative z-10'>
-                                                                             {isInvitation && (
-                                                                                <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold bg-[#986a41]/10 text-[#986a41] mb-1.5 tracking-wide uppercase">
-                                                                                    Pending Invitation
-                                                                                </span>
-                                                                             )}
+                                                                        <div className='flex-1 min-w-0 relative z-10'>
+                                                                            <span className='inline-block px-1.5 py-0.5 rounded text-[9px] font-semibold bg-gray-100 text-gray-600 mb-1 tracking-wide uppercase'>
+                                                                              {presentation.tag}
+                                                                            </span>
 
                                                                             <div className='flex items-start justify-between gap-3'>
-                                                                                <h4 className={`text-sm font-semibold leading-tight ${notif.isRead ? 'text-gray-700' : 'text-[#163146]'}`}>
-                                                                                    {notif.title}
+                                                                                <h4 className={`text-[13px] font-semibold leading-[1.3] ${notif.isRead ? 'text-gray-700' : 'text-[#163146]'}`}>
+                                                                                    {presentation.title}
                                                                                 </h4>
-                                                                                <span className='text-[10px] text-gray-400 whitespace-nowrap font-medium'>
+                                                                                <span className='text-[10px] text-gray-400 whitespace-nowrap font-medium pt-0.5'>
                                                                                     {formatTimestamp(notif.createdAt)}
                                                                                 </span>
                                                                             </div>
                                                                             
-                                                                            <p className='text-xs text-gray-500 mt-1.5 line-clamp-2 leading-relaxed'>
-                                                                                {notif.description}
+                                                                            <p className='text-[12px] text-gray-500 mt-1 line-clamp-2 leading-[1.4]'>
+                                                                                {presentation.description}
                                                                             </p>
 
-                                                                            {/* Fake Action Buttons for Visuals (functionality is navigate for now) */}
                                                                             {isInvitation && (
-                                                                                <div className="flex gap-2 mt-3">
-                                                                                    <div className="flex-1 text-center py-1.5 bg-[#163146] text-white text-xs font-medium rounded-md shadow-sm hover:bg-[#0f1f27] transition-colors">
-                                                                                        View Details
-                                                                                    </div>
+                                                                                <div className='mt-2'>
+                                                                                  <span className='text-[11px] font-medium text-[#163146]'>
+                                                                                    Review invitation
+                                                                                  </span>
                                                                                 </div>
                                                                             )}
                                                                         </div>

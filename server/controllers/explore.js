@@ -21,6 +21,8 @@ import { __matchingInternals, calculateMatchScore } from './matching.js'
 // Helper to get target user types based on requester type
 const getTargetUserTypes = (userType) => User.getTargetTypes(userType)
 
+const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
 const parseExperienceFilter = (value = '') => {
   const normalized = String(value).trim()
   if (!normalized) return null
@@ -34,6 +36,14 @@ const parseExperienceFilter = (value = '') => {
     max: values.length > 1 ? values[1] : null,
   }
 }
+
+const parseExperienceFilters = (value = '') =>
+  String(value)
+    .split(',')
+    .map((entry) => parseExperienceFilter(entry))
+    .filter(Boolean)
+
+const FREE_ATHLETE_PREVIEW_LIMIT = 3
 
 /**
  * Get Explore results - athletes see advisors/agents, advisors/agents see athletes
@@ -136,24 +146,43 @@ export const exploreUsers = async (req, res, next) => {
       isActive: true,
       isBlocked: { $ne: true },
     })
-    const matchingTypeUserIds = matchingTypeUsers
-      .filter((candidate) => {
-        if (user.userType !== 'athlete') return true
-        return canBeVisibleToAthletes(candidate)
-      })
-      .map((candidate) => candidate._id)
+    const restrictedForAthleteIds = new Set(
+      user.userType === 'athlete'
+        ? matchingTypeUsers
+            .filter((candidate) => !canBeVisibleToAthletes(candidate))
+            .map((candidate) => candidate._id.toString())
+        : []
+    )
+
+    const matchingTypeUserIds = matchingTypeUsers.map((candidate) => candidate._id)
     
     query.user = { $in: matchingTypeUserIds }
 
     // SEARCH FILTER
     if (search) {
-      const searchRegex = new RegExp(search, 'i')
-      const searchMatchingUsers = await User.find({ 
+      const searchRegex = new RegExp(escapeRegex(search), 'i')
+      const searchMatchingUsers = await User.find({
         _id: { $in: matchingTypeUserIds },
-        name: searchRegex 
+        name: searchRegex,
       })
-      const userIds = searchMatchingUsers.map((u) => u._id)
-      query.user = { $in: userIds }
+      const userIdsFromName = searchMatchingUsers.map((u) => u._id)
+      query.$and = [
+        ...(query.$and || []),
+        {
+          $or: [
+            { user: { $in: userIdsFromName } },
+            { title: searchRegex },
+            { aboutMe: searchRegex },
+            { bio: searchRegex },
+            { school: searchRegex },
+            { sport: searchRegex },
+            { position: searchRegex },
+            { location: searchRegex },
+            { specialization: { $in: [searchRegex] } },
+            { specialties: { $in: [searchRegex] } },
+          ],
+        },
+      ]
     }
 
     // EXPERTISE/SPECIALIZATION FILTER
@@ -168,10 +197,15 @@ export const exploreUsers = async (req, res, next) => {
         specialties: { $in: expertiseRegexArray }
       }).distinct('_id')
 
-      query.$or = [
-        { specialization: { $in: expertiseRegexArray } },
-        { specialties: { $in: expertiseRegexArray } },
-        { user: { $in: userIdsWithSpecs } }
+      query.$and = [
+        ...(query.$and || []),
+        {
+          $or: [
+            { specialization: { $in: expertiseRegexArray } },
+            { specialties: { $in: expertiseRegexArray } },
+            { user: { $in: userIdsWithSpecs } },
+          ],
+        },
       ]
     }
 
@@ -228,7 +262,14 @@ export const exploreUsers = async (req, res, next) => {
 
     // EDUCATION FILTER
     if (education) {
-      query.education = { $regex: new RegExp(education, 'i') }
+      const educationRegexArray = education
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean)
+        .map((value) => new RegExp(escapeRegex(value), 'i'))
+      if (educationRegexArray.length) {
+        query.education = { $in: educationRegexArray }
+      }
     }
 
     if (gradeLevel) {
@@ -262,15 +303,17 @@ export const exploreUsers = async (req, res, next) => {
     let baseResults = await Profile.find(query).sort({ createdAt: -1 })
 
     if (experienceRange) {
-      const range = parseExperienceFilter(experienceRange)
-      if (range) {
+      const ranges = parseExperienceFilters(experienceRange)
+      if (ranges.length) {
         baseResults = baseResults.filter((profile) => {
           const years = __matchingInternals.parseExperienceYears(profile.experience)
           if (years === null) return false
-          if (range.max !== null) {
-            return years >= range.min && years <= range.max
-          }
-          return years >= range.min
+          return ranges.some((range) => {
+            if (range.max !== null) {
+              return years >= range.min && years <= range.max
+            }
+            return years >= range.min
+          })
         })
       }
     }
@@ -350,14 +393,39 @@ export const exploreUsers = async (req, res, next) => {
       blurReason: null,
     }))
 
+    if (restrictedForAthleteIds.size > 0) {
+      enrichedResults = enrichedResults.map((entry) => {
+        if (!restrictedForAthleteIds.has(entry.userId.toString())) {
+          return entry
+        }
+
+        const maskedProfile = {
+          ...entry.profile?.toObject?.(),
+          aboutMe: '',
+          bio: '',
+          socialMedia: {},
+          socialLinks: {},
+          website: null,
+        }
+
+        return {
+          ...entry,
+          profile: maskedProfile,
+          isBlurred: true,
+          blurReason: 'upgrade_required',
+        }
+      })
+    }
+
     if (shouldBlurAthletes) {
       const athleteIndices = enrichedResults
         .map((entry, index) => (entry.userType === 'athlete' ? index : -1))
         .filter((index) => index >= 0)
 
-      const previewCount = Math.min(athleteIndices.length, Math.random() < 0.5 ? 2 : 3)
-      const shuffledAthleteIndices = [...athleteIndices].sort(() => Math.random() - 0.5)
-      const visibleAthleteIndices = new Set(shuffledAthleteIndices.slice(0, previewCount))
+      // Keep previews deterministic: show the top N athletes in sorted order.
+      const visibleAthleteIndices = new Set(
+        athleteIndices.slice(0, Math.min(athleteIndices.length, FREE_ATHLETE_PREVIEW_LIMIT))
+      )
 
       enrichedResults = enrichedResults.map((entry, index) => {
         if (entry.userType !== 'athlete' || visibleAthleteIndices.has(index)) {
@@ -489,7 +557,12 @@ export const getFeaturedUsers = async (req, res, next) => {
       userType: { $in: targetUserTypes },
       _id: { $ne: userId }
     })
-    const matchingTypeUserIds = matchingTypeUsers.map(u => u._id)
+    const matchingTypeUserIds = matchingTypeUsers
+      .filter((candidate) => {
+        if (user.userType !== 'athlete') return true
+        return canBeVisibleToAthletes(candidate)
+      })
+      .map((candidate) => candidate._id)
 
     let query = {
       verified: true,
@@ -552,7 +625,12 @@ export const getSimilarUsers = async (req, res, next) => {
       userType: { $in: targetUserTypes },
       _id: { $ne: userId }
     })
-    const matchingTypeUserIds = matchingTypeUsers.map(u => u._id)
+    const matchingTypeUserIds = matchingTypeUsers
+      .filter((candidate) => {
+        if (user.userType !== 'athlete') return true
+        return canBeVisibleToAthletes(candidate)
+      })
+      .map((candidate) => candidate._id)
 
     // Find users with similar interests
     let query = { 

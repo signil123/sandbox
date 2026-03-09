@@ -36,7 +36,7 @@ import {
   Users,
   X,
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -779,9 +779,6 @@ function ExplorePageContent() {
   }, [fetchExploreData])
 
   const filteredResults = results
-  const bestMatchIds = useMemo(() => {
-    return results.slice(0, 3).map((u) => u.id)
-  }, [results])
 
   const paginatedResults = results
 
@@ -1249,8 +1246,8 @@ function ExplorePageContent() {
                       <input
                         type='radio'
                         name='sort'
-                        value='best-match'
-                        checked={filters.sortBy === 'best-match'}
+                        value='bestMatch'
+                        checked={filters.sortBy === 'bestMatch'}
                         onChange={(e) =>
                           handleFilterChange({
                             ...filters,
@@ -1266,8 +1263,8 @@ function ExplorePageContent() {
                       <input
                         type='radio'
                         name='sort'
-                        value='highest-rated'
-                        checked={filters.sortBy === 'highest-rated'}
+                        value='highestRated'
+                        checked={filters.sortBy === 'highestRated'}
                         onChange={(e) =>
                           handleFilterChange({
                             ...filters,
@@ -1399,8 +1396,8 @@ function ExplorePageContent() {
                            <input
                               type='radio'
                               name='mobile-sort'
-                              value='best-match'
-                              checked={filters.sortBy === 'best-match'}
+                              value='bestMatch'
+                              checked={filters.sortBy === 'bestMatch'}
                               onChange={(e) =>
                               handleFilterChange({
                                  ...filters,
@@ -1419,8 +1416,8 @@ function ExplorePageContent() {
                            <input
                               type='radio'
                               name='mobile-sort'
-                              value='highest-rated'
-                              checked={filters.sortBy === 'highest-rated'}
+                              value='highestRated'
+                              checked={filters.sortBy === 'highestRated'}
                               onChange={(e) =>
                               handleFilterChange({
                                  ...filters,
@@ -1695,13 +1692,7 @@ function ExplorePageContent() {
           ) : (
             <>
               <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 mb-8'>
-                {paginatedResults.filter(user => {
-                  if (currentUser?.userType === 'athlete' && (user.type === 'advisor' || user.type === 'agent')) {
-                    return user.tier !== TIERS.FREE
-                  }
-                  return true
-                }).map((user, index) => {
-                  const isBestMatch = bestMatchIds.includes(user.id)
+                {paginatedResults.map((user, index) => {
                   const isAthlete = user.userType === 'athlete' || user.type === 'athlete'
                   const isActuallyBlurred = Boolean(user.isBlurred)
 

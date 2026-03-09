@@ -56,6 +56,8 @@ const DEFAULT_BREAKDOWN = {
   },
 }
 
+const FREE_ATHLETE_PREVIEW_LIMIT = 3
+
 const normalizeText = (value = '') =>
   String(value)
     .toLowerCase()
@@ -502,8 +504,20 @@ export const getRecommendations = async (req, res, next) => {
       isAdvisorOrAgent(currentUserData.user) &&
       getUserEntitlements(currentUserData.user).shouldBlurAthleteProfiles
 
-    const enrichedMatches = topMatches.map((match, index) => {
-      const shouldBlur = shouldBlurAthletesForRequester && match.userType === 'athlete' && index >= 3
+    let visibleAthleteCount = 0
+
+    const enrichedMatches = topMatches.map((match) => {
+      const isAthleteMatch = match.userType === 'athlete'
+      const shouldKeepVisible =
+        !shouldBlurAthletesForRequester ||
+        !isAthleteMatch ||
+        visibleAthleteCount < FREE_ATHLETE_PREVIEW_LIMIT
+
+      if (isAthleteMatch && shouldKeepVisible) {
+        visibleAthleteCount += 1
+      }
+
+      const shouldBlur = !shouldKeepVisible
       if (!shouldBlur) {
         return {
           ...match,

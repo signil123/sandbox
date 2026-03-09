@@ -72,7 +72,6 @@ const PublicProfileSkeleton = () => (
       <div className='space-y-4'>
         <div className='bg-white rounded-2xl border border-slate-200 p-6 h-64 shadow-sm' />
         <div className='bg-white rounded-2xl border border-slate-200 p-6 h-48 shadow-sm' />
-        <div className='bg-slate-900 rounded-2xl p-6 h-64 shadow-lg' />
       </div>
     </div>
   </div>
