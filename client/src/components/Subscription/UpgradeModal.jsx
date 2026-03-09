@@ -77,6 +77,8 @@ const ModalContent = ({
         return 'See all 99+ athletes looking for advisors like you'
       case 'filters':
         return 'Access premium filters to find the perfect match'
+      case 'limit_reached':
+        return 'You reached your Growth monthly limit. Upgrade to Pro for unlimited access'
       default:
         return 'Choose the plan that fits your professional needs'
     }

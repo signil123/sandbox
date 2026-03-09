@@ -5,6 +5,7 @@ import Profile from '../models/Profile.js'
 import { Connection, ConnectionRequest } from '../models/Relationship.js'
 import User from '../models/User.js'
 import { getIO } from '../socket.js'
+import { canMessageAthlete, isAdvisorOrAgent } from '../utils/entitlements.js'
 import { sendPushToUser } from './push.js'
 
 const emitConversationRead = ({ conversation, readerId, readResult }) => {
@@ -37,6 +38,24 @@ export const startConversation = async (req, res, next) => {
 
     if (senderId === recipientId) {
       return next(createError(400, 'Cannot start a conversation with yourself'))
+    }
+
+    const [sender, recipient] = await Promise.all([
+      User.findById(senderId),
+      User.findById(recipientId),
+    ])
+
+    if (!sender || !recipient) {
+      return next(createError(404, 'One or both users not found'))
+    }
+
+    if (isAdvisorOrAgent(sender) && recipient.userType === 'athlete' && !canMessageAthlete(sender)) {
+      return res.status(403).json({
+        success: false,
+        status: 'fail',
+        code: 'UPGRADE_REQUIRED',
+        message: 'Upgrade to Growth or Pro to message athletes.',
+      })
     }
 
     // Check if they are connected
@@ -133,6 +152,28 @@ export const sendMessage = async (req, res, next) => {
 
     const recipientId = conversation.getOtherParticipant(senderId)
 
+    const [senderUser, recipientUser] = await Promise.all([
+      User.findById(senderId),
+      User.findById(recipientId),
+    ])
+
+    if (!senderUser || !recipientUser) {
+      return next(createError(404, 'One or both users not found'))
+    }
+
+    if (
+      isAdvisorOrAgent(senderUser) &&
+      recipientUser.userType === 'athlete' &&
+      !canMessageAthlete(senderUser)
+    ) {
+      return res.status(403).json({
+        success: false,
+        status: 'fail',
+        code: 'UPGRADE_REQUIRED',
+        message: 'Upgrade to Growth or Pro to message athletes.',
+      })
+    }
+
     // Check if they are still connected
     const areConnected = await Connection.areConnected(senderId, recipientId)
     if (!areConnected) {
@@ -173,7 +214,7 @@ export const sendMessage = async (req, res, next) => {
     })
 
     // Create notification for recipient
-    const sender = await User.findById(senderId)
+    const sender = senderUser
     const notificationContent = content 
       ? (content.length > 50 ? `${content.substring(0, 47)}...` : content)
       : (attachments && attachments.length > 0 ? `Sent a ${req.body.type || 'file'}` : 'New message')

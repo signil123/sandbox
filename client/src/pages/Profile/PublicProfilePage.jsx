@@ -29,6 +29,7 @@ import React, { useEffect, useState } from 'react'
 import { useSelector } from 'react-redux'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Toaster, toast } from 'sonner'
+import UpgradeModal from '../../components/Subscription/UpgradeModal'
 import { Button } from '../../components/ui/button'
 import {
   Dialog,
@@ -96,17 +97,27 @@ const PublicProfilePage = () => {
   const [connectionStatus, setConnectionStatus] = useState('not_connected')
   const [connectionRequestId, setConnectionRequestId] = useState(null)
   const [connectionRequestMessage, setConnectionRequestMessage] = useState(null)
+  const [socialLocked, setSocialLocked] = useState(false)
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false)
 
   const fetchProfile = async () => {
     try {
       setLoading(true)
       const response = await profileService.getProfileByUserId(id)
       if (response.status === 'success') {
-        const { profile, connectionStatus, connectionRequestId, connectionRequestMessage, totalConnections } = response.data
+        const {
+          profile,
+          connectionStatus,
+          connectionRequestId,
+          connectionRequestMessage,
+          totalConnections,
+          socialLocked,
+        } = response.data
         setProfileData({
           ...profile,
           connectionsCount: totalConnections ?? profile.connectionsCount ?? 0,
         })
+        setSocialLocked(Boolean(socialLocked))
         setConnectionStatus(connectionStatus || 'not_connected')
         setConnectionRequestId(connectionRequestId)
         setConnectionRequestMessage(connectionRequestMessage)
@@ -493,17 +504,26 @@ const PublicProfilePage = () => {
                                 </div>
                                 <p className='text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1.5'>Presence</p>
                                 <div className='flex gap-2.5 justify-center'>
-                                     {profileData.socialMedia?.instagram && (
+                                     {socialLocked && currentUser?.tier === 'free' && (
+                                        <button
+                                          type='button'
+                                          onClick={() => setUpgradeModalOpen(true)}
+                                          className='text-[10px] font-black text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1'
+                                        >
+                                          LOCKED
+                                        </button>
+                                     )}
+                                     {!socialLocked && profileData.socialMedia?.instagram && (
                                         <a href={`https://instagram.com/${profileData.socialMedia.instagram.replace('@', '')}`} target="_blank" rel="noreferrer" className='p-1 rounded-lg hover:bg-slate-50 transition-colors'>
                                              <span className='text-xs font-black text-slate-700'>IG</span>
                                         </a>
                                      )}
-                                     {profileData.socialMedia?.twitter && (
+                                     {!socialLocked && profileData.socialMedia?.twitter && (
                                         <a href={`https://twitter.com/${profileData.socialMedia.twitter.replace('@', '')}`} target="_blank" rel="noreferrer" className='p-1 rounded-lg hover:bg-slate-50 transition-colors'>
                                             <span className='text-xs font-black text-slate-700'>TW</span>
                                         </a>
                                      )}
-                                     {!profileData.socialMedia?.instagram && !profileData.socialMedia?.twitter && <span className='text-xs font-black text-slate-300'>PRIVATE</span>}
+                                     {!socialLocked && !profileData.socialMedia?.instagram && !profileData.socialMedia?.twitter && <span className='text-xs font-black text-slate-300'>PRIVATE</span>}
                                 </div>
                             </div>
 
@@ -883,6 +903,11 @@ const PublicProfilePage = () => {
         canManage={currentUser?._id === id}
         title={currentUser?._id === id ? 'My Network' : `${user.name}'s Network`}
         subtitle={currentUser?._id === id ? 'Search, manage, and unfollow your connections' : 'Connections in this network'}
+      />
+      <UpgradeModal
+        isOpen={upgradeModalOpen}
+        onClose={() => setUpgradeModalOpen(false)}
+        triggerAction='socials'
       />
     </DashboardLayout>
   )

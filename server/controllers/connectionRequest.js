@@ -5,8 +5,10 @@ import { Conversation, Message } from '../models/Message.js'
 import Notification from '../models/Notification.js'
 import Profile from '../models/Profile.js'
 import { ProfileView } from '../models/ProfileView.js'
+import MonthlyUsage from '../models/MonthlyUsage.js'
 import { Connection, ConnectionRequest } from '../models/Relationship.js'
 import User from '../models/User.js'
+import { canConnectWithAthlete, getResolvedTierLimits, isAdvisorOrAgent } from '../utils/entitlements.js'
 import { calculateMatchScore } from './matching.js'
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -48,6 +50,33 @@ export const sendConnectionRequest = async (req, res, next) => {
 
     if (!sender || !recipient) {
       return next(createError(404, 'One or both users not found'))
+    }
+
+    const senderIsAdvisorOrAgent = isAdvisorOrAgent(sender)
+    const recipientIsAthlete = recipient.userType === 'athlete'
+    const appliesTierGate = senderIsAdvisorOrAgent && recipientIsAthlete
+
+    if (appliesTierGate && !canConnectWithAthlete(sender)) {
+      return res.status(403).json({
+        success: false,
+        status: 'fail',
+        code: 'UPGRADE_REQUIRED',
+        message: 'Upgrade to Growth or Pro to connect with athletes.',
+      })
+    }
+
+    if (appliesTierGate && sender.tier === 'growth') {
+      const usage = await MonthlyUsage.getUsageForUserMonth(sender._id)
+      const growthLimit = getResolvedTierLimits('growth').connectionRequestsSent
+
+      if (usage.connectionRequestsSent >= growthLimit) {
+        return res.status(403).json({
+          success: false,
+          status: 'fail',
+          code: 'GROWTH_LIMIT_REACHED',
+          message: 'Growth monthly connection request limit reached. Upgrade to Pro for unlimited requests.',
+        })
+      }
     }
 
     // Check if already connected
@@ -162,6 +191,10 @@ export const sendConnectionRequest = async (req, res, next) => {
       description: message ? `"${message}"` : `${sender.name} wants to connect`,
       actionUrl: `/profile/public/${userId}`,
     })
+
+    if (appliesTierGate && sender.tier === 'growth') {
+      await MonthlyUsage.incrementCounter(sender._id, 'connectionRequestsSent')
+    }
 
     res.status(201).json({
       status: 'success',
@@ -324,6 +357,33 @@ export const acceptConnectionRequest = async (req, res, next) => {
       )
     }
 
+    const [requester, accepter] = await Promise.all([
+      User.findById(request.from),
+      User.findById(request.to),
+    ])
+
+    if (!requester || !accepter) {
+      return next(createError(404, 'One or both users not found'))
+    }
+
+    const accepterIsAdvisorOrAgent = isAdvisorOrAgent(accepter)
+    const requesterIsAthlete = requester.userType === 'athlete'
+    const appliesTierGate = accepterIsAdvisorOrAgent && requesterIsAthlete
+
+    if (appliesTierGate && accepter.tier === 'growth') {
+      const usage = await MonthlyUsage.getUsageForUserMonth(accepter._id)
+      const growthLimit = getResolvedTierLimits('growth').connectionsAccepted
+
+      if (usage.connectionsAccepted >= growthLimit) {
+        return res.status(403).json({
+          success: false,
+          status: 'fail',
+          code: 'GROWTH_LIMIT_REACHED',
+          message: 'Growth monthly accepted connection limit reached. Upgrade to Pro for unlimited accepts.',
+        })
+      }
+    }
+
     // Update request status
     request.status = 'accepted'
     request.respondedAt = new Date()
@@ -339,20 +399,19 @@ export const acceptConnectionRequest = async (req, res, next) => {
     })
 
     // Notify sender
-    const [sender, recipient] = await Promise.all([
-      User.findById(request.from),
-      User.findById(request.to),
-    ])
-
     await Notification.create({
       recipient: request.from,
       sender: request.to,
       type: 'connection_accepted',
       priority: 'medium',
-      title: `${recipient.name} accepted your connection request`,
-      description: `You're now connected with ${recipient.name}`,
+      title: `${accepter.name} accepted your connection request`,
+      description: `You're now connected with ${accepter.name}`,
       actionUrl: `/profile/public/${request.to}`,
     })
+
+    if (appliesTierGate && accepter.tier === 'growth') {
+      await MonthlyUsage.incrementCounter(accepter._id, 'connectionsAccepted')
+    }
 
     res.status(200).json({
       status: 'success',

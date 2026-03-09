@@ -1,6 +1,8 @@
 import { createError } from '../error.js'
+import MonthlyUsage, { getMonthKeyUTC } from '../models/MonthlyUsage.js'
 import StripePlan from '../models/StripePlan.js'
 import User from '../models/User.js'
+import { getResolvedTierLimits } from '../utils/entitlements.js'
 import { stripeRequest } from '../utils/stripeClient.js'
 
 const ACTIVE_STATUSES = ['active', 'trialing', 'past_due', 'unpaid']
@@ -973,6 +975,9 @@ export const getMySubscription = async (req, res, next) => {
     const user = await User.findById(req.user._id)
     const { subscription, plan } = await refreshAndResolveUserSubscription(user)
     const plans = await StripePlan.find({ active: true }).sort({ amount: 1, createdAt: -1 })
+    const monthKey = getMonthKeyUTC()
+    const usage = await MonthlyUsage.getUsageForUserMonth(user._id, monthKey)
+    const limits = getResolvedTierLimits(user.tier)
 
     res.status(200).json({
       status: 'success',
@@ -987,6 +992,16 @@ export const getMySubscription = async (req, res, next) => {
               plan: plan ? formatPlanResponse(plan) : null,
             }
           : null,
+        usage: {
+          connectionRequestsSent: usage.connectionRequestsSent || 0,
+          connectionsAccepted: usage.connectionsAccepted || 0,
+        },
+        limits: {
+          connectionRequestsSent: limits.connectionRequestsSent,
+          connectionsAccepted: limits.connectionsAccepted,
+          messaging: limits.messaging,
+        },
+        monthKey,
         user: {
           tier: user.tier,
           verificationStatus: user.verificationStatus,

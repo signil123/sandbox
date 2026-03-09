@@ -51,6 +51,8 @@ const SettingsPage = () => {
 
   const [plans, setPlans] = useState([])
   const [subscription, setSubscription] = useState(null)
+  const [usage, setUsage] = useState({ connectionRequestsSent: 0, connectionsAccepted: 0 })
+  const [usageMonthKey, setUsageMonthKey] = useState('')
   const [isLoadingPlans, setIsLoadingPlans] = useState(false)
   const [checkoutPlanId, setCheckoutPlanId] = useState(null)
   const [subscriptionError, setSubscriptionError] = useState('')
@@ -322,6 +324,8 @@ const SettingsPage = () => {
       const nextUser = responseData.user || null
 
       setSubscription(nextSubscription)
+      setUsage(responseData.usage || { connectionRequestsSent: 0, connectionsAccepted: 0 })
+      setUsageMonthKey(responseData.monthKey || '')
 
       const localUser = currentUserRef.current
       if (localUser && nextUser) {
@@ -358,14 +362,15 @@ const SettingsPage = () => {
 
       if (requiresCard && !isVerified) {
         setSubscriptionError('Identity verification is required before purchasing paid plans.')
+        setIsDocumentManagerOpen(true)
         return
       }
 
       setCheckoutPlanId(plan._id)
       setSubscriptionError('')
 
-      const response = await subscriptionService.createCheckoutSession(plan._id)
-      const checkoutUrl = response?.data?.checkoutUrl
+      const response = await axiosInstance.post('/subscriptions/checkout-session', { planId: plan._id })
+      const checkoutUrl = response?.data?.data?.checkoutUrl
 
       if (checkoutUrl) {
         window.location.href = checkoutUrl
@@ -375,7 +380,12 @@ const SettingsPage = () => {
       await refreshSubscription()
       setIsUpgradeModalOpen(false)
     } catch (error) {
-      setSubscriptionError(error || 'Failed to start checkout')
+      const apiCode = error?.response?.data?.code
+      const message = error?.response?.data?.message || error?.message || 'Failed to start checkout'
+      setSubscriptionError(message)
+      if (apiCode === 'UPGRADE_REQUIRED' || message.toLowerCase().includes('verification')) {
+        setIsDocumentManagerOpen(true)
+      }
     } finally {
       setCheckoutPlanId(null)
     }
@@ -532,9 +542,12 @@ const SettingsPage = () => {
                 {currentSubscriptionTier === TIERS.PRO
                   ? 'Unlimited'
                   : currentSubscriptionTier === TIERS.GROWTH
-                    ? '15 Requests / mo'
+                    ? `${usage.connectionRequestsSent || 0}/15 sent • ${usage.connectionsAccepted || 0}/5 accepted`
                     : 'Upgrade Required'}
               </p>
+              {currentSubscriptionTier === TIERS.GROWTH && usageMonthKey && (
+                <p className="text-[10px] text-gray-500 mt-1">UTC month: {usageMonthKey}</p>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -796,6 +809,24 @@ const SettingsPage = () => {
                             {isVerified ? 'Add Card First' : 'Verification Required'}
                           </span>
                         </div>
+                      )}
+                      {!canPurchase && !isVerified && (
+                        <Button
+                          variant="outline"
+                          className="w-full rounded-lg font-bold text-[10px] uppercase tracking-wider"
+                          onClick={() => setIsDocumentManagerOpen(true)}
+                        >
+                          Complete Verification
+                        </Button>
+                      )}
+                      {!canPurchase && isVerified && paymentMethods.length === 0 && (
+                        <Button
+                          variant="outline"
+                          className="w-full rounded-lg font-bold text-[10px] uppercase tracking-wider"
+                          onClick={() => setIsAddCardModalOpen(true)}
+                        >
+                          Add Card
+                        </Button>
                       )}
                       <Button
                         className={`w-full h-10 md:h-11 rounded-lg font-black text-[10px] md:text-[11px] tracking-widest uppercase transition-all duration-300

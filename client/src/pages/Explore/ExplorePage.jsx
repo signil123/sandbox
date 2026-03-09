@@ -668,6 +668,8 @@ function ExplorePageContent() {
   const isPro = useSelector(selectIsPro)
   const isFree = useSelector(selectIsFree)
   const isVerified = useSelector(selectIsVerified)
+  const canUseStandardFilters = !isFree
+  const canUsePremiumFilters = isPro
   const [upgradeModalState, setUpgradeModalState] = useState({ isOpen: false, action: '' })
 
   const openUpgradeModal = (action) => setUpgradeModalState({ isOpen: true, action })
@@ -699,6 +701,10 @@ function ExplorePageContent() {
           return {
             id: u.userId,
             name: u.name,
+            tier: u.tier || TIERS.FREE,
+            userType: u.userType,
+            isBlurred: Boolean(u.isBlurred),
+            blurReason: u.blurReason || null,
             verified: profile.verified,
             matchPercentage: u.matchScore,
             location: profile.location || 'Remote',
@@ -732,6 +738,10 @@ function ExplorePageContent() {
       }
     } catch (error) {
       console.error('Error fetching explore data:', error)
+      const errorCode = error?.response?.data?.code
+      if (errorCode === 'UPGRADE_REQUIRED') {
+        setUpgradeModalState({ isOpen: true, action: 'filters' })
+      }
     } finally {
       setLoading(false)
     }
@@ -754,6 +764,10 @@ function ExplorePageContent() {
   }
 
   const toggleExpertise = (expertise) => {
+    if (!canUseStandardFilters) {
+      openUpgradeModal('filters')
+      return
+    }
     const newExpertise = filters.expertise.includes(expertise)
       ? filters.expertise.filter((e) => e !== expertise)
       : [...filters.expertise, expertise]
@@ -761,6 +775,10 @@ function ExplorePageContent() {
   }
 
   const toggleEducation = (edu) => {
+    if (!canUsePremiumFilters) {
+      openUpgradeModal('filters')
+      return
+    }
     const newEducation = filters.education.includes(edu)
       ? filters.education.filter((e) => e !== edu)
       : [...filters.education, edu]
@@ -768,6 +786,10 @@ function ExplorePageContent() {
   }
 
   const toggleExperience = (exp) => {
+    if (!canUsePremiumFilters) {
+      openUpgradeModal('filters')
+      return
+    }
     const newExperience = filters.experienceRange.includes(exp)
       ? filters.experienceRange.filter((e) => e !== exp)
       : [...filters.experienceRange, exp]
@@ -775,6 +797,10 @@ function ExplorePageContent() {
   }
 
   const toggleAreaOfExpertise = (area) => {
+    if (!canUsePremiumFilters) {
+      openUpgradeModal('filters')
+      return
+    }
     const newAreas = filters.areasOfExpertise.includes(area)
       ? filters.areasOfExpertise.filter((a) => a !== area)
       : [...filters.areasOfExpertise, area]
@@ -782,9 +808,14 @@ function ExplorePageContent() {
   }
 
   const toggleSport = (sport) => {
+    if (!canUseStandardFilters) {
+      openUpgradeModal('filters')
+      return
+    }
     const newSports = filters.sportSpecializations.includes(sport)
       ? filters.sportSpecializations.filter((s) => s !== sport)
       : [...filters.sportSpecializations, sport]
+    handleFilterChange({ ...filters, sportSpecializations: newSports })
   }
 
   const clearFilters = () => {
@@ -821,7 +852,16 @@ function ExplorePageContent() {
       }
     } catch (error) {
       console.error('Error sending connection request:', error)
-      toast.error(error.response?.data?.message || 'Failed to send connection request')
+      const errorCode = error?.response?.data?.code
+      const message = error?.response?.data?.message || 'Failed to send connection request'
+
+      if (errorCode === 'GROWTH_LIMIT_REACHED') {
+        openUpgradeModal('limit_reached')
+      } else if (errorCode === 'UPGRADE_REQUIRED') {
+        openUpgradeModal('connect')
+      }
+
+      toast.error(message)
     }
   }
 
@@ -1136,9 +1176,13 @@ function ExplorePageContent() {
                   title='Sports'
                   icon={Users}
                   isOpen={openDropdown === 'sports'}
-                  onToggle={() =>
+                  onToggle={() => {
+                    if (!canUseStandardFilters) {
+                      openUpgradeModal('filters')
+                      return
+                    }
                     setOpenDropdown(openDropdown === 'sports' ? null : 'sports')
-                  }
+                  }}
                   activeCount={filters.sportSpecializations.length}
                 >
                   <div className='space-y-2 max-h-48 overflow-y-auto'>
@@ -1554,6 +1598,14 @@ function ExplorePageContent() {
                      {/* Sports Section */}
                      <section>
                         <h3 className="text-sm font-bold text-gray-900 mb-3 uppercase tracking-wider">Sports</h3>
+                        {!canUseStandardFilters && (
+                          <div
+                            className='mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700'
+                            onClick={() => openUpgradeModal('filters')}
+                          >
+                            Upgrade to Growth or Pro to use sport filters.
+                          </div>
+                        )}
                         <div className='grid grid-cols-2 gap-3'>
                         {SPORTS_OPTIONS.map((sport) => (
                            <label key={sport} className='flex items-center gap-3 cursor-pointer p-2 rounded border border-gray-100 bg-gray-50/50'>
@@ -1621,7 +1673,7 @@ function ExplorePageContent() {
                 }).map((user, index) => {
                   const isBestMatch = bestMatchIds.includes(user.id)
                   const isAthlete = user.userType === 'athlete' || user.type === 'athlete'
-                  const isActuallyBlurred = isFree && isAthlete && (index >= 3 || currentPage > 1)
+                  const isActuallyBlurred = Boolean(user.isBlurred)
 
                   return (
                     <motion.div
@@ -1629,7 +1681,7 @@ function ExplorePageContent() {
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.3, delay: index * 0.05 }}
-                      className={`border border-gray-200 rounded-2xl overflow-hidden flex flex-col bg-white h-full relative ${isActuallyBlurred ? 'pointer-events-none' : ''}`}
+                      className='border border-gray-200 rounded-2xl overflow-hidden flex flex-col bg-white h-full relative'
                     >
                       {isActuallyBlurred && (
                         <ProfileBlurOverlay onClick={() => openUpgradeModal('explore')} />

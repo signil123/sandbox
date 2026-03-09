@@ -4,7 +4,13 @@ import { Interest, NILPreference } from '../models/Content.js'
 import Profile from '../models/Profile.js'
 import { Connection } from '../models/Relationship.js'
 import User from '../models/User.js'
-import { calculateMatchScore } from './matching.js'
+import {
+  canViewFullAthleteProfiles,
+  isAdvisorOrAgent,
+  isPremiumFilterAllowed,
+  isStandardFilterAllowed,
+} from '../utils/entitlements.js'
+import { __matchingInternals, calculateMatchScore } from './matching.js'
 
 // ═══════════════════════════════════════════════════════════════════════════
 // EXPLORE ENDPOINTS
@@ -12,6 +18,20 @@ import { calculateMatchScore } from './matching.js'
 
 // Helper to get target user types based on requester type
 const getTargetUserTypes = (userType) => User.getTargetTypes(userType)
+
+const parseExperienceFilter = (value = '') => {
+  const normalized = String(value).trim()
+  if (!normalized) return null
+
+  const matches = normalized.match(/\d+/g)
+  if (!matches?.length) return null
+
+  const values = matches.map(Number)
+  return {
+    min: values[0],
+    max: values.length > 1 ? values[1] : null,
+  }
+}
 
 /**
  * Get Explore results - athletes see advisors/agents, advisors/agents see athletes
@@ -44,6 +64,43 @@ export const exploreUsers = async (req, res, next) => {
     const userProfile = await Profile.findOne({ user: userId })
     if (!userProfile) {
       return next(createError(404, 'User profile not found'))
+    }
+
+    const [currentUserInterests, currentUserNil] = await Promise.all([
+      Interest.find({ user: userId }),
+      NILPreference.findOne({ user: userId }),
+    ])
+
+    const currentUserData = {
+      user,
+      profile: userProfile,
+      interests: currentUserInterests,
+      nil: currentUserNil,
+    }
+
+    if (isAdvisorOrAgent(user)) {
+      const hasStandardFilter = Boolean(expertise || sportSpecializations)
+      const hasPremiumFilter = Boolean(
+        nilFocus || location || locationPreference || education || experienceRange || certifications
+      )
+
+      if (hasStandardFilter && !isStandardFilterAllowed(user, 'explore')) {
+        return res.status(403).json({
+          success: false,
+          status: 'fail',
+          code: 'UPGRADE_REQUIRED',
+          message: 'Upgrade to Growth or Pro to use standard athlete filters.',
+        })
+      }
+
+      if (hasPremiumFilter && !isPremiumFilterAllowed(user, 'explore')) {
+        return res.status(403).json({
+          success: false,
+          status: 'fail',
+          code: 'UPGRADE_REQUIRED',
+          message: 'Upgrade to Pro to use premium athlete filters.',
+        })
+      }
     }
 
     // Build query
@@ -145,15 +202,6 @@ export const exploreUsers = async (req, res, next) => {
     }
 
     // EXPERIENCE RANGE FILTER
-    if (experienceRange) {
-      const [min, max] = experienceRange.split('-').map(Number)
-      if (max) {
-        query.experience = { $gte: min, $lte: max }
-      } else {
-        query.experience = { $gte: min }
-      }
-    }
-
     // CERTIFICATIONS FILTER
     if (certifications) {
       const certArray = certifications.split(',').map(c => new RegExp(c.trim(), 'i'))
@@ -167,13 +215,27 @@ export const exploreUsers = async (req, res, next) => {
     }
 
     // Execute query
-    const skip = (parseInt(page) - 1) * parseInt(limit)
-    const results = await Profile.find(query)
-      .skip(skip)
-      .limit(parseInt(limit))
-      .sort({ createdAt: -1 })
+    const parsedPage = parseInt(page, 10)
+    const parsedLimit = parseInt(limit, 10)
+    const skip = (parsedPage - 1) * parsedLimit
+    let baseResults = await Profile.find(query).sort({ createdAt: -1 })
 
-    const total = await Profile.countDocuments(query)
+    if (experienceRange) {
+      const range = parseExperienceFilter(experienceRange)
+      if (range) {
+        baseResults = baseResults.filter((profile) => {
+          const years = __matchingInternals.parseExperienceYears(profile.experience)
+          if (years === null) return false
+          if (range.max !== null) {
+            return years >= range.min && years <= range.max
+          }
+          return years >= range.min
+        })
+      }
+    }
+
+    const total = baseResults.length
+    const results = baseResults.slice(skip, skip + parsedLimit)
 
     // Get full user data and calculate match scores
     const exploreResults = await Promise.all(
@@ -183,7 +245,7 @@ export const exploreUsers = async (req, res, next) => {
         const nil = await NILPreference.findOne({ user: profile.user })
 
         // Calculate match score
-        const matchScore = await calculateMatchScore(userId, profile.user)
+        const matchScore = await calculateMatchScore(userId, profile.user, currentUserData)
         const connectionStatus = await Connection.getConnectionStatus(userId, profile.user)
         const totalConnections = await Connection.find({
           $or: [{ user1: profile.user }, { user2: profile.user }],
@@ -194,13 +256,14 @@ export const exploreUsers = async (req, res, next) => {
           userId: profile.user,
           name: exploreUser.name,
           userType: exploreUser.userType,
+          tier: exploreUser.tier || 'free',
           profile: profile, // Return the full profile object for consistency
           matchScore,
           connectionStatus,
           totalConnections,
           interests,
           nilPreferences: nil,
-          ratings: userProfile.ratings || { averageRating: 0, totalReviews: 0 },
+          ratings: profile.ratings || { averageRating: 0, totalReviews: 0 },
         }
       })
     )
@@ -221,18 +284,60 @@ export const exploreUsers = async (req, res, next) => {
       )
     } else if (sortBy === 'newest') {
       sorted = sorted.sort(
-        (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+        (a, b) => new Date(b.profile?.createdAt || 0) - new Date(a.profile?.createdAt || 0)
       )
+    }
+
+    const shouldBlurAthletes =
+      isAdvisorOrAgent(user) &&
+      user.userType !== 'athlete' &&
+      !canViewFullAthleteProfiles(user)
+
+    let enrichedResults = sorted.map((entry) => ({
+      ...entry,
+      isBlurred: false,
+      blurReason: null,
+    }))
+
+    if (shouldBlurAthletes) {
+      const athleteIndices = enrichedResults
+        .map((entry, index) => (entry.userType === 'athlete' ? index : -1))
+        .filter((index) => index >= 0)
+
+      const previewCount = Math.min(athleteIndices.length, Math.random() < 0.5 ? 2 : 3)
+      const shuffledAthleteIndices = [...athleteIndices].sort(() => Math.random() - 0.5)
+      const visibleAthleteIndices = new Set(shuffledAthleteIndices.slice(0, previewCount))
+
+      enrichedResults = enrichedResults.map((entry, index) => {
+        if (entry.userType !== 'athlete' || visibleAthleteIndices.has(index)) {
+          return entry
+        }
+
+        const maskedProfile = {
+          ...entry.profile?.toObject?.(),
+          aboutMe: '',
+          bio: '',
+          socialMedia: {},
+          socialLinks: {},
+        }
+
+        return {
+          ...entry,
+          profile: maskedProfile,
+          isBlurred: true,
+          blurReason: 'upgrade_required',
+        }
+      })
     }
 
     res.status(200).json({
       status: 'success',
-      results: sorted.length,
+      results: enrichedResults.length,
       totalResults: total,
-      totalPages: Math.ceil(total / parseInt(limit)),
-      currentPage: parseInt(page),
+      totalPages: Math.ceil(total / parsedLimit),
+      currentPage: parsedPage,
       data: {
-        users: sorted,
+        users: enrichedResults,
       },
     })
   } catch (error) {

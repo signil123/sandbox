@@ -1,227 +1,414 @@
-// File: server/controllers/matching.js
-// File: server/controllers/matching.js
 import { createError } from '../error.js'
 import { Interest, NILPreference } from '../models/Content.js'
 import Profile from '../models/Profile.js'
 import { Connection } from '../models/Relationship.js'
 import User from '../models/User.js'
 
-// ═══════════════════════════════════════════════════════════════════════════
-// ═══════════════════════════════════════════════════════════════════════════
-// MATCHING ALGORITHM
-// ═══════════════════════════════════════════════════════════════════════════
+const MATCH_WEIGHTS = {
+  serviceFit: 0.38,
+  sportFit: 0.22,
+  interestFit: 0.15,
+  nilFit: 0.15,
+  trustFit: 0.1,
+}
 
-/**
- * Calculate match percentage between two users
- * Factors:
- * - Shared interests (30%)
- * - NIL focus alignment (25%)
- * - Sport/expertise match (25%)
- * - Verification status (20%)
- */
+const TOKEN_ALIASES = new Map([
+  ['brand partnerships', 'brand partnerships'],
+  ['brand partnerships and marketing', 'brand partnerships'],
+  ['brand matching', 'brand partnerships'],
+  ['branding', 'brand partnerships'],
+  ['brand building', 'brand building'],
+  ['content', 'content creation'],
+  ['content strategy', 'content creation'],
+  ['content creation', 'content creation'],
+  ['social media', 'social media strategy'],
+  ['social media growth', 'social media strategy'],
+  ['social media strategy', 'social media strategy'],
+  ['marketing', 'brand partnerships'],
+  ['endorsements', 'endorsements'],
+  ['sponsorship', 'sponsorships'],
+  ['sponsorships', 'sponsorships'],
+  ['event appearances', 'event appearances'],
+  ['media training', 'media training'],
+  ['speaking engagements', 'speaking engagements'],
+  ['financial planning', 'financial planning'],
+  ['tax planning', 'taxes'],
+  ['tax help', 'taxes'],
+  ['taxes', 'taxes'],
+  ['legal', 'legal compliance'],
+  ['legal advice', 'legal compliance'],
+  ['legal compliance', 'legal compliance'],
+  ['contract negotiation', 'contract negotiation'],
+  ['contract review', 'contract review'],
+  ['merchandising', 'merchandising'],
+  ['charitable work', 'charitable work'],
+])
+
+const DEFAULT_BREAKDOWN = {
+  overallMatch: 0,
+  breakdown: {
+    serviceFit: 0,
+    sportFit: 0,
+    interestFit: 0,
+    nilFit: 0,
+    trustFit: 0,
+  },
+}
+
+const normalizeText = (value = '') =>
+  String(value)
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+const normalizeToken = (value = '') => {
+  const normalized = normalizeText(value)
+  if (!normalized) return ''
+  return TOKEN_ALIASES.get(normalized) || normalized
+}
+
+const uniqueNormalized = (values = []) =>
+  Array.from(
+    new Set(
+      values
+        .flatMap((value) => (Array.isArray(value) ? value : [value]))
+        .map((value) => normalizeToken(value))
+        .filter(Boolean)
+    )
+  )
+
+const tokenizeFreeText = (value = '') =>
+  normalizeText(value)
+    .split(' ')
+    .filter((token) => token.length >= 3)
+
+const setFrom = (values = []) => new Set(uniqueNormalized(values))
+
+const setOverlapScore = (left, right) => {
+  if (!left.size || !right.size) {
+    return { score: 0, hasSignal: false }
+  }
+
+  let overlap = 0
+  for (const value of left) {
+    if (right.has(value)) {
+      overlap++
+      continue
+    }
+
+    const partialMatch = Array.from(right).some(
+      (candidate) => candidate.includes(value) || value.includes(candidate)
+    )
+    if (partialMatch) {
+      overlap += 0.7
+    }
+  }
+
+  const denominator = Math.max(left.size, right.size, 1)
+  return {
+    score: Math.min(1, overlap / denominator),
+    hasSignal: true,
+  }
+}
+
+const parseExperienceYears = (value = '') => {
+  const normalized = normalizeText(value)
+  if (!normalized) return null
+
+  if (normalized.includes('10+')) return 10
+
+  const matches = normalized.match(/\d+/g)
+  if (!matches?.length) return null
+
+  const numeric = matches.map(Number)
+  return Math.max(...numeric)
+}
+
+const DEAL_SIZE_ORDER = [
+  '50k-100k',
+  '100k-250k',
+  '250k-500k',
+  '500k-1m',
+  '1m-5m',
+  '5m+',
+]
+
+const getDealBandIndex = (value) => {
+  const normalized = normalizeToken(value)
+  return DEAL_SIZE_ORDER.findIndex((band) => band === normalized)
+}
+
+const normalizeDealRange = (profile, nil) => {
+  if (typeof nil?.minValue === 'number' || typeof nil?.maxValue === 'number') {
+    return {
+      min: typeof nil?.minValue === 'number' ? nil.minValue : 0,
+      max:
+        typeof nil?.maxValue === 'number'
+          ? nil.maxValue
+          : Number.MAX_SAFE_INTEGER,
+      hasSignal: true,
+    }
+  }
+
+  const bandIndex = getDealBandIndex(profile?.nilPreferences?.dealSize)
+  if (bandIndex >= 0) {
+    return {
+      min: bandIndex,
+      max: bandIndex,
+      hasSignal: true,
+      ordinal: true,
+    }
+  }
+
+  return { min: 0, max: 0, hasSignal: false }
+}
+
+const calculateRangeCompatibility = (leftProfile, leftNil, rightProfile, rightNil) => {
+  const left = normalizeDealRange(leftProfile, leftNil)
+  const right = normalizeDealRange(rightProfile, rightNil)
+
+  if (!left.hasSignal || !right.hasSignal) {
+    return { score: 0, hasSignal: false }
+  }
+
+  if (left.ordinal || right.ordinal) {
+    const distance = Math.abs(left.min - right.min)
+    return {
+      score: Math.max(0, 1 - distance / Math.max(DEAL_SIZE_ORDER.length - 1, 1)),
+      hasSignal: true,
+    }
+  }
+
+  const overlap = Math.min(left.max, right.max) - Math.max(left.min, right.min)
+  const span = Math.max(left.max, right.max) - Math.min(left.min, right.min)
+
+  return {
+    score: overlap > 0 && span > 0 ? overlap / span : 0,
+    hasSignal: true,
+  }
+}
+
+const extractInterestTokens = (interestDocs = [], profile = {}) => {
+  const docCategories = (interestDocs || []).flatMap((entry) => [
+    entry.category,
+    ...(entry.subcategories || []),
+  ])
+
+  const profileInterestFlags = Object.entries(profile.interests || {})
+    .filter(([, enabled]) => enabled)
+    .map(([key]) =>
+      key
+        .replace(/([A-Z])/g, ' $1')
+        .replace(/^./, (char) => char.toUpperCase())
+        .trim()
+    )
+
+  return setFrom([...docCategories, ...profileInterestFlags])
+}
+
+const extractNilTokens = (profile = {}, nil = {}) =>
+  setFrom([
+    ...(profile.nilPreferences?.focusAreas || []),
+    ...(nil.categories || []),
+    ...(nil.preferredBrand || []),
+  ])
+
+const extractSportsTokens = (user = {}, profile = {}) =>
+  setFrom([
+    user.sport,
+    profile.sport,
+    profile.position,
+    ...(profile.specialization || []).filter((value) =>
+      /(football|basketball|baseball|soccer|tennis|track|volleyball|golf|swimming|hockey|wrestling|softball|lacrosse)/i.test(
+        value
+      )
+    ),
+  ])
+
+const extractServiceNeedTokens = (user = {}, profile = {}, nil = {}, interests = []) =>
+  setFrom([
+    ...(user.nilNeeds || []),
+    ...(user.specialties || []),
+    ...(profile.specialties || []),
+    ...(profile.specialization || []),
+    ...(profile.nilPreferences?.focusAreas || []),
+    ...(nil.categories || []),
+    ...Array.from(extractInterestTokens(interests, profile)),
+    profile.title,
+  ])
+
+const calculateTrustScore = (profile = {}, user = {}) => {
+  const signals = []
+
+  if (typeof profile.verified === 'boolean' || typeof user.isVerified === 'boolean') {
+    signals.push(profile.verified || user.isVerified ? 1 : 0.35)
+  }
+
+  const averageRating = Number(profile.ratings?.averageRating || profile.rating || 0)
+  if (averageRating > 0) {
+    signals.push(Math.min(1, averageRating / 5))
+  }
+
+  const totalReviews = Number(profile.ratings?.totalReviews || 0)
+  if (totalReviews > 0) {
+    signals.push(Math.min(1, totalReviews / 20))
+  }
+
+  if (!signals.length) {
+    return { score: 0, hasSignal: false }
+  }
+
+  return {
+    score: signals.reduce((sum, value) => sum + value, 0) / signals.length,
+    hasSignal: true,
+  }
+}
+
+const buildUserBundle = async (userId) => {
+  const [user, profile, interests, nil] = await Promise.all([
+    User.findById(userId),
+    Profile.findOne({ user: userId }),
+    Interest.find({ user: userId }),
+    NILPreference.findOne({ user: userId }),
+  ])
+
+  return { user, profile, interests, nil }
+}
+
+const calculateRoleAwareBreakdown = (leftBundle, rightBundle) => {
+  const { user: user1, profile: profile1, interests: interests1, nil: nil1 } = leftBundle
+  const { user: user2, profile: profile2, interests: interests2, nil: nil2 } = rightBundle
+
+  if (!user1 || !user2 || !profile1 || !profile2) {
+    return DEFAULT_BREAKDOWN
+  }
+
+  const allowedTargets = User.getTargetTypes(user1.userType)
+  if (!allowedTargets.includes(user2.userType)) {
+    return DEFAULT_BREAKDOWN
+  }
+
+  const athleteBundle = user1.userType === 'athlete' ? leftBundle : rightBundle
+  const advisorBundle = user1.userType === 'athlete' ? rightBundle : leftBundle
+
+  const athleteInterestTokens = extractInterestTokens(
+    athleteBundle.interests,
+    athleteBundle.profile
+  )
+  const advisorInterestTokens = extractInterestTokens(
+    advisorBundle.interests,
+    advisorBundle.profile
+  )
+  const athleteNilTokens = extractNilTokens(athleteBundle.profile, athleteBundle.nil)
+  const advisorNilTokens = extractNilTokens(advisorBundle.profile, advisorBundle.nil)
+  const athleteSports = extractSportsTokens(athleteBundle.user, athleteBundle.profile)
+  const advisorSports = extractSportsTokens(advisorBundle.user, advisorBundle.profile)
+  const athleteNeeds = extractServiceNeedTokens(
+    athleteBundle.user,
+    athleteBundle.profile,
+    athleteBundle.nil,
+    athleteBundle.interests
+  )
+  const advisorServices = extractServiceNeedTokens(
+    advisorBundle.user,
+    advisorBundle.profile,
+    advisorBundle.nil,
+    advisorBundle.interests
+  )
+
+  const serviceFit = setOverlapScore(athleteNeeds, advisorServices)
+  const sportFit = setOverlapScore(athleteSports, advisorSports)
+  const interestFit = setOverlapScore(athleteInterestTokens, advisorInterestTokens)
+
+  const nilTokenFit = setOverlapScore(athleteNilTokens, advisorNilTokens)
+  const nilRangeFit = calculateRangeCompatibility(
+    athleteBundle.profile,
+    athleteBundle.nil,
+    advisorBundle.profile,
+    advisorBundle.nil
+  )
+
+  const nilSignals = [nilTokenFit, nilRangeFit].filter((entry) => entry.hasSignal)
+  const nilFit = nilSignals.length
+    ? {
+        score:
+          nilSignals.reduce((sum, entry) => sum + entry.score, 0) /
+          nilSignals.length,
+        hasSignal: true,
+      }
+    : { score: 0, hasSignal: false }
+
+  const trustFit = calculateTrustScore(advisorBundle.profile, advisorBundle.user)
+
+  const scoredFactors = {
+    serviceFit,
+    sportFit,
+    interestFit,
+    nilFit,
+    trustFit,
+  }
+
+  const activeWeights = Object.entries(scoredFactors)
+    .filter(([, value]) => value.hasSignal)
+    .reduce((sum, [key]) => sum + MATCH_WEIGHTS[key], 0)
+
+  if (!activeWeights) {
+    return DEFAULT_BREAKDOWN
+  }
+
+  let weightedScore = 0
+  for (const [key, value] of Object.entries(scoredFactors)) {
+    if (!value.hasSignal) continue
+    weightedScore += (value.score * MATCH_WEIGHTS[key]) / activeWeights
+  }
+
+  return {
+    overallMatch: Math.round(Math.min(100, weightedScore * 100)),
+    breakdown: {
+      serviceFit: Math.round((serviceFit.score || 0) * 100),
+      sportFit: Math.round((sportFit.score || 0) * 100),
+      interestFit: Math.round((interestFit.score || 0) * 100),
+      nilFit: Math.round((nilFit.score || 0) * 100),
+      trustFit: Math.round((trustFit.score || 0) * 100),
+    },
+  }
+}
+
 export const calculateMatchScore = async (
   userId1,
   userId2,
   currentUserData = null
 ) => {
   try {
-    let user1, profile1, interests1, nil1
-    
-    // Use pre-fetched data if available (userId1 is assumed to be current user)
-    if (currentUserData && currentUserData.user._id.toString() === userId1.toString()) {
-        user1 = currentUserData.user
-        profile1 = currentUserData.profile
-        interests1 = currentUserData.interests
-        nil1 = currentUserData.nil
-    } else {
-        // Fallback to fetch if not provided
-        ;[user1, profile1, interests1, nil1] = await Promise.all([
-            User.findById(userId1),
-            Profile.findOne({ user: userId1 }),
-            Interest.find({ user: userId1 }),
-            NILPreference.findOne({ user: userId1 }),
-        ])
-    }
+    const leftBundle =
+      currentUserData && currentUserData.user?._id?.toString() === userId1.toString()
+        ? currentUserData
+        : await buildUserBundle(userId1)
 
-    const [
-      user2,
-      profile2,
-      interests2,
-      nil2,
-    ] = await Promise.all([
-      User.findById(userId2),
-      Profile.findOne({ user: userId2 }),
-      Interest.find({ user: userId2 }),
-      NILPreference.findOne({ user: userId2 }),
-    ])
-
-    if (!profile1 || !profile2) {
-      return 0
-    }
-
-    let score = 0
-    const weights = {
-      interests: 0.4,
-      nil: 0.3,
-      expertise: 0.3,
-    }
-
-    // 1. SHARED INTERESTS (30%)
-    const interestScore = calculateInterestScore(interests1, interests2)
-    score += interestScore * weights.interests * 100
-
-    // 2. NIL FOCUS ALIGNMENT (25%)
-    const nilScore = calculateNILScore(nil1, nil2)
-    score += nilScore * weights.nil * 100
-
-    // 3. SPORT/EXPERTISE MATCH (25%)
-    const expertiseScore = calculateExpertiseScore(
-      profile1,
-      profile2,
-      user1,
-      user2
-    )
-    score += expertiseScore * weights.expertise * 100
-
-    // 4. VERIFICATION STATUS (0% - Removed)
-
-    return Math.round(Math.min(100, score))
+    const rightBundle = await buildUserBundle(userId2)
+    return calculateRoleAwareBreakdown(leftBundle, rightBundle).overallMatch
   } catch (error) {
     console.error('Error calculating match score:', error)
     return 0
   }
 }
 
-// Calculate interest overlap (0-1)
-const calculateInterestScore = (interests1, interests2) => {
-  if (!interests1.length || !interests2.length) return 0
-
-  const categories1 = new Set(interests1.map((i) => i.category.toLowerCase()))
-  const categories2 = new Set(interests2.map((i) => i.category.toLowerCase()))
-
-  let matches = 0
-  for (const cat of categories1) {
-    if (categories2.has(cat)) {
-      matches++
-    }
-  }
-
-  return matches / Math.max(categories1.size, categories2.size)
-}
-
-// Calculate NIL preference alignment (0-1)
-const calculateNILScore = (nil1, nil2) => {
-  if (!nil1 || !nil2) return 0.5 // Neutral if not set
-
-  let score = 0
-  let factors = 0
-
-  // Check category overlap
-  if (nil1.categories && nil2.categories) {
-    const categories1 = new Set(nil1.categories)
-    const categories2 = new Set(nil2.categories)
-    let categoryMatches = 0
-    for (const cat of categories1) {
-      if (categories2.has(cat)) categoryMatches++
-    }
-    score +=
-      categoryMatches /
-      Math.max(1, Math.max(categories1.size, categories2.size))
-    factors++
-  }
-
-  // Check value range compatibility
-  if (nil1.minValue && nil2.maxValue && nil1.maxValue && nil2.minValue) {
-    const overlap =
-      Math.min(nil1.maxValue, nil2.maxValue) -
-      Math.max(nil1.minValue, nil2.minValue)
-    if (overlap > 0) {
-      score += 0.5 // Ranges overlap
-      factors++
-    }
-  }
-
-  return factors > 0 ? score / factors : 0.5
-}
-
-// Calculate expertise/sport match (0-1)
-const calculateExpertiseScore = (profile1, profile2, user1, user2) => {
-  const athleteProfile = user1.userType === 'athlete' ? profile1 : profile2
-  const advisorProfile = user1.userType === 'athlete' ? profile2 : profile1
-  const athleteUser = user1.userType === 'athlete' ? user1 : user2
-  const advisorUser = user1.userType === 'athlete' ? user2 : user1
-
-  if (!advisorProfile.specialization && !advisorUser.specialties) return 0.5
-
-  let score = 0
-
-  // 1. Sport match (0.2)
-  if (athleteProfile.sport) {
-    const athleteSportLower = athleteProfile.sport.toLowerCase()
-    const advisorSpecs = [
-      ...(advisorProfile.specialization || []),
-      ...(advisorUser.specialties || []),
-    ].map((s) => s.toLowerCase())
-
-    if (advisorSpecs.some((s) => s.includes(athleteSportLower))) {
-      score += 0.2
-    } else {
-      score += 0.05
-    }
-  } else {
-    score += 0.1
-  }
-
-  // 2. Expertise overlap (0.5)
-  // Check overlap between athleteUser.nilNeeds and advisorUser.specialties
-  if (athleteUser.nilNeeds?.length > 0 && advisorUser.specialties?.length > 0) {
-    const needs = new Set(athleteUser.nilNeeds.map((n) => n.toLowerCase()))
-    const specs = new Set(advisorUser.specialties.map((s) => s.toLowerCase()))
-    let matches = 0
-    for (const need of needs) {
-      if (specs.has(need)) matches++
-    }
-    const overlapRatio = matches / Math.max(1, needs.size)
-    score += overlapRatio * 0.5
-  } else {
-    score += 0.2
-  }
-
-  // 3. Experience relevance (0.3)
-  const experienceStr = advisorProfile.experience || advisorUser.experience
-  if (experienceStr) {
-    const yearsMatch = parseInt(experienceStr) || 0
-    // If it's a range like "10+ years" or "5-10 years", parseInt gets the first number
-    score += Math.min(0.3, yearsMatch / 20)
-  } else {
-    score += 0.1
-  }
-
-  return Math.min(1, score)
-}
-
-// Calculate verification bonus (0-1)
-const calculateVerificationScore = (profile1, profile2) => {
-  let score = 0
-
-  if (profile1.verified) score += 0.5
-  if (profile2.verified) score += 0.5
-
-  return Math.min(1, score)
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// BATCH MATCHING
-// ═══════════════════════════════════════════════════════════════════════════
-
-/**
- * Calculate match scores between user and array of potential matches
- */
-export const calculateBatchMatches = async (userId, potentialMatches, currentUserData = null) => {
+export const calculateBatchMatches = async (
+  userId,
+  potentialMatches,
+  currentUserData = null
+) => {
   try {
     const matches = await Promise.all(
       potentialMatches.map(async (potentialUser) => {
-        const score = await calculateMatchScore(userId, potentialUser._id, currentUserData)
+        const score = await calculateMatchScore(
+          userId,
+          potentialUser._id,
+          currentUserData
+        )
+
         return {
           user: potentialUser,
           matchScore: score,
@@ -236,66 +423,48 @@ export const calculateBatchMatches = async (userId, potentialMatches, currentUse
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// EXPLORE RECOMMENDATIONS
-// ═══════════════════════════════════════════════════════════════════════════
-
-/**
- * Get personalized recommendations for a user
- * For athletes: show advisors/agents ranked by match
- * For advisors: show athletes ranked by match
- */
 export const getRecommendations = async (req, res, next) => {
   try {
     const { userId } = req.params
-    const { limit = 6 } = req.query // Default to 6
+    const { limit = 6 } = req.query
 
-    // Get user and profile - FETCH ONCE
-    const [user, profile, interests, nil] = await Promise.all([
-        User.findById(userId),
-        Profile.findOne({ user: userId }),
-        Interest.find({ user: userId }),
-        NILPreference.findOne({ user: userId }),
-    ])
-
-    if (!user) {
+    const currentUserData = await buildUserBundle(userId)
+    if (!currentUserData.user) {
       return next(createError(404, 'User not found'))
     }
 
-    if (!profile) {
+    if (!currentUserData.profile) {
       return next(createError(404, 'Profile not found'))
     }
-    
-    // Bundle current user data
-    const currentUserData = { user, profile, interests, nil }
 
-    // Determine target user types
-    const targetUserTypes = User.getTargetTypes(user.userType)
+    const targetUserTypes = User.getTargetTypes(currentUserData.user.userType)
 
-    // Get potential matches of target types
     const potentialMatches = await User.find({
       _id: { $ne: userId },
-      userType: { $in: targetUserTypes }
-    }).limit(parseInt(limit) * 4) // Get enough to filter but not too many
+      userType: { $in: targetUserTypes },
+      isActive: true,
+      isBlocked: { $ne: true },
+    }).limit(parseInt(limit, 10) * 4)
 
-    // Calculate match scores
     const recommendations = await calculateBatchMatches(
       userId,
       potentialMatches,
       currentUserData
     )
 
-    // Fetch full profile data for top matches
     const topMatches = await Promise.all(
-      recommendations.slice(0, parseInt(limit)).map(async (match) => {
-        const matchProfile = await Profile.findOne({ user: match.user._id })
-        const interests = await Interest.find({ user: match.user._id })
-        const nil = await NILPreference.findOne({ user: match.user._id })
-        const connectionStatus = await Connection.getConnectionStatus(userId, match.user._id)
-        const totalConnections = await Connection.find({
-          $or: [{ user1: match.user._id }, { user2: match.user._id }],
-          status: 'active',
-        }).countDocuments()
+      recommendations.slice(0, parseInt(limit, 10)).map(async (match) => {
+        const [matchProfile, interests, nil, connectionStatus, totalConnections] =
+          await Promise.all([
+            Profile.findOne({ user: match.user._id }),
+            Interest.find({ user: match.user._id }),
+            NILPreference.findOne({ user: match.user._id }),
+            Connection.getConnectionStatus(userId, match.user._id),
+            Connection.find({
+              $or: [{ user1: match.user._id }, { user2: match.user._id }],
+              status: 'active',
+            }).countDocuments(),
+          ])
 
         return {
           userId: match.user._id,
@@ -309,7 +478,7 @@ export const getRecommendations = async (req, res, next) => {
           profile: matchProfile,
           interests,
           nilPreferences: nil,
-          ratings: matchProfile.ratings || { averageRating: 0, totalReviews: 0 },
+          ratings: matchProfile?.ratings || { averageRating: 0, totalReviews: 0 },
         }
       })
     )
@@ -327,80 +496,39 @@ export const getRecommendations = async (req, res, next) => {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// MATCH DETAILS
-// ═══════════════════════════════════════════════════════════════════════════
-
-/**
- * Get detailed match breakdown between two specific users
- */
 export const getMatchDetails = async (req, res, next) => {
   try {
     const { userId, targetUserId } = req.params
 
-    const [
-      user1,
-      user2,
-      profile1,
-      profile2,
-      interests1,
-      interests2,
-      nil1,
-      nil2,
-    ] = await Promise.all([
-      User.findById(userId),
-      User.findById(targetUserId),
-      Profile.findOne({ user: userId }),
-      Profile.findOne({ user: targetUserId }),
-      Interest.find({ user: userId }),
-      Interest.find({ user: targetUserId }),
-      NILPreference.findOne({ user: userId }),
-      NILPreference.findOne({ user: targetUserId }),
+    const [leftBundle, rightBundle] = await Promise.all([
+      buildUserBundle(userId),
+      buildUserBundle(targetUserId),
     ])
 
-    if (!user1 || !user2) {
+    if (!leftBundle.user || !rightBundle.user) {
       return next(createError(404, 'User not found'))
     }
 
-    // Calculate individual scores
-    const interestScore = calculateInterestScore(interests1, interests2)
-    const nilScore = calculateNILScore(nil1, nil2)
-    const expertiseScore = calculateExpertiseScore(
-      profile1,
-      profile2,
-      user1,
-      user2
-    )
-
-    // Calculate overall score
-    const overallScore =
-      interestScore * 0.4 * 100 +
-      nilScore * 0.3 * 100 +
-      expertiseScore * 0.3 * 100
+    const result = calculateRoleAwareBreakdown(leftBundle, rightBundle)
 
     res.status(200).json({
       status: 'success',
       data: {
-        overallMatch: Math.round(Math.min(100, overallScore)),
-        breakdown: {
-          interests: Math.round(interestScore * 100),
-          nil: Math.round(nilScore * 100),
-          expertise: Math.round(expertiseScore * 100),
-          verification: Math.round(verificationScore * 100),
-        },
+        overallMatch: result.overallMatch,
+        breakdown: result.breakdown,
         user1: {
-          name: user1.name,
-          type: user1.userType,
-          profile: profile1,
-          interests: interests1,
-          nil: nil1,
+          name: leftBundle.user.name,
+          type: leftBundle.user.userType,
+          profile: leftBundle.profile,
+          interests: leftBundle.interests,
+          nil: leftBundle.nil,
         },
         user2: {
-          name: user2.name,
-          type: user2.userType,
-          profile: profile2,
-          interests: interests2,
-          nil: nil2,
+          name: rightBundle.user.name,
+          type: rightBundle.user.userType,
+          profile: rightBundle.profile,
+          interests: rightBundle.interests,
+          nil: rightBundle.nil,
         },
       },
     })
@@ -408,4 +536,12 @@ export const getMatchDetails = async (req, res, next) => {
     console.error('Error in getMatchDetails:', error)
     next(error)
   }
+}
+
+export const __matchingInternals = {
+  normalizeText,
+  normalizeToken,
+  tokenizeFreeText,
+  parseExperienceYears,
+  calculateRoleAwareBreakdown,
 }

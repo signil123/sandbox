@@ -6,6 +6,28 @@ import { ProfileView } from '../models/ProfileView.js'
 import { Connection, ConnectionRequest } from '../models/Relationship.js'
 import User from '../models/User.js'
 import { deleteCloudinaryAsset } from '../utils/cloudinaryCleanup.js'
+import { canViewAthleteSocials, isAdvisorOrAgent } from '../utils/entitlements.js'
+
+const shouldLockAthleteSocials = (viewer, ownerProfile) => {
+  if (!viewer || !ownerProfile) return false
+  if (viewer._id?.toString() === ownerProfile.user?._id?.toString()) return false
+
+  return (
+    isAdvisorOrAgent(viewer) &&
+    ownerProfile.profileType === 'athlete' &&
+    !canViewAthleteSocials(viewer)
+  )
+}
+
+const maskAthleteSocials = (profile) => {
+  if (!profile) return profile
+
+  const masked = profile.toObject ? profile.toObject() : { ...profile }
+  masked.socialMedia = {}
+  masked.socialLinks = {}
+  masked.website = null
+  return masked
+}
 
 /**
  * Get or create user profile
@@ -105,10 +127,14 @@ export const getUserProfile = async (req, res, next) => {
       status: 'active',
     }).countDocuments()
 
+    const socialLocked = shouldLockAthleteSocials(req.user, profile)
+    const responseProfile = socialLocked ? maskAthleteSocials(profile) : profile
+
     res.status(200).json({
       status: 'success',
       data: { 
-        profile, 
+        profile: responseProfile,
+        socialLocked,
         connectionStatus: req.user ? await Connection.getConnectionStatus(req.user.id, userId) : 'not_connected',
         totalConnections 
       },
@@ -575,10 +601,14 @@ export const getProfileByUserId = async (req, res, next) => {
       status: 'active',
     }).countDocuments()
 
+    const socialLocked = shouldLockAthleteSocials(req.user, profile)
+    const responseProfile = socialLocked ? maskAthleteSocials(profile) : profile
+
     res.status(200).json({
       status: 'success',
       data: { 
-        profile, 
+        profile: responseProfile,
+        socialLocked,
         connectionStatus,
         connectionRequestId,
         connectionRequestMessage,
