@@ -152,6 +152,7 @@ const UserTable = () => {
               <th className="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Identity</th>
               <th className="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Role</th>
               <th className="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">User Type</th>
+              <th className="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Plan</th>
               <th className="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Actions</th>
             </tr>
           </thead>
@@ -159,11 +160,11 @@ const UserTable = () => {
             {loading ? (
                  [...Array(5)].map((_, i) => (
                     <tr key={i} className="animate-pulse">
-                        <td colSpan="4" className="px-6 py-4"><div className="h-12 bg-slate-50 rounded-xl" /></td>
+                        <td colSpan="5" className="px-6 py-4"><div className="h-12 bg-slate-50 rounded-xl" /></td>
                     </tr>
                  ))
             ) : users.length === 0 ? (
-                <tr><td colSpan="4" className="px-6 py-12 text-center text-slate-400 font-medium">No users found.</td></tr>
+                <tr><td colSpan="5" className="px-6 py-12 text-center text-slate-400 font-medium">No users found.</td></tr>
             ) : users.map((user) => (
                 <tr key={user._id} className="hover:bg-slate-50/30 transition-colors group">
                   <td className="px-6 py-4">
@@ -202,6 +203,11 @@ const UserTable = () => {
                         <option value="advisor">Advisor</option>
                         <option value="agent">Agent</option>
                     </select>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="inline-flex items-center px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-emerald-50 text-emerald-700 border border-emerald-100">
+                      {(user.tier || 'free')}
+                    </span>
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-2">
@@ -283,6 +289,12 @@ const UserTable = () => {
                             <option value="agent">Agent</option>
                         </select>
                     </div>
+                </div>
+                <div className="pt-1">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 block mb-1.5">Plan</span>
+                    <span className="inline-flex items-center px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-emerald-50 text-emerald-700 border border-emerald-100">
+                        {(user.tier || 'free')}
+                    </span>
                 </div>
             </motion.div>
         ))}
