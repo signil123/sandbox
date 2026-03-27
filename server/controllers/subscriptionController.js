@@ -91,6 +91,26 @@ const getCurrentPeriodEnd = (subscription) => {
   return new Date(subscription.current_period_end * 1000)
 }
 
+const getResolvedPeriodEnd = (subscription, user) => {
+  const fromStripePeriodEnd = getCurrentPeriodEnd(subscription)
+  if (fromStripePeriodEnd) return fromStripePeriodEnd
+
+  if (subscription?.cancel_at) {
+    return new Date(subscription.cancel_at * 1000)
+  }
+
+  if (subscription?.trial_end) {
+    return new Date(subscription.trial_end * 1000)
+  }
+
+  if (user?.subscriptionCurrentPeriodEnd) {
+    const fromUser = new Date(user.subscriptionCurrentPeriodEnd)
+    if (!Number.isNaN(fromUser.getTime())) return fromUser
+  }
+
+  return null
+}
+
 const getSubscriptionPriceId = (subscription) => {
   return subscription?.items?.data?.[0]?.price?.id || null
 }
@@ -168,10 +188,18 @@ const syncUserFromStripeSubscription = async (user, subscription, plan = null) =
   user.tier = resolvedTier
   user.subscriptionStatus = subscription.status || 'inactive'
   user.stripeSubscriptionId = subscription.id || null
-  user.subscriptionCurrentPeriodEnd = getCurrentPeriodEnd(subscription)
+  user.subscriptionCurrentPeriodEnd = getResolvedPeriodEnd(subscription, user)
   user.cancelAtPeriodEnd = Boolean(subscription.cancel_at_period_end)
   await user.save({ validateBeforeSave: false })
 }
+
+const buildSubscriptionResponse = ({ user, subscription, plan }) => ({
+  status: user.subscriptionStatus,
+  currentPeriodEnd: getResolvedPeriodEnd(subscription, user),
+  cancelAtPeriodEnd: user.cancelAtPeriodEnd,
+  stripeSubscriptionId: user.stripeSubscriptionId,
+  plan: plan ? formatPlanResponse(plan) : null,
+})
 
 const getStripeSubscriptionsForCustomer = async (customerId) => {
   const result = await stripeRequest('/subscriptions', {
@@ -769,13 +797,7 @@ export const syncCheckoutSession = async (req, res, next) => {
       status: 'success',
       data: {
         tier: user.tier,
-        subscription: {
-          status: user.subscriptionStatus,
-          currentPeriodEnd: user.subscriptionCurrentPeriodEnd,
-          cancelAtPeriodEnd: user.cancelAtPeriodEnd,
-          stripeSubscriptionId: user.stripeSubscriptionId,
-          plan: plan ? formatPlanResponse(plan) : null,
-        },
+        subscription: buildSubscriptionResponse({ user, subscription: stripeSubscription, plan }),
       },
     })
   } catch (error) {
@@ -1032,13 +1054,7 @@ export const getMySubscription = async (req, res, next) => {
       data: {
         plans: plans.map(formatPlanResponse),
         subscription: subscription
-          ? {
-              status: user.subscriptionStatus,
-              currentPeriodEnd: user.subscriptionCurrentPeriodEnd,
-              cancelAtPeriodEnd: user.cancelAtPeriodEnd,
-              stripeSubscriptionId: user.stripeSubscriptionId,
-              plan: plan ? formatPlanResponse(plan) : null,
-            }
+          ? buildSubscriptionResponse({ user, subscription, plan })
           : null,
         usage: {
           connectionRequestsSent: usage.connectionRequestsSent || 0,

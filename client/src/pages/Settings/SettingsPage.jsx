@@ -41,13 +41,29 @@ import DashboardLayout from '../Layout/DashboardLayout'
 
 const formatDate = (dateValue) => {
   if (!dateValue) return 'N/A'
-  const date = new Date(dateValue)
+  const numericValue = Number(dateValue)
+  const shouldTreatAsUnixSeconds =
+    Number.isFinite(numericValue) &&
+    numericValue > 0 &&
+    numericValue < 1e12
+
+  const date = new Date(shouldTreatAsUnixSeconds ? numericValue * 1000 : dateValue)
   if (Number.isNaN(date.getTime())) return 'N/A'
   return date.toLocaleDateString('en-US', {
     month: 'long',
     day: 'numeric',
     year: 'numeric',
   })
+}
+
+const resolveSubscriptionPeriodEnd = (subscriptionValue) => {
+  if (!subscriptionValue) return null
+  return (
+    subscriptionValue.currentPeriodEnd ||
+    subscriptionValue.current_period_end ||
+    subscriptionValue.periodEnd ||
+    null
+  )
 }
 
 const SettingsPage = () => {
@@ -403,9 +419,15 @@ const SettingsPage = () => {
       const subscriptionResponse = await axiosInstance.get('/subscriptions/me')
       const responseData = subscriptionResponse?.data?.data || subscriptionResponse?.data || {}
       const nextSubscription = responseData.subscription || null
+      const normalizedSubscription = nextSubscription
+        ? {
+            ...nextSubscription,
+            currentPeriodEnd: resolveSubscriptionPeriodEnd(nextSubscription),
+          }
+        : null
       const nextUser = responseData.user || null
 
-      setSubscription(nextSubscription)
+      setSubscription(normalizedSubscription)
       setUsage(responseData.usage || { connectionRequestsSent: 0, connectionsAccepted: 0 })
       setUsageMonthKey(responseData.monthKey || '')
 
@@ -745,7 +767,7 @@ const SettingsPage = () => {
                           <p className="font-bold tracking-tight">{exp}</p>
                         </div>
                         
-                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex gap-2">
                           {!isDefault && (
                             <Button
                               variant="ghost"
@@ -757,10 +779,10 @@ const SettingsPage = () => {
                           )}
                           <Button
                             variant="ghost"
-                            className={`h-10 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest border-none
+                            className={`h-10 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest border-none transition-colors
                               ${isDefault 
-                                ? 'bg-white/10 text-white hover:bg-white/20' 
-                                : 'bg-red-50 text-red-600 hover:bg-red-100'}`}
+                                ? 'bg-white/10 text-white hover:bg-red-600 hover:text-white'
+                                : 'bg-red-50 text-red-600 hover:bg-red-600 hover:text-white'}`}
                             onClick={() => handleRemoveCard(method.id)}
                           >
                             Remove
