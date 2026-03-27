@@ -9,6 +9,7 @@ import AdminDashboard from './pages/Admin/AdminDashboard'
 import AdvisorsPage from './pages/Advisors/AdvisorsPage'
 import AthletesPage from './pages/Athletes/AthletesPage'
 import AuthPage from './pages/Auth/AuthPage'
+import ResetPasswordPage from './pages/Auth/ResetPasswordPage'
 import CalendarPage from './pages/Calendar/CalendarPage'
 import DashboardPage from './pages/Dashboard/DashboardPage'
 import ExplorePage from './pages/Explore/ExplorePage'
@@ -172,6 +173,7 @@ const AppContent = () => {
                   </PrivateRoute>
                 }
               />
+              <Route path='/reset-password' element={<ResetPasswordPage />} />
             </Route>
           </Routes>
     </BrowserRouter>

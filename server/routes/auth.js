@@ -3,9 +3,11 @@ import express from 'express'
 import {
   changePassword,
   deleteUser,
+  forgotPassword,
   getAllUsers,
   getUserProfile,
   logout,
+  resetPassword,
   signin,
   signup,
   updateProfile,
@@ -18,6 +20,8 @@ const router = express.Router()
 // Public routes
 router.post('/signup', signup)
 router.post('/signin', signin)
+router.post('/forgot-password', forgotPassword)
+router.put('/reset-password/:token', resetPassword)
 
 // Protected routes
 router.use(verifyToken)

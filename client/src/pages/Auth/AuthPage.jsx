@@ -1,7 +1,6 @@
 // File: client/src/pages/Auth/AuthPage.jsx
 import {
   ArrowRight,
-  Check,
   Mail,
   Phone,
   Shield,
@@ -24,18 +23,12 @@ import {
 import {
   ErrorAlert,
   FormInput,
-  LoadingSpinner,
   PasswordInput,
   PrimaryButton,
   RoleSelector,
-  UserNav,
 } from './SignupFormComponents'
-import {
-  getButtonText,
-  validateEmail,
-  validatePassword,
-  validatePhone,
-} from './authUtils'
+import { validateEmail, validatePassword, validatePhone } from './authUtils'
+import { authService } from '../../services/authService'
 
 export default function AuthPage({
   isOpen = true,
@@ -59,7 +52,10 @@ export default function AuthPage({
     role: null,
   })
   const [loginForm, setLoginForm] = useState({ email: '', password: '' })
+  const [forgotForm, setForgotForm] = useState({ email: '' })
   const [errors, setErrors] = useState({})
+  const [forgotError, setForgotError] = useState('')
+  const [forgotLoading, setForgotLoading] = useState(false)
 
   const getLandingPath = (role) => (role === 'admin' ? '/admin' : '/dashboard')
 
@@ -159,12 +155,43 @@ export default function AuthPage({
       setStep('method')
       setErrors({})
       dispatch(clearError())
+      return
+    }
+
+    if (step === 'forgot-password' || step === 'forgot-password-sent') {
+      setStep('login-form')
+      setErrors({})
+      setForgotError('')
+    }
+  }
+
+  const handleForgotPassword = async () => {
+    const nextErrors = {}
+    if (!validateEmail(forgotForm.email)) {
+      nextErrors.forgotEmail = 'Please enter a valid email address'
+    }
+
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors)
+      return
+    }
+
+    try {
+      setForgotLoading(true)
+      setForgotError('')
+      await authService.forgotPassword(forgotForm.email)
+      setStep('forgot-password-sent')
+      setErrors({})
+    } catch (error) {
+      setForgotError(
+        typeof error === 'string' ? error : 'Unable to send reset email'
+      )
+    } finally {
+      setForgotLoading(false)
     }
   }
 
   if (!isOpen) return null
-
-  const featureIcons = [Zap, Shield, Users, Target]
 
   return (
     <div
@@ -473,7 +500,16 @@ export default function AuthPage({
                           }
                         }}
                       />
-                      <button className="text-sm font-medium text-[#986a41] hover:underline transition-all">
+                      <button
+                        type='button'
+                        onClick={() => {
+                          setStep('forgot-password')
+                          setErrors({})
+                          setForgotError('')
+                          dispatch(clearError())
+                        }}
+                        className="text-sm font-medium text-[#986a41] hover:underline transition-all"
+                      >
                         Forgot password?
                       </button>
                     </div>
@@ -486,6 +522,85 @@ export default function AuthPage({
                     >
                       Sign In Access
                     </PrimaryButton>
+                  </div>
+                </div>
+              )}
+
+              {step === 'forgot-password' && (
+                <div key='forgot-password' className='space-y-8 max-w-md mx-auto pt-8'>
+                  <div className='space-y-2'>
+                    <h3 className='text-3xl font-serif font-bold text-gray-900 text-center'>
+                      Forgot Password
+                    </h3>
+                    <div className='h-1 w-12 bg-[#986a41] mx-auto rounded-full' />
+                    <p className='text-sm text-gray-500 text-center'>
+                      Enter your email and we&apos;ll send a reset link.
+                    </p>
+                  </div>
+
+                  {forgotError && <ErrorAlert message={forgotError} />}
+
+                  <div className='space-y-5'>
+                    <FormInput
+                      label='Email Address'
+                      value={forgotForm.email}
+                      onChange={(value) =>
+                        setForgotForm((p) => ({ ...p, email: value }))
+                      }
+                      type='email'
+                      placeholder='john@example.com'
+                      error={errors.forgotEmail}
+                      required
+                      icon={<Mail size={18} className='text-gray-400' />}
+                    />
+
+                    <PrimaryButton
+                      onClick={handleForgotPassword}
+                      loading={forgotLoading}
+                      className='w-full py-4 text-lg mt-4 shadow-xl shadow-[#986a41]/20'
+                      style={{ background: 'linear-gradient(135deg, #986a41, #855b38)' }}
+                    >
+                      Send Reset Link
+                    </PrimaryButton>
+                  </div>
+                </div>
+              )}
+
+              {step === 'forgot-password-sent' && (
+                <div key='forgot-password-sent' className='space-y-8 max-w-md mx-auto pt-8'>
+                  <div className='space-y-2'>
+                    <h3 className='text-3xl font-serif font-bold text-gray-900 text-center'>
+                      Check Your Email
+                    </h3>
+                    <div className='h-1 w-12 bg-[#163146] mx-auto rounded-full' />
+                    <p className='text-sm text-gray-500 text-center'>
+                      If this email exists, we sent a reset link to{' '}
+                      <span className='font-semibold text-gray-700'>
+                        {forgotForm.email}
+                      </span>
+                      .
+                    </p>
+                  </div>
+
+                  <div className='rounded-2xl border border-gray-200 bg-white p-5 text-sm text-gray-600 space-y-2'>
+                    <p>Open the email and click the reset button.</p>
+                    <p>The link expires in 10 minutes for security.</p>
+                  </div>
+
+                  <div className='space-y-3'>
+                    <PrimaryButton
+                      onClick={() => setStep('forgot-password')}
+                      className='w-full py-4 text-lg'
+                    >
+                      Try Another Email
+                    </PrimaryButton>
+                    <button
+                      type='button'
+                      onClick={() => setStep('login-form')}
+                      className='w-full py-3 text-sm font-medium text-[#986a41] hover:underline'
+                    >
+                      Back to Sign In
+                    </button>
                   </div>
                 </div>
               )}

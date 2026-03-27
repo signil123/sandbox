@@ -44,6 +44,43 @@ export const authService = {
     }
   },
 
+  forgotPassword: async (email) => {
+    try {
+      const response = await axiosInstance.post('/auth/forgot-password', {
+        email,
+      })
+      return response.data
+    } catch (error) {
+      throw (
+        error.response?.data?.message ||
+        error.message ||
+        'Unable to send reset email'
+      )
+    }
+  },
+
+  resetPassword: async (token, password, confirmPassword) => {
+    try {
+      const response = await axiosInstance.put(`/auth/reset-password/${token}`, {
+        password,
+        confirmPassword,
+      })
+
+      if (response.data.token) {
+        localStorage.setItem('token', response.data.token)
+        sessionStorage.setItem('token', response.data.token)
+      }
+
+      return response.data
+    } catch (error) {
+      throw (
+        error.response?.data?.message ||
+        error.message ||
+        'Unable to reset password'
+      )
+    }
+  },
+
   updateProfile: async (profileData) => {
     try {
       const response = await axiosInstance.put('/auth/profile', profileData)

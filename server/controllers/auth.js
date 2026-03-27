@@ -1,10 +1,134 @@
 // File: server/controllers/auth.js
 import jwt from 'jsonwebtoken'
 import mongoose from 'mongoose'
+import crypto from 'crypto'
+import { Resend } from 'resend'
 import { createError } from '../error.js'
 import Notification from '../models/Notification.js'
 import Profile from '../models/Profile.js'
 import User from '../models/User.js'
+
+const BRAND_PRIMARY = '#163146'
+const BRAND_ACCENT = '#986a41'
+const APP_NAME = 'Signil'
+
+let resendClient
+
+const getResendClient = () => {
+  if (resendClient) return resendClient
+
+  const resendKey = process.env.RESEND_KEY
+  if (!resendKey) {
+    throw new Error('RESEND_KEY is not configured')
+  }
+
+  resendClient = new Resend(resendKey)
+  return resendClient
+}
+
+const escapeHtml = (value = '') =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+
+const buildEmailTemplate = ({
+  preheader,
+  title,
+  intro,
+  actionLabel,
+  actionUrl,
+  bodyItems = [],
+  closing,
+}) => {
+  const safeTitle = escapeHtml(title)
+  const safeIntro = escapeHtml(intro)
+  const safeClosing = escapeHtml(closing)
+  const safePreheader = escapeHtml(preheader)
+  const safeActionLabel = escapeHtml(actionLabel)
+  const safeActionUrl = escapeHtml(actionUrl)
+  const bodyItemsHtml = bodyItems
+    .map((item) => `<li style="margin-bottom: 8px;">${escapeHtml(item)}</li>`)
+    .join('')
+
+  return `
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${safePreheader}</div>
+    <div style="background:#f2f5f8;padding:28px 12px;font-family:Arial,'Helvetica Neue',Helvetica,sans-serif;color:#0f172a;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:620px;margin:0 auto;background:#ffffff;border-radius:18px;overflow:hidden;border:1px solid #e6ebf0;">
+        <tr>
+          <td style="background:linear-gradient(135deg, ${BRAND_PRIMARY}, ${BRAND_ACCENT});padding:24px 28px;color:#ffffff;">
+            <p style="margin:0;font-size:12px;letter-spacing:1px;text-transform:uppercase;opacity:0.92;">${APP_NAME}</p>
+            <h1 style="margin:8px 0 0;font-size:28px;line-height:1.25;">${safeTitle}</h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:26px 28px 10px;">
+            <p style="margin:0 0 14px;font-size:16px;line-height:1.7;color:#334155;">${safeIntro}</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:8px 28px 2px;">
+            <a href="${safeActionUrl}" style="display:inline-block;background:${BRAND_PRIMARY};color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:10px;font-weight:700;font-size:14px;">${safeActionLabel}</a>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:18px 28px 0;">
+            <p style="margin:0 0 10px;font-size:13px;color:#64748b;">If the button does not work, copy this link into your browser:</p>
+            <p style="margin:0;font-size:13px;line-height:1.7;word-break:break-all;"><a href="${safeActionUrl}" style="color:${BRAND_PRIMARY};">${safeActionUrl}</a></p>
+          </td>
+        </tr>
+        ${
+          bodyItemsHtml
+            ? `<tr>
+          <td style="padding:18px 28px 0;">
+            <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;padding:14px 16px;">
+              <ul style="margin:0;padding-left:18px;color:#334155;font-size:14px;line-height:1.65;">
+                ${bodyItemsHtml}
+              </ul>
+            </div>
+          </td>
+        </tr>`
+            : ''
+        }
+        <tr>
+          <td style="padding:18px 28px 28px;">
+            <p style="margin:0;font-size:14px;line-height:1.7;color:#334155;">${safeClosing}</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:16px 28px;border-top:1px solid #edf2f7;background:#fafcff;">
+            <p style="margin:0;font-size:12px;color:#64748b;line-height:1.7;">
+              Need help? Contact <a href="mailto:${escapeHtml(process.env.SUPPORT_EMAIL || 'support@signilai.com')}" style="color:${BRAND_PRIMARY};">${escapeHtml(process.env.SUPPORT_EMAIL || 'support@signilai.com')}</a>
+              <br />
+              &copy; ${new Date().getFullYear()} ${APP_NAME}. All rights reserved.
+            </p>
+          </td>
+        </tr>
+      </table>
+    </div>
+  `
+}
+
+const sendEmail = async ({ to, subject, html, text }) => {
+  const client = getResendClient()
+  const fromEmail = process.env.RESEND_FROM || 'Signil <onboarding@resend.dev>'
+
+  const { data, error } = await client.emails.send({
+    from: fromEmail,
+    to,
+    subject,
+    html,
+    text,
+  })
+
+  if (error) {
+    throw new Error(error.message || 'Email provider rejected the request')
+  }
+
+  return data
+}
 
 const signToken = (id) => {
   const jwtSecret = process.env.JWT_SECRET
@@ -45,6 +169,69 @@ const createSendToken = (user, statusCode, res) => {
     console.error('Error in createSendToken:', error)
     throw error
   }
+}
+
+const sendPasswordResetEmail = async ({ email, firstName, resetUrl }) => {
+  const safeFirstName = firstName?.trim() || 'there'
+  const html = buildEmailTemplate({
+    preheader: 'Reset your Signil password',
+    title: 'Reset Your Password',
+    intro: `Hi ${safeFirstName}, we received a request to reset your ${APP_NAME} password.`,
+    actionLabel: 'Reset Password',
+    actionUrl: resetUrl,
+    bodyItems: [
+      'This reset link expires in 10 minutes.',
+      'If you did not request this, you can safely ignore this email.',
+    ],
+    closing: 'Security matters to us. If this was not you, contact support immediately.',
+  })
+  const text = [
+    `Hi ${safeFirstName},`,
+    `We received a request to reset your ${APP_NAME} password.`,
+    `Reset password: ${resetUrl}`,
+    'This link expires in 10 minutes.',
+    'If you did not request this, you can safely ignore this email.',
+  ].join('\n')
+
+  await sendEmail({
+    to: email,
+    subject: 'Reset your Signil password',
+    html,
+    text,
+  })
+}
+
+const sendWelcomeEmail = async ({ email, firstName }) => {
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
+  const dashboardUrl = `${frontendUrl}/dashboard`
+  const safeFirstName = firstName?.trim() || 'there'
+
+  const html = buildEmailTemplate({
+    preheader: `Welcome to ${APP_NAME}`,
+    title: `Welcome to ${APP_NAME}`,
+    intro: `Hi ${safeFirstName}, your account is ready. You can now access your dashboard and start building meaningful connections.`,
+    actionLabel: 'Open Dashboard',
+    actionUrl: dashboardUrl,
+    bodyItems: [
+      'Complete your profile to get better recommendations.',
+      'Explore advisors, athletes, and agents that match your goals.',
+      'Use secure in-app messaging to start conversations quickly.',
+    ],
+    closing: `Thanks for joining ${APP_NAME}. We are excited to have you with us.`,
+  })
+  const text = [
+    `Hi ${safeFirstName},`,
+    `Welcome to ${APP_NAME}. Your account is ready.`,
+    `Open your dashboard: ${dashboardUrl}`,
+    'Complete your profile and start exploring connections.',
+  ].join('\n')
+
+  await sendEmail({
+    to: email,
+    subject: `Welcome to ${APP_NAME}`,
+    html,
+    text,
+  })
 }
 
 export const signup = async (req, res, next) => {
@@ -99,6 +286,15 @@ export const signup = async (req, res, next) => {
     await session.commitTransaction()
 
     const user = await User.findById(newUser._id).select('-password')
+    try {
+      await sendWelcomeEmail({
+        email: user.email,
+        firstName: user.firstName,
+      })
+    } catch (emailError) {
+      console.error('Welcome email send failed:', emailError?.message || emailError)
+    }
+
     createSendToken(user, 201, res)
   } catch (err) {
     await session.abortTransaction()
@@ -426,6 +622,111 @@ export const changePassword = async (req, res, next) => {
     createSendToken(updatedUser, 200, res)
   } catch (error) {
     console.error('Error in changePassword:', error)
+    next(error)
+  }
+}
+
+export const forgotPassword = async (req, res, next) => {
+  try {
+    const { email } = req.body
+
+    if (!email) {
+      return next(createError(400, 'Please provide your email address'))
+    }
+
+    const normalizedEmail = email.toLowerCase().trim()
+    const user = await User.findOne({
+      email: normalizedEmail,
+      isActive: true,
+      isDeleted: false,
+    })
+
+    if (!user) {
+      return next(createError(404, 'No account exists with this email address'))
+    }
+
+    const resetToken = user.createPasswordResetToken()
+    await user.save({ validateBeforeSave: false })
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
+    const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`
+
+    try {
+      await sendPasswordResetEmail({
+        email: user.email,
+        firstName: user.firstName,
+        resetUrl,
+      })
+    } catch (error) {
+      user.passwordResetToken = undefined
+      user.passwordResetExpires = undefined
+      await user.save({ validateBeforeSave: false })
+      console.error('Reset email send failed:', error?.message || error)
+      const message =
+        process.env.NODE_ENV === 'development'
+          ? `Unable to send reset email: ${error?.message || 'Unknown error'}`
+          : 'Unable to send reset email right now'
+      return next(createError(500, message))
+    }
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Password reset link sent to your email.',
+    })
+  } catch (error) {
+    console.error('Error in forgotPassword:', error)
+    next(error)
+  }
+}
+
+export const resetPassword = async (req, res, next) => {
+  try {
+    const { token } = req.params
+    const { password, confirmPassword } = req.body
+
+    if (!password || !confirmPassword) {
+      return next(createError(400, 'Please provide password and confirmPassword'))
+    }
+
+    if (password !== confirmPassword) {
+      return next(createError(400, 'Password and confirm password do not match'))
+    }
+
+    if (password.length < 8) {
+      return next(createError(400, 'Password must be at least 8 characters long'))
+    }
+
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex')
+
+    const user = await User.findOne({
+      passwordResetToken: hashedToken,
+      passwordResetExpires: { $gt: Date.now() },
+      isActive: true,
+      isDeleted: false,
+    })
+
+    if (!user) {
+      return next(createError(400, 'Reset token is invalid or has expired'))
+    }
+
+    user.password = password
+    user.passwordResetToken = undefined
+    user.passwordResetExpires = undefined
+    await user.save()
+
+    await Notification.create({
+      recipient: user._id,
+      type: 'security_update',
+      title: 'Security Update: Password Reset',
+      description:
+        'Your password has been successfully reset. If this was not you, please contact support immediately.',
+      priority: 'high',
+    })
+
+    const updatedUser = await User.findById(user._id).select('-password')
+    createSendToken(updatedUser, 200, res)
+  } catch (error) {
+    console.error('Error in resetPassword:', error)
     next(error)
   }
 }
