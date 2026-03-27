@@ -315,14 +315,24 @@ export const getPendingDocuments = async (req, res, next) => {
     const page = parseInt(req.query.page) || 1
     const limit = parseInt(req.query.limit) || 10
     const skip = (page - 1) * limit
+    const statusFilter = String(req.query.status || 'pending').toLowerCase()
+    const statusMap = {
+      pending: 'pending_review',
+      approved: 'verified',
+    }
+    const status = statusMap[statusFilter]
 
-    const documents = await Document.find({ status: 'pending_review' })
+    if (!status) {
+      return next(createError(400, 'status must be either "pending" or "approved"'))
+    }
+
+    const documents = await Document.find({ status })
       .populate('user', 'name email userType')
       .skip(skip)
       .limit(limit)
       .sort({ createdAt: -1 })
 
-    const total = await Document.countDocuments({ status: 'pending_review' })
+    const total = await Document.countDocuments({ status })
 
     res.status(200).json({
       status: 'success',
@@ -330,7 +340,7 @@ export const getPendingDocuments = async (req, res, next) => {
       totalResults: total,
       totalPages: Math.ceil(total / limit),
       currentPage: page,
-      data: { documents },
+      data: { documents, filter: statusFilter },
     })
   } catch (error) {
     console.error('Error in getPendingDocuments:', error)
@@ -532,22 +542,27 @@ export const getVerificationStats = async (req, res, next) => {
   try {
     // Admin check via middleware (restrictTo('admin')) ✓
 
-    const [pending, verified, expired, rejected] = await Promise.all([
+    const [totalSubmissions, pendingReview, verified, needsUpdate, expired] = await Promise.all([
+      Document.countDocuments({}),
       Document.countDocuments({ status: 'pending_review' }),
       Document.countDocuments({ status: 'verified' }),
-      Document.countDocuments({ status: 'expired' }),
       Document.countDocuments({ status: 'requires_update' }),
+      Document.countDocuments({ status: 'expired' }),
     ])
 
     res.status(200).json({
       status: 'success',
       data: {
         stats: {
-          pending,
+          totalSubmissions,
+          pendingReview,
           verified,
+          needsUpdate,
           expired,
-          rejected,
-          total: pending + verified + expired + rejected,
+          // Backward-compatible keys used by existing frontend parts.
+          total: totalSubmissions,
+          pending: pendingReview,
+          rejected: needsUpdate,
         },
       },
     })

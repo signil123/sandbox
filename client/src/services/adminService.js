@@ -45,9 +45,11 @@ export const adminService = {
   /**
    * Verification Queue
    */
-  getPendingDocuments: async (page = 1, limit = 10) => {
+  getPendingDocuments: async (page = 1, limit = 10, status = 'pending') => {
     try {
-      const response = await axiosInstance.get(`/documents/admin/pending?page=${page}&limit=${limit}`)
+      const response = await axiosInstance.get(
+        `/documents/admin/pending?page=${page}&limit=${limit}&status=${encodeURIComponent(status)}`
+      )
       return response.data
     } catch (error) {
       handleError(error)

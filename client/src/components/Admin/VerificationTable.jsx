@@ -19,6 +19,7 @@ const VerificationTable = () => {
   const [submissions, setSubmissions] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedSub, setSelectedSub] = useState(null)
+  const [statusView, setStatusView] = useState('pending')
   const [rejectionReason, setRejectionReason] = useState('')
   const [adminNotes, setAdminNotes] = useState('')
   const [processing, setProcessing] = useState(false)
@@ -29,25 +30,45 @@ const VerificationTable = () => {
   const fetchSubmissions = useCallback(async () => {
     try {
       setLoading(true)
-      const response = await adminService.getPendingDocuments(currentPage, 10)
+      const response = await adminService.getPendingDocuments(currentPage, 10, statusView)
       if (response && response.status === 'success') {
         setSubmissions(response.data.documents)
         setTotalPages(response.totalPages)
         setTotalResults(response.totalResults)
       }
     } catch (error) {
-      toast.error('Failed to load pending submissions')
+      toast.error('Failed to load submissions')
     } finally {
       setLoading(false)
     }
-  }, [currentPage])
+  }, [currentPage, statusView])
 
   useEffect(() => {
     fetchSubmissions()
   }, [fetchSubmissions])
 
+  useEffect(() => {
+    setCurrentPage(1)
+    setSelectedSub(null)
+  }, [statusView])
+
+  useEffect(() => {
+    if (!selectedSub) {
+      setAdminNotes('')
+      setRejectionReason('')
+      return
+    }
+
+    setAdminNotes(selectedSub.adminNotes || '')
+    setRejectionReason(selectedSub.rejectionReason || '')
+  }, [selectedSub])
+
   const handleApprove = async () => {
     if (!selectedSub) return
+    if (selectedSub.status !== 'pending_review') {
+      toast.error('Only pending submissions can be approved')
+      return
+    }
     try {
       setProcessing(true)
       await adminService.approveDocument(selectedSub._id, adminNotes)
@@ -62,6 +83,10 @@ const VerificationTable = () => {
   }
 
   const handleDecline = async () => {
+    if (selectedSub?.status !== 'pending_review') {
+      toast.error('Only pending submissions can be declined')
+      return
+    }
     if (!selectedSub || !rejectionReason) {
       toast.error('Reason is required')
       return
@@ -88,9 +113,31 @@ const VerificationTable = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between px-2">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between px-2 gap-3">
+         <div className="inline-flex items-center bg-white border border-slate-200 rounded-2xl p-1 shadow-sm w-fit">
+            <button
+              onClick={() => setStatusView('pending')}
+              className={`px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${
+                statusView === 'pending'
+                  ? 'bg-[#163146] text-white shadow'
+                  : 'text-slate-500 hover:bg-slate-50'
+              }`}
+            >
+              Pending
+            </button>
+            <button
+              onClick={() => setStatusView('approved')}
+              className={`px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${
+                statusView === 'approved'
+                  ? 'bg-emerald-600 text-white shadow'
+                  : 'text-slate-500 hover:bg-slate-50'
+              }`}
+            >
+              Approved
+            </button>
+         </div>
          <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">
-            {totalResults} Pending Submissions
+            {totalResults} {statusView === 'approved' ? 'Approved' : 'Pending'} Submissions
          </p>
       </div>
 
@@ -105,8 +152,14 @@ const VerificationTable = () => {
             <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-6">
                 <CheckCircle2 size={40} className="text-emerald-500" />
             </div>
-            <h3 className="text-xl font-black text-[#163146]">All Caught Up!</h3>
-            <p className="text-slate-500 mt-2 text-sm max-w-xs mx-auto">The verification queue is empty. Good job!</p>
+            <h3 className="text-xl font-black text-[#163146]">
+              {statusView === 'approved' ? 'No Approved Submissions Yet' : 'All Caught Up!'}
+            </h3>
+            <p className="text-slate-500 mt-2 text-sm max-w-xs mx-auto">
+              {statusView === 'approved'
+                ? 'Approved submissions will appear here so you can review them anytime.'
+                : 'The verification queue is empty. Good job!'}
+            </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4">
@@ -136,8 +189,11 @@ const VerificationTable = () => {
 
               <div className="flex items-center gap-4">
                  <div className="hidden sm:flex flex-col items-end">
-                    <span className="text-[10px] font-black text-[#986a41] uppercase tracking-widest flex items-center gap-1">
-                        <Clock size={12} /> Awaiting Review
+                    <span className={`text-[10px] font-black uppercase tracking-widest flex items-center gap-1 ${
+                      sub.status === 'verified' ? 'text-emerald-600' : 'text-[#986a41]'
+                    }`}>
+                        {sub.status === 'verified' ? <CheckCircle2 size={12} /> : <Clock size={12} />}
+                        {sub.status === 'verified' ? 'Approved' : 'Awaiting Review'}
                     </span>
                  </div>
                  <ChevronRight size={20} className="text-slate-300 group-hover:text-[#986a41] group-hover:translate-x-1 transition-all" />
@@ -221,6 +277,13 @@ const VerificationTable = () => {
                         <span className="px-3 py-1 bg-slate-100 rounded-lg text-[10px] font-black text-slate-600 uppercase tracking-widest">
                             {selectedSub.user?.userType}
                         </span>
+                        <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${
+                          selectedSub.status === 'verified'
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : 'bg-amber-50 text-amber-700'
+                        }`}>
+                            {selectedSub.status === 'verified' ? 'Approved' : 'Pending Review'}
+                        </span>
                     </div>
                  </div>
 
@@ -232,38 +295,52 @@ const VerificationTable = () => {
                             className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-[#163146] min-h-[100px] transition-all resize-none"
                             value={adminNotes}
                             onChange={(e) => setAdminNotes(e.target.value)}
+                            readOnly={selectedSub.status !== 'pending_review'}
                         />
                     </div>
 
-                    <div className="p-5 bg-red-50/50 rounded-3xl border border-red-100">
-                        <label className="flex items-center gap-2 text-[10px] font-black text-red-600 uppercase tracking-widest mb-3 ml-1">
-                            <ShieldAlert size={14} /> Rejection Feedback
-                        </label>
-                        <textarea
-                            placeholder="Help the user understand why it was declined..."
-                            className="w-full p-4 bg-white border border-red-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500 min-h-[100px] transition-all resize-none"
-                            value={rejectionReason}
-                            onChange={(e) => setRejectionReason(e.target.value)}
-                        />
-                    </div>
+                    {selectedSub.status === 'pending_review' ? (
+                      <div className="p-5 bg-red-50/50 rounded-3xl border border-red-100">
+                          <label className="flex items-center gap-2 text-[10px] font-black text-red-600 uppercase tracking-widest mb-3 ml-1">
+                              <ShieldAlert size={14} /> Rejection Feedback
+                          </label>
+                          <textarea
+                              placeholder="Help the user understand why it was declined..."
+                              className="w-full p-4 bg-white border border-red-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500 min-h-[100px] transition-all resize-none"
+                              value={rejectionReason}
+                              onChange={(e) => setRejectionReason(e.target.value)}
+                          />
+                      </div>
+                    ) : (
+                      <div className="p-5 bg-emerald-50/50 rounded-3xl border border-emerald-100">
+                        <p className="text-[11px] font-black text-emerald-700 uppercase tracking-widest">
+                          Approved submissions are read-only.
+                        </p>
+                        <p className="text-sm text-emerald-800 mt-2">
+                          This submission was already reviewed and approved. You can inspect the document and notes here.
+                        </p>
+                      </div>
+                    )}
                  </div>
 
-                 <div className="grid grid-cols-1 gap-3 pt-8 pb-4">
-                    <button
-                        onClick={handleApprove}
-                        disabled={processing}
-                        className="w-full py-4.5 bg-[#163146] text-white font-black text-sm uppercase tracking-widest rounded-2xl hover:bg-[#0f1f27] transition-all shadow-xl shadow-blue-900/10 disabled:opacity-50"
-                    >
-                        {processing ? 'Processing...' : 'Approve Submission'}
-                    </button>
-                    <button
-                        onClick={handleDecline}
-                        disabled={processing || !rejectionReason}
-                        className="w-full py-4 bg-white border-2 border-slate-100 text-red-500 font-black text-[11px] uppercase tracking-widest rounded-2xl hover:bg-red-50 hover:border-red-100 transition-all disabled:opacity-50"
-                    >
-                        Decline with Feedback
-                    </button>
-                 </div>
+                 {selectedSub.status === 'pending_review' && (
+                   <div className="grid grid-cols-1 gap-3 pt-8 pb-4">
+                      <button
+                          onClick={handleApprove}
+                          disabled={processing}
+                          className="w-full py-4.5 bg-[#163146] text-white font-black text-sm uppercase tracking-widest rounded-2xl hover:bg-[#0f1f27] transition-all shadow-xl shadow-blue-900/10 disabled:opacity-50"
+                      >
+                          {processing ? 'Processing...' : 'Approve Submission'}
+                      </button>
+                      <button
+                          onClick={handleDecline}
+                          disabled={processing || !rejectionReason}
+                          className="w-full py-4 bg-white border-2 border-slate-100 text-red-500 font-black text-[11px] uppercase tracking-widest rounded-2xl hover:bg-red-50 hover:border-red-100 transition-all disabled:opacity-50"
+                      >
+                          Decline with Feedback
+                      </button>
+                   </div>
+                 )}
               </div>
             </motion.div>
           </div>

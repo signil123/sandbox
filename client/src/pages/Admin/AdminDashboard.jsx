@@ -204,10 +204,10 @@ const AdminDashboard = () => {
     return TAB_IDS.includes(candidate) ? candidate : DEFAULT_TAB
   }, [searchParams])
   const [stats, setStats] = useState({
-    total: 0,
-    pending: 0,
+    totalSubmissions: 0,
+    pendingReview: 0,
     verified: 0,
-    rejected: 0,
+    needsUpdate: 0,
     expired: 0,
   })
 
@@ -225,7 +225,14 @@ const AdminDashboard = () => {
       try {
         const response = await adminService.getVerificationStats()
         if (response && response.status === 'success') {
-          setStats(response.data.stats)
+          const nextStats = response.data.stats || {}
+          setStats({
+            totalSubmissions: nextStats.totalSubmissions ?? nextStats.total ?? 0,
+            pendingReview: nextStats.pendingReview ?? nextStats.pending ?? 0,
+            verified: nextStats.verified ?? 0,
+            needsUpdate: nextStats.needsUpdate ?? nextStats.rejected ?? 0,
+            expired: nextStats.expired ?? 0,
+          })
         }
       } catch {
         console.error('Failed to fetch admin stats')
@@ -236,7 +243,7 @@ const AdminDashboard = () => {
 
   const tabs = [
     { id: 'users', label: 'Users', icon: Users },
-    { id: 'verification', label: 'Queue', icon: ShieldCheck, badge: stats.pending },
+    { id: 'verification', label: 'Queue', icon: ShieldCheck, badge: stats.pendingReview },
     { id: 'billing', label: 'Billing', icon: CreditCard },
   ]
 
@@ -286,10 +293,10 @@ const AdminDashboard = () => {
 
           {activeTab !== 'billing' && (
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 px-1">
-              <StatCard label="Total Submissions" value={stats.total} color="blue" />
-              <StatCard label="Pending Review" value={stats.pending} color="accent" />
+              <StatCard label="Total Submissions" value={stats.totalSubmissions} color="blue" />
+              <StatCard label="Pending Review" value={stats.pendingReview} color="accent" />
               <StatCard label="Fully Verified" value={stats.verified} color="blue" />
-              <StatCard label="Needs Update" value={stats.rejected} color="blue" />
+              <StatCard label="Needs Update" value={stats.needsUpdate} color="blue" />
             </div>
           )}
         </div>
