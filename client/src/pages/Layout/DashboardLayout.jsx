@@ -23,7 +23,7 @@ import {
     UserPlus,
     X,
 } from 'lucide-react'
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -75,8 +75,6 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
   const [notificationsSupported, setNotificationsSupported] = useState(false)
   const [notificationPermission, setNotificationPermission] = useState('default')
   const [notificationsEnabled, setNotificationsEnabled] = useState(false)
-  const [inAppNotificationsEnabled, setInAppNotificationsEnabled] = useState(true)
-  const [isUpdatingPanelNotifications, setIsUpdatingPanelNotifications] = useState(false)
   const [isUpdatingMessageNotifications, setIsUpdatingMessageNotifications] = useState(false)
   const notifications = useSelector(selectNotifications) || []
   const unreadCount = useSelector(selectUnreadCount) || 0
@@ -200,23 +198,25 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
   const requestNotificationPermission = async () => {
     if (!notificationsSupportedRef.current) return
 
-    const result = await pushService.subscribe()
-    const permission = pushService.getPermission()
-    const enabled = pushService.getMessageNotificationsEnabled() && permission === 'granted'
-    setNotificationPermission(permission)
-    setNotificationsEnabled(enabled)
-    notificationsEnabledRef.current = enabled
+    try {
+      const result = await pushService.subscribe()
+      const permission = pushService.getPermission()
+      const enabled = pushService.getMessageNotificationsEnabled() && permission === 'granted'
+      setNotificationPermission(permission)
+      setNotificationsEnabled(enabled)
+      notificationsEnabledRef.current = enabled
 
-    if (!result.ok) {
-      persistNotificationsEnabled(false)
-      if (result.reason === 'denied') {
-        toast.error('Message notifications are blocked in your browser settings.')
+      if (!result.ok) {
+        persistNotificationsEnabled(false)
+        toast.error(pushService.getFailureMessage(result.reason))
         return
       }
-      toast.error('Could not enable message notifications.')
-      return
+      toast.success('Message notifications turned on.')
+    } catch {
+      persistNotificationsEnabled(false)
+      setNotificationPermission(pushService.getPermission())
+      toast.error(pushService.getFailureMessage('unknown'))
     }
-    toast.success('Message notifications turned on.')
   }
 
   const toggleMessageNotifications = async () => {
@@ -236,15 +236,22 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
     }
   }
 
-  const togglePanelNotifications = () => {
-    if (isUpdatingPanelNotifications) return
-    setIsUpdatingPanelNotifications(true)
+  const allowMessageNotifications = async () => {
+    if (isUpdatingMessageNotifications) return
+    if (!notificationsSupportedRef.current) return
+
+    if (notificationPermission === 'denied') {
+      toast.error(
+        'Notifications are blocked. Open browser site settings, allow notifications for this site, then refresh.'
+      )
+      return
+    }
+
+    setIsUpdatingMessageNotifications(true)
     try {
-      const next = !inAppNotificationsEnabled
-      persistInAppNotificationsEnabled(next)
-      toast.success(next ? 'Notification panel turned on.' : 'Notification panel turned off.')
+      await requestNotificationPermission()
     } finally {
-      setIsUpdatingPanelNotifications(false)
+      setIsUpdatingMessageNotifications(false)
     }
   }
 
@@ -273,6 +280,17 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
       window.removeEventListener('storage', handleStorage)
     }
   }, [notificationsSupported])
+
+  useEffect(() => {
+    if (!currentUser?._id) return
+    if (!notificationsSupportedRef.current) return
+    if (!pushService.getMessageNotificationsEnabled()) return
+    if (pushService.getPermission() !== 'granted') return
+
+    pushService.syncEnabledSubscription().catch(() => {
+      // Silent recovery attempt only. User can retry from toggle if needed.
+    })
+  }, [currentUser?._id])
 
   // Fetch unread messages and listen to socket
   React.useEffect(() => {
@@ -345,40 +363,6 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
     return () => clearInterval(interval)
   }, [currentUser, dispatch])
 
-  useEffect(() => {
-    setInAppNotificationsEnabled(pushService.getPanelNotificationsEnabled())
-  }, [])
-
-  const persistInAppNotificationsEnabled = (enabled) => {
-    pushService.setPanelNotificationsEnabled(enabled)
-    setInAppNotificationsEnabled(enabled)
-  }
-
-  useEffect(() => {
-    const refresh = () => {
-      setInAppNotificationsEnabled(pushService.getPanelNotificationsEnabled())
-    }
-
-    const handleStorage = (event) => {
-      if (
-        event.key === pushService.keys.PANEL_STORAGE_KEY ||
-        event.key === pushService.keys.LEGACY_PANEL_STORAGE_KEY
-      ) {
-        refresh()
-      }
-    }
-
-    window.addEventListener(pushService.events.PANEL_EVENT_NAME, refresh)
-    window.addEventListener('in-app-notifications-updated', refresh)
-    window.addEventListener('storage', handleStorage)
-
-    return () => {
-      window.removeEventListener(pushService.events.PANEL_EVENT_NAME, refresh)
-      window.removeEventListener('in-app-notifications-updated', refresh)
-      window.removeEventListener('storage', handleStorage)
-    }
-  }, [])
-
   // Auto-away logic based on user activity
   useEffect(() => {
     if (!currentUser) return
@@ -442,16 +426,11 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
       }
     }
 
-    if (!inAppNotificationsEnabled) {
-      dispatch(setNotifications([]))
-      return
-    }
-
     fetchNotifications()
     // Polling frequency increased to 15 seconds
     const interval = setInterval(fetchNotifications, 15000)
     return () => clearInterval(interval)
-  }, [currentUser, dispatch, inAppNotificationsEnabled])
+  }, [currentUser, dispatch])
 
   /*
     Determine the correct profile path based on user type/role.
@@ -499,9 +478,10 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
   ]
 
   const handleMarkAsRead = async (id) => {
+    const ids = Array.isArray(id) ? id : [id]
     try {
-      await notificationService.markAsRead(id)
-      dispatch(markNotificationRead(id))
+      await Promise.all(ids.map((itemId) => notificationService.markAsRead(itemId)))
+      ids.forEach((itemId) => dispatch(markNotificationRead(itemId)))
     } catch (error) {
       console.error('Error marking notification as read:', error)
     }
@@ -521,9 +501,11 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
   }
 
   const handleDeleteNotification = async (id) => {
+    const ids = Array.isArray(id) ? id : [id]
     try {
-      await notificationService.deleteNotification(id)
-      const updatedNotifications = notifications.filter((n) => n._id !== id)
+      await Promise.all(ids.map((itemId) => notificationService.deleteNotification(itemId)))
+      const idSet = new Set(ids)
+      const updatedNotifications = notifications.filter((n) => !idSet.has(n._id))
       dispatch(setNotifications(updatedNotifications))
     } catch (error) {
       console.error('Error deleting notification:', error)
@@ -532,7 +514,7 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
 
   const handleNotificationClick = async (notif) => {
     if (!notif.isRead) {
-      handleMarkAsRead(notif._id)
+      handleMarkAsRead(notif._groupIds || notif._id)
     }
     
     setIsNotificationOpen(false)
@@ -588,6 +570,8 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
 
   const getNotificationPresentation = (notif) => {
     const senderName = notif?.sender?.name || 'A user'
+    const groupCount = Number(notif?._groupCount || 1)
+    const isGrouped = groupCount > 1
     const originalTitle = cleanNotificationText(notif?.title)
     const originalDescription = cleanNotificationText(notif?.description)
     const safeDescription = toSentenceCase(originalDescription)
@@ -597,8 +581,12 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
     switch (notif?.type) {
       case 'message':
         return {
-          title: `${senderName} sent you a message`,
-          description: safeDescription || 'Open the conversation to read and reply.',
+          title: isGrouped
+            ? `${senderName} sent you ${groupCount} messages`
+            : `${senderName} sent you a message`,
+          description: safeDescription || (isGrouped
+            ? 'Open the conversation to see the latest message.'
+            : 'Open the conversation to read and reply.'),
           tag: 'Message',
         }
       case 'connection_request':
@@ -617,7 +605,9 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
         }
       case 'profile_view':
         return {
-          title: `${senderName} viewed your profile`,
+          title: isGrouped
+            ? `${senderName} viewed your profile ${groupCount} times`
+            : `${senderName} viewed your profile`,
           description: 'Open their profile to learn more and start a conversation.',
           tag: 'Activity',
         }
@@ -730,7 +720,87 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
   }
 
   const activeNav = getActiveNav()
-  const effectiveUnreadCount = inAppNotificationsEnabled ? unreadCount : 0
+  const getNotificationEventDate = (notif) =>
+    new Date(notif?._eventAt || notif?.updatedAt || notif?.createdAt || Date.now())
+
+  const getNotificationCollapseKey = (notif) => {
+    const senderId = String(notif?.sender?._id || notif?.sender || 'system')
+
+    if (notif?.type === 'message') {
+      const action = notif?.actionUrl || ''
+      const queryMatch = action.match(/conversationId=([^&]+)/i)
+      const pathMatch = action.match(/\/messages\/conversations\/([^/?#]+)/i)
+      const conversationId =
+        queryMatch?.[1] ||
+        pathMatch?.[1] ||
+        'conversation'
+      return `message:${senderId}:${conversationId}`
+    }
+
+    if (notif?.type === 'profile_view') {
+      return `profile_view:${senderId}`
+    }
+
+    const verificationTypes = new Set([
+      'security_update',
+      'document_submitted',
+      'document_resubmitted',
+      'document_approved',
+      'document_declined',
+      'document_expired',
+    ])
+
+    if (verificationTypes.has(notif?.type)) {
+      const normalizedTitle = cleanNotificationText(notif?.title).toLowerCase()
+      const normalizedDescription = cleanNotificationText(notif?.description).toLowerCase()
+      const documentId =
+        notif?.relatedEntity?.entityId?.toString?.() ||
+        notif?.relatedEntity?.entityId ||
+        ''
+      const semanticKey = documentId || `${normalizedTitle}|${normalizedDescription}`
+      return `verification:${notif?.type}:${senderId}:${semanticKey}`
+    }
+
+    return `single:${notif?._id}`
+  }
+
+  const collapsedNotifications = useMemo(() => {
+    const sorted = [...notifications].sort(
+      (a, b) => getNotificationEventDate(b).getTime() - getNotificationEventDate(a).getTime()
+    )
+    const grouped = new Map()
+
+    sorted.forEach((notif) => {
+      const readBucket = notif?.isRead ? 'read' : 'unread'
+      const key = `${getNotificationCollapseKey(notif)}:${readBucket}`
+      const existing = grouped.get(key)
+      const eventAt = getNotificationEventDate(notif).toISOString()
+
+      if (!existing) {
+        grouped.set(key, {
+          ...notif,
+          _groupIds: [notif._id],
+          _groupCount: 1,
+          _eventAt: eventAt,
+        })
+        return
+      }
+
+      existing._groupIds.push(notif._id)
+      existing._groupCount += 1
+      existing.isRead = existing.isRead && notif.isRead
+
+      if (getNotificationEventDate(notif).getTime() > getNotificationEventDate(existing).getTime()) {
+        existing._eventAt = eventAt
+      }
+    })
+
+    return Array.from(grouped.values()).sort(
+      (a, b) => getNotificationEventDate(b).getTime() - getNotificationEventDate(a).getTime()
+    )
+  }, [notifications])
+
+  const effectiveUnreadCount = collapsedNotifications.filter((notif) => !notif.isRead).length
 
   // Handle swipe navigation
   const handleSwipe = (direction) => {
@@ -1392,13 +1462,11 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
                                 Notifications
                               </h3>
                               <p className='text-[11px] text-gray-300 font-medium mt-1.5 opacity-80'>
-                                {!inAppNotificationsEnabled
-                                  ? 'In-app notifications are off'
-                                  : effectiveUnreadCount === 0
-                                    ? "You're all caught up"
-                                    : `${effectiveUnreadCount} unread update${
-                                        effectiveUnreadCount === 1 ? '' : 's'
-                                      }`}
+                                {effectiveUnreadCount === 0
+                                  ? "You're all caught up"
+                                  : `${effectiveUnreadCount} unread update${
+                                      effectiveUnreadCount === 1 ? '' : 's'
+                                    }`}
                               </p>
                             </div>
                           </div>
@@ -1411,39 +1479,60 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
                         </div>
 
                         <div className='px-6 pt-4'>
-                          <div className='flex items-center justify-between gap-3 rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3'>
-                            <div className='flex items-center gap-3 min-w-0'>
-                              <div className='w-8 h-8 rounded-full bg-gray-200 text-gray-700 flex items-center justify-center flex-shrink-0'>
-                                <Bell size={16} />
+                          {notificationsSupported && (
+                            <div className='rounded-2xl border border-amber-100 bg-amber-50/70 px-4 py-3'>
+                              <div className='flex items-center justify-between gap-3'>
+                                <div className='flex items-center gap-3 min-w-0'>
+                                  <div className='w-8 h-8 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center flex-shrink-0'>
+                                    <Bell size={16} />
+                                  </div>
+                                  <div className='min-w-0'>
+                                    <p className='text-xs font-bold text-amber-900 leading-tight'>Browser notifications</p>
+                                    <p className='text-[11px] text-amber-700 leading-tight'>
+                                      Get message alerts even when this tab is closed
+                                    </p>
+                                    <p className='text-[11px] text-amber-700/90 leading-tight mt-0.5'>
+                                      Permission: {notificationPermission}
+                                    </p>
+                                    {isUpdatingMessageNotifications && (
+                                      <p className='text-[11px] text-amber-700/80 leading-tight mt-0.5'>Updating...</p>
+                                    )}
+                                  </div>
+                                </div>
+                                <button
+                                  type='button'
+                                  role='switch'
+                                  aria-checked={notificationsEnabled && notificationPermission === 'granted'}
+                                  aria-label='Toggle message notifications'
+                                  onClick={toggleMessageNotifications}
+                                  disabled={notificationPermission === 'denied' || isUpdatingMessageNotifications}
+                                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
+                                    notificationsEnabled && notificationPermission === 'granted'
+                                      ? 'bg-emerald-500'
+                                      : 'bg-gray-300'
+                                  } ${notificationPermission === 'denied' || isUpdatingMessageNotifications ? 'cursor-not-allowed opacity-60' : ''}`}
+                                >
+                                  <span
+                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                                      notificationsEnabled && notificationPermission === 'granted'
+                                        ? 'translate-x-6'
+                                        : 'translate-x-1'
+                                    }`}
+                                  />
+                                </button>
                               </div>
-                              <div className='min-w-0'>
-                                <p className='text-xs font-bold text-gray-900 leading-tight'>Notification panel</p>
-                                <p className='text-[11px] text-gray-600 leading-tight'>
-                                  Control bell drawer updates and badges
-                                </p>
-                                {isUpdatingPanelNotifications && (
-                                  <p className='text-[11px] text-gray-500 leading-tight'>Updating...</p>
-                                )}
-                              </div>
+                              {notificationPermission !== 'granted' && (
+                                <button
+                                  type='button'
+                                  onClick={allowMessageNotifications}
+                                  disabled={isUpdatingMessageNotifications}
+                                  className='mt-3 w-full rounded-lg bg-[#163146] px-3 py-2 text-xs font-semibold text-white hover:bg-[#0f2229] transition-colors disabled:opacity-60 disabled:cursor-not-allowed'
+                                >
+                                  {notificationPermission === 'denied' ? 'Enable In Browser Settings' : 'Allow Notifications'}
+                                </button>
+                              )}
                             </div>
-                            <button
-                              type='button'
-                              role='switch'
-                              aria-checked={inAppNotificationsEnabled}
-                              aria-label='Toggle notification panel'
-                              onClick={togglePanelNotifications}
-                              disabled={isUpdatingPanelNotifications}
-                              className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
-                                inAppNotificationsEnabled ? 'bg-emerald-500' : 'bg-gray-300'
-                              } ${isUpdatingPanelNotifications ? 'opacity-60 cursor-not-allowed' : ''}`}
-                            >
-                              <span
-                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
-                                  inAppNotificationsEnabled ? 'translate-x-6' : 'translate-x-1'
-                                }`}
-                              />
-                            </button>
-                          </div>
+                          )}
                         </div>
 
                         {/* Tabs Header */}
@@ -1456,10 +1545,10 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
                                     // Count logic
                                     const invitationTypes = ['connection_request', 'event_invitation']
                                     const count = tab === 'all' 
-                                        ? notifications.length 
+                                        ? collapsedNotifications.length 
                                         : tab === 'invitations' 
-                                            ? notifications.filter(n => invitationTypes.includes(n.type)).length
-                                            : notifications.filter(n => !invitationTypes.includes(n.type)).length
+                                            ? collapsedNotifications.filter(n => invitationTypes.includes(n.type)).length
+                                            : collapsedNotifications.filter(n => !invitationTypes.includes(n.type)).length
 
                                     return (
                                         <button
@@ -1495,19 +1584,7 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
 
                         {/* Notifications List */}
                         <div className='flex-1 overflow-y-auto p-4 space-y-6 bg-gray-50/30'>
-                          {!inAppNotificationsEnabled ? (
-                            <div className='flex flex-col items-center justify-center h-full text-center p-8'>
-                              <div className='w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-4 text-gray-300'>
-                                <Bell size={32} />
-                              </div>
-                              <h4 className='text-gray-900 font-semibold'>
-                                In-app notifications are off
-                              </h4>
-                              <p className='text-sm text-gray-500 mt-1 max-w-[240px] leading-relaxed'>
-                                Turn them back on in Settings if you want to see updates here.
-                              </p>
-                            </div>
-                          ) : notifications.length === 0 ? (
+                          {collapsedNotifications.length === 0 ? (
                             <div className='flex flex-col items-center justify-center h-full text-center p-8'>
                               <div className='w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-4 text-gray-300'>
                                 <Bell size={32} />
@@ -1522,11 +1599,11 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
                           ) : (
                             (() => {
                                 const invitationTypes = ['connection_request', 'event_invitation']
-                                let filtered = notifications
+                                let filtered = collapsedNotifications
                                 if (activeTab === 'invitations') {
-                                    filtered = notifications.filter(n => invitationTypes.includes(n.type))
+                                    filtered = collapsedNotifications.filter(n => invitationTypes.includes(n.type))
                                 } else if (activeTab === 'updates') {
-                                    filtered = notifications.filter(n => !invitationTypes.includes(n.type))
+                                    filtered = collapsedNotifications.filter(n => !invitationTypes.includes(n.type))
                                 }
 
                                 if (filtered.length === 0) {
@@ -1539,7 +1616,7 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
 
                                 // Group by date
                                 const groups = filtered.reduce((acc, notif) => {
-                                    const date = new Date(notif.createdAt)
+                                    const date = getNotificationEventDate(notif)
                                     const now = new Date()
                                     const isToday = date.toDateString() === now.toDateString()
                                     const yesterday = new Date(now)
@@ -1612,7 +1689,7 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
                                                                                     {presentation.title}
                                                                                 </h4>
                                                                                 <span className='text-[10px] text-gray-400 whitespace-nowrap font-medium pt-0.5'>
-                                                                                    {formatTimestamp(notif.createdAt)}
+                                                                                    {formatTimestamp(notif._eventAt || notif.updatedAt || notif.createdAt)}
                                                                                 </span>
                                                                             </div>
                                                                             
@@ -1634,7 +1711,7 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
                                                                      <button
                                                                         onClick={(e) => {
                                                                           e.stopPropagation()
-                                                                          handleDeleteNotification(notif._id)
+                                                                          handleDeleteNotification(notif._groupIds || notif._id)
                                                                         }}
                                                                         className='absolute top-2 right-2 opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all'
                                                                         title='Dismiss'

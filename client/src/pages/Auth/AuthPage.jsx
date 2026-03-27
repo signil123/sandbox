@@ -520,7 +520,7 @@ export default function AuthPage({
                       className='w-full py-4 text-lg mt-4 shadow-xl shadow-[#986a41]/20'
                       style={{ background: 'linear-gradient(135deg, #986a41, #855b38)' }}
                     >
-                      Sign In Access
+                      Sign In
                     </PrimaryButton>
                   </div>
                 </div>

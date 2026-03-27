@@ -153,7 +153,7 @@ export const ErrorAlert = ({ message }) => (
 )
 
 export const LoadingSpinner = () => (
-  <div className='animate-spin w-4 h-4 border-2 border-[#163146] border-t-transparent rounded-full' />
+  <div className='animate-spin w-4 h-4 border-2 border-white/90 border-t-transparent rounded-full' />
 )
 
 export const PrimaryButton = ({ onClick, disabled, loading, children }) => (

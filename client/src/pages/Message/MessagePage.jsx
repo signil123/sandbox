@@ -713,32 +713,38 @@ function MessagePage() {
   }
 
   const requestNotificationPermission = async () => {
-    if (!notificationsSupported) return
+    if (!notificationsSupportedRef.current) return
 
-    const result = await pushService.subscribe()
-    const permission = pushService.getPermission()
-    const enabled = pushService.getMessageNotificationsEnabled() && permission === 'granted'
-    setNotificationPermission(permission)
-    setNotificationsEnabled(enabled)
-    notificationsEnabledRef.current = enabled
+    try {
+      const result = await pushService.subscribe()
+      const permission = pushService.getPermission()
+      const enabled = pushService.getMessageNotificationsEnabled() && permission === 'granted'
+      setNotificationPermission(permission)
+      setNotificationsEnabled(enabled)
+      notificationsEnabledRef.current = enabled
 
-    if (result.ok) {
-      toast.success('Message notifications turned on.')
-      return
-    }
+      if (result.ok) {
+        toast.success('Message notifications turned on.')
+        return
+      }
 
-    if (result.reason === 'denied') {
-      toast.error('Notifications are blocked in your browser settings.')
-      return
-    }
-    if (!result.ok) {
-      toast.error('Could not enable message notifications.')
+      if (result.reason === 'denied') {
+        toast.error(pushService.getFailureMessage(result.reason))
+        return
+      }
+      if (!result.ok) {
+        toast.error(pushService.getFailureMessage(result.reason))
+      }
+    } catch {
+      persistNotificationsEnabled(false)
+      setNotificationPermission(pushService.getPermission())
+      toast.error(pushService.getFailureMessage('unknown'))
     }
   }
 
   const toggleMessageNotifications = async () => {
     if (isUpdatingMessageNotifications) return
-    if (!notificationsSupported) return
+    if (!notificationsSupportedRef.current) return
     setIsUpdatingMessageNotifications(true)
     try {
       if (notificationsEnabled && notificationPermission === 'granted') {
@@ -752,6 +758,36 @@ function MessagePage() {
       setIsUpdatingMessageNotifications(false)
     }
   }
+
+  const allowMessageNotifications = async () => {
+    if (isUpdatingMessageNotifications) return
+    if (!notificationsSupportedRef.current) return
+
+    if (notificationPermission === 'denied') {
+      toast.error(
+        'Notifications are blocked. Open browser site settings, allow notifications for this site, then refresh.'
+      )
+      return
+    }
+
+    setIsUpdatingMessageNotifications(true)
+    try {
+      await requestNotificationPermission()
+    } finally {
+      setIsUpdatingMessageNotifications(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!currentLoggedInUser?._id) return
+    if (!notificationsSupportedRef.current) return
+    if (!pushService.getMessageNotificationsEnabled()) return
+    if (pushService.getPermission() !== 'granted') return
+
+    pushService.syncEnabledSubscription().catch(() => {
+      // Silent recovery attempt only. User can retry from toggle if needed.
+    })
+  }, [currentLoggedInUser?._id])
 
   const toggleLastSeen = async () => {
     if (isUpdatingLastSeen) return
@@ -1893,42 +1929,54 @@ function MessagePage() {
 
             {notificationsSupported && (
               <div className='px-3 pb-2'>
-                <div className='flex items-center justify-between gap-2 rounded-xl border border-amber-100 bg-amber-50/70 px-3 py-2'>
-                  <div className='flex items-center gap-2 min-w-0'>
-                    <div className='w-6 h-6 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center flex-shrink-0'>
-                      <Bell size={12} />
+                <div className='rounded-xl border border-amber-100 bg-amber-50/70 px-3 py-2'>
+                  <div className='flex items-center justify-between gap-2'>
+                    <div className='flex items-center gap-2 min-w-0'>
+                      <div className='w-6 h-6 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center flex-shrink-0'>
+                        <Bell size={12} />
+                      </div>
+                      <div className='min-w-0'>
+                        <p className='text-[10px] font-bold text-amber-900 leading-tight'>Message notifications</p>
+                        <p className='text-[9px] text-amber-700 leading-tight'>
+                          Get alerts when new messages arrive
+                        </p>
+                        {isUpdatingMessageNotifications && (
+                          <p className='text-[9px] text-amber-700/80 leading-tight mt-0.5'>Updating...</p>
+                        )}
+                      </div>
                     </div>
-                    <div className='min-w-0'>
-                      <p className='text-[10px] font-bold text-amber-900 leading-tight'>Message notifications</p>
-                      <p className='text-[9px] text-amber-700 leading-tight'>
-                        Get alerts when new messages arrive
-                      </p>
-                      {isUpdatingMessageNotifications && (
-                        <p className='text-[9px] text-amber-700/80 leading-tight mt-0.5'>Updating...</p>
-                      )}
-                    </div>
-                  </div>
-                  <button
-                    type='button'
-                    role='switch'
-                    aria-checked={notificationsEnabled && notificationPermission === 'granted'}
-                    aria-label='Toggle message notifications'
-                    onClick={toggleMessageNotifications}
-                    disabled={notificationPermission === 'denied' || isUpdatingMessageNotifications}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
-                      notificationsEnabled && notificationPermission === 'granted'
-                        ? 'bg-emerald-500'
-                        : 'bg-gray-300'
-                    } ${notificationPermission === 'denied' || isUpdatingMessageNotifications ? 'cursor-not-allowed opacity-60' : ''}`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                    <button
+                      type='button'
+                      role='switch'
+                      aria-checked={notificationsEnabled && notificationPermission === 'granted'}
+                      aria-label='Toggle message notifications'
+                      onClick={toggleMessageNotifications}
+                      disabled={notificationPermission === 'denied' || isUpdatingMessageNotifications}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
                         notificationsEnabled && notificationPermission === 'granted'
-                          ? 'translate-x-6'
-                          : 'translate-x-1'
-                      }`}
-                    />
-                  </button>
+                          ? 'bg-emerald-500'
+                          : 'bg-gray-300'
+                      } ${notificationPermission === 'denied' || isUpdatingMessageNotifications ? 'cursor-not-allowed opacity-60' : ''}`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                          notificationsEnabled && notificationPermission === 'granted'
+                            ? 'translate-x-6'
+                            : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                  {notificationPermission !== 'granted' && (
+                    <button
+                      type='button'
+                      onClick={allowMessageNotifications}
+                      disabled={isUpdatingMessageNotifications}
+                      className='mt-2 w-full rounded-lg bg-[#163146] px-2.5 py-1.5 text-[9px] font-semibold text-white hover:bg-[#0f2229] transition-colors disabled:opacity-60 disabled:cursor-not-allowed'
+                    >
+                      {notificationPermission === 'denied' ? 'Enable In Browser Settings' : 'Allow Notifications'}
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -2144,42 +2192,54 @@ function MessagePage() {
 
             {notificationsSupported && (
               <div className='mt-3'>
-                <div className='flex items-center justify-between gap-3 rounded-xl border border-amber-100 bg-amber-50/70 px-3 py-2'>
-                  <div className='flex items-center gap-2 min-w-0'>
-                    <div className='w-7 h-7 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center flex-shrink-0'>
-                      <Bell size={14} />
+                <div className='rounded-xl border border-amber-100 bg-amber-50/70 px-3 py-2'>
+                  <div className='flex items-center justify-between gap-3'>
+                    <div className='flex items-center gap-2 min-w-0'>
+                      <div className='w-7 h-7 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center flex-shrink-0'>
+                        <Bell size={14} />
+                      </div>
+                      <div className='min-w-0'>
+                        <p className='text-[11px] font-bold text-amber-900 leading-tight'>Message notifications</p>
+                        <p className='text-[10px] text-amber-700 leading-tight'>
+                          Get alerts when new messages arrive
+                        </p>
+                        {isUpdatingMessageNotifications && (
+                          <p className='text-[10px] text-amber-700/80 leading-tight mt-0.5'>Updating...</p>
+                        )}
+                      </div>
                     </div>
-                    <div className='min-w-0'>
-                      <p className='text-[11px] font-bold text-amber-900 leading-tight'>Message notifications</p>
-                      <p className='text-[10px] text-amber-700 leading-tight'>
-                        Get alerts when new messages arrive
-                      </p>
-                      {isUpdatingMessageNotifications && (
-                        <p className='text-[10px] text-amber-700/80 leading-tight mt-0.5'>Updating...</p>
-                      )}
-                    </div>
-                  </div>
-                  <button
-                    type='button'
-                    role='switch'
-                    aria-checked={notificationsEnabled && notificationPermission === 'granted'}
-                    aria-label='Toggle message notifications'
-                    onClick={toggleMessageNotifications}
-                    disabled={notificationPermission === 'denied' || isUpdatingMessageNotifications}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
-                      notificationsEnabled && notificationPermission === 'granted'
-                        ? 'bg-emerald-500'
-                        : 'bg-gray-300'
-                    } ${notificationPermission === 'denied' || isUpdatingMessageNotifications ? 'cursor-not-allowed opacity-60' : ''}`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                    <button
+                      type='button'
+                      role='switch'
+                      aria-checked={notificationsEnabled && notificationPermission === 'granted'}
+                      aria-label='Toggle message notifications'
+                      onClick={toggleMessageNotifications}
+                      disabled={notificationPermission === 'denied' || isUpdatingMessageNotifications}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
                         notificationsEnabled && notificationPermission === 'granted'
-                          ? 'translate-x-6'
-                          : 'translate-x-1'
-                      }`}
-                    />
-                  </button>
+                          ? 'bg-emerald-500'
+                          : 'bg-gray-300'
+                      } ${notificationPermission === 'denied' || isUpdatingMessageNotifications ? 'cursor-not-allowed opacity-60' : ''}`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                          notificationsEnabled && notificationPermission === 'granted'
+                            ? 'translate-x-6'
+                            : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                  {notificationPermission !== 'granted' && (
+                    <button
+                      type='button'
+                      onClick={allowMessageNotifications}
+                      disabled={isUpdatingMessageNotifications}
+                      className='mt-2 w-full rounded-lg bg-[#163146] px-3 py-2 text-[10px] font-semibold text-white hover:bg-[#0f2229] transition-colors disabled:opacity-60 disabled:cursor-not-allowed'
+                    >
+                      {notificationPermission === 'denied' ? 'Enable In Browser Settings' : 'Allow Notifications'}
+                    </button>
+                  )}
                 </div>
               </div>
             )}

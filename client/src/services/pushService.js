@@ -55,7 +55,7 @@ const setPanelNotificationsEnabled = (enabled) => {
 const registerServiceWorker = async () => {
   if (!('serviceWorker' in navigator)) return null
 
-  const existing = await navigator.serviceWorker.getRegistration('/sw.js')
+  const existing = await navigator.serviceWorker.getRegistration('/')
   if (existing) {
     existing.update().catch(() => {})
     await navigator.serviceWorker.ready
@@ -93,13 +93,60 @@ const subscribe = async () => {
   const publicKey = await getPublicKey()
   if (!publicKey) return { ok: false, reason: 'no_key' }
 
-  const existing = await registration.pushManager.getSubscription()
-  const subscription =
-    existing ||
-    (await registration.pushManager.subscribe({
+  let existing = await registration.pushManager.getSubscription()
+  let subscription = existing
+
+  if (!subscription) {
+    subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(publicKey),
-    }))
+    })
+  }
+
+  await axiosInstance.post('/push/subscribe', {
+    subscription,
+    userAgent: navigator.userAgent,
+  })
+
+  setMessageNotificationsEnabled(true)
+  return { ok: true }
+}
+
+const syncEnabledSubscription = async () => {
+  if (!isSupported()) return { ok: false, reason: 'unsupported' }
+  if (!getMessageNotificationsEnabled()) return { ok: false, reason: 'disabled' }
+
+  const permission = getPermission()
+  if (permission !== 'granted') return { ok: false, reason: permission }
+
+  const registration = await registerServiceWorker()
+  if (!registration) return { ok: false, reason: 'no_sw' }
+
+  const publicKey = await getPublicKey()
+  if (!publicKey) return { ok: false, reason: 'no_key' }
+
+  let subscription = await registration.pushManager.getSubscription()
+
+  try {
+    if (!subscription) {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      })
+    }
+  } catch {
+    // Recover from stale/incompatible browser subscriptions by recreating.
+    const stale = await registration.pushManager.getSubscription()
+    if (stale) {
+      try {
+        await stale.unsubscribe()
+      } catch {}
+    }
+    subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(publicKey),
+    })
+  }
 
   await axiosInstance.post('/push/subscribe', {
     subscription,
@@ -129,6 +176,25 @@ const unsubscribe = async () => {
   return { ok: true }
 }
 
+const getFailureMessage = (reason) => {
+  switch (reason) {
+    case 'denied':
+      return 'Notifications are blocked in your browser settings.'
+    case 'no_key':
+      return 'Push public key is unavailable from server.'
+    case 'no_sw':
+      return 'Service worker is not available.'
+    case 'unsupported':
+      return 'This browser does not support push notifications.'
+    case 'permission':
+      return 'Notification permission is not granted yet.'
+    case 'default':
+      return 'Please allow notifications in the browser prompt.'
+    default:
+      return 'Could not enable notifications.'
+  }
+}
+
 export const pushService = {
   isSupported,
   getPermission,
@@ -141,7 +207,9 @@ export const pushService = {
   getEnabled: getMessageNotificationsEnabled,
   setEnabled: setMessageNotificationsEnabled,
   subscribe,
+  syncEnabledSubscription,
   unsubscribe,
+  getFailureMessage,
   keys: {
     MESSAGE_STORAGE_KEY,
     PANEL_STORAGE_KEY,
