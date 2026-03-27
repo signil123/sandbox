@@ -94,6 +94,19 @@ export const authService = {
     }
   },
 
+  updateAccount: async (accountData) => {
+    try {
+      const response = await axiosInstance.put('/auth/user', accountData)
+      return response.data
+    } catch (error) {
+      throw (
+        error.response?.data?.message ||
+        error.message ||
+        'Account update failed'
+      )
+    }
+  },
+
   logout: async () => {
     try {
       await axiosInstance.post('/auth/logout')
@@ -112,6 +125,12 @@ export const authService = {
         newPassword,
         confirmPassword,
       })
+
+      if (response.data.token) {
+        localStorage.setItem('token', response.data.token)
+        sessionStorage.setItem('token', response.data.token)
+      }
+
       return response.data
     } catch (error) {
       throw (

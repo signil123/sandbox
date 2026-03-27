@@ -251,10 +251,9 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
     try {
       setSavingProfile(true)
       const advisorId = currentUser._id
-      
-      // 1. Update Personal Info (User Name + Profile Bio/Phone/Social)
+
+      // 1. Update profile-side info
       await profileService.updateAdvisorInfo(advisorId, {
-        name: editFormData.name,
         phone: editFormData.phone,
         aboutMe: editFormData.aboutMe,
         socialLinks: {
@@ -816,15 +815,16 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
                   <label className='block text-xs font-semibold text-slate-900 mb-1.5'>
                     Full Name
                   </label>
-                  <input
-                    type='text'
-                    placeholder='Your name'
-                    value={editFormData.name}
-                    onChange={(e) =>
-                      setEditFormData({ ...editFormData, name: e.target.value })
-                    }
-                    className='w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-400 transition'
-                  />
+                  <div
+                    onClick={() => navigate('/settings?tab=notifications')}
+                    className='cursor-pointer group'
+                  >
+                    <div className='flex items-center justify-between w-full px-3 py-2 text-xs border border-slate-200 bg-slate-50 rounded-lg group-hover:border-slate-300 transition'>
+                      <span className='text-slate-500'>{editFormData.name || 'No name set'}</span>
+                      <Lock size={12} className='text-slate-400' />
+                    </div>
+                  </div>
+                  <p className='text-[10px] text-slate-500 mt-1 pl-1'>Edit account info in Settings</p>
                 </div>
 
                 <div className='grid grid-cols-2 gap-2'>
@@ -887,16 +887,16 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
                   <label className='block text-xs font-semibold text-slate-900 mb-1.5'>
                     Email
                   </label>
-                  <div 
-                    onClick={() => navigate('/settings')}
+                  <div
+                    onClick={() => navigate('/settings?tab=notifications')}
                     className='cursor-pointer group'
                   >
                     <div className='flex items-center justify-between w-full px-3 py-2 text-xs border border-slate-200 bg-slate-50 rounded-lg group-hover:border-slate-300 transition'>
-                      <span className='text-slate-500'>{editFormData.email}</span>
+                      <span className='text-slate-500'>{editFormData.email || 'No email set'}</span>
                       <Lock size={12} className='text-slate-400' />
                     </div>
                   </div>
-                  <p className='text-[10px] text-slate-500 mt-1 pl-1'>Click to change in settings</p>
+                  <p className='text-[10px] text-slate-500 mt-1 pl-1'>Edit account info in Settings</p>
                 </div>
 
                 <div>

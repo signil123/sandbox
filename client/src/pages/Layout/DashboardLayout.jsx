@@ -1761,9 +1761,9 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
           <Link to='/dashboard' className='flex-1 min-w-0'>
             <motion.div className='relative flex flex-col items-center justify-center h-full'>
               <motion.button
-                className={`relative w-10 h-10 rounded-full flex items-center justify-center transition-all flex-shrink-0 font-semibold ${
+                className={`relative w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-200 flex-shrink-0 font-semibold ${
                   activeNav === 'dashboard'
-                    ? 'bg-[#163146] text-white shadow-md'
+                    ? 'bg-[#163146] text-white shadow-md scale-110'
                     : 'text-gray-600'
                 }`}
                 whileTap={{ scale: 0.85 }}
@@ -1785,9 +1785,9 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
           <Link to='/inbox' className='flex-1 min-w-0'>
             <motion.div className='relative flex flex-col items-center justify-center h-full'>
               <motion.button
-                className={`relative w-10 h-10 rounded-full flex items-center justify-center transition-all flex-shrink-0 font-semibold ${
+                className={`relative w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-200 flex-shrink-0 font-semibold ${
                   activeNav === 'messages'
-                    ? 'bg-[#163146] text-white shadow-md'
+                    ? 'bg-[#163146] text-white shadow-md scale-110'
                     : 'text-gray-600'
                 }`}
                 whileTap={{ scale: 0.85 }}
@@ -1817,9 +1817,9 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
           <Link to='/calendar' className='flex-1 min-w-0'>
             <motion.div className='relative flex flex-col items-center justify-center h-full'>
               <motion.button
-                className={`relative w-10 h-10 rounded-full flex items-center justify-center transition-all flex-shrink-0 font-semibold ${
+                className={`relative w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-200 flex-shrink-0 font-semibold ${
                   activeNav === 'calendar'
-                    ? 'bg-[#163146] text-white shadow-md'
+                    ? 'bg-[#163146] text-white shadow-md scale-110'
                     : 'text-gray-600'
                 }`}
                 whileTap={{ scale: 0.85 }}
@@ -1855,15 +1855,16 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
                 className='w-5 h-5 object-contain'
               />
             </motion.div>
+            <div className='mt-2 w-10 border-t-[4px] border-[#163146] rounded-full' />
           </motion.button>
 
           {/* Explore */}
           <Link to='/explore' className='flex-1 min-w-0'>
             <motion.div className='relative flex flex-col items-center justify-center h-full'>
               <motion.button
-                className={`relative w-10 h-10 rounded-full flex items-center justify-center transition-all flex-shrink-0 font-semibold ${
+                className={`relative w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-200 flex-shrink-0 font-semibold ${
                   activeNav === 'explore'
-                    ? 'bg-[#163146] text-white shadow-md'
+                    ? 'bg-[#163146] text-white shadow-md scale-110'
                     : 'text-gray-600'
                 }`}
                 whileTap={{ scale: 0.85 }}
@@ -1885,9 +1886,9 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
           <Link to='/news' className='flex-1 min-w-0'>
             <motion.div className='relative flex flex-col items-center justify-center h-full'>
               <motion.button
-                className={`relative w-10 h-10 rounded-full flex items-center justify-center transition-all flex-shrink-0 font-semibold ${
+                className={`relative w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-200 flex-shrink-0 font-semibold ${
                   activeNav === 'news'
-                    ? 'bg-[#163146] text-white shadow-md'
+                    ? 'bg-[#163146] text-white shadow-md scale-110'
                     : 'text-gray-600'
                 }`}
                 whileTap={{ scale: 0.85 }}
@@ -1909,9 +1910,9 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
           <Link to={profilePath} className='flex-1 min-w-0'>
             <motion.div className='relative flex flex-col items-center justify-center h-full'>
               <motion.button
-                className={`relative w-10 h-10 rounded-full flex items-center justify-center transition-all flex-shrink-0 font-semibold ${
+                className={`relative w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-200 flex-shrink-0 font-semibold ${
                   activeNav === 'profile'
-                    ? 'bg-[#163146] text-white shadow-md'
+                    ? 'bg-[#163146] text-white shadow-md scale-110'
                     : 'text-gray-600'
                 }`}
                 whileTap={{ scale: 0.85 }}

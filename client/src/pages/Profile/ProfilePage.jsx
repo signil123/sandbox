@@ -224,7 +224,6 @@ const ProfileSkeleton = () => (
   })
 
   const [editFormData, setEditFormData] = useState(profileData)
-
   // Preferences
   const [preferences, setPreferences] = useState({
     dealSize: '250k-500k',
@@ -519,7 +518,6 @@ const ProfileSkeleton = () => (
       setSavingProfile(true)
 
       const response = await profileService.updateAthleteProfile({
-        name: editFormData.name,
         photo: editFormData.photo,
         school: editFormData.school,
         sport: editFormData.sport,
@@ -1380,15 +1378,24 @@ const ProfileSkeleton = () => (
                   <label className='block text-xs font-semibold text-slate-900 mb-1.5'>
                     Full Name
                   </label>
-                  <input
-                    type='text'
-                    placeholder='Your name'
-                    value={editFormData.name}
-                    onChange={(e) =>
-                      setEditFormData({ ...editFormData, name: e.target.value })
-                    }
-                    className='w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-400 transition'
-                  />
+                  <div
+                    role='button'
+                    tabIndex={0}
+                    onClick={() => { window.location.href = '/settings?tab=notifications' }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        window.location.href = '/settings?tab=notifications'
+                      }
+                    }}
+                    className='cursor-pointer group'
+                  >
+                    <div className='flex items-center justify-between w-full px-3 py-2 text-xs border border-slate-200 bg-slate-50 rounded-lg group-hover:border-slate-300 transition'>
+                      <span className='text-slate-500'>{editFormData.name || 'No name set'}</span>
+                      <Lock size={12} className='text-slate-400' />
+                    </div>
+                  </div>
+                  <p className='text-[10px] text-slate-500 mt-1 pl-1'>Edit account info in Settings</p>
                 </div>
 
                 <div className='grid grid-cols-2 gap-2'>
@@ -1469,18 +1476,24 @@ const ProfileSkeleton = () => (
                   <label className='block text-xs font-semibold text-slate-900 mb-1.5'>
                     Email
                   </label>
-                  <input
-                    type='email'
-                    placeholder='Email'
-                    value={editFormData.email}
-                    onChange={(e) =>
-                      setEditFormData({
-                        ...editFormData,
-                        email: e.target.value,
-                      })
-                    }
-                    className='w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-400 transition'
-                  />
+                  <div
+                    role='button'
+                    tabIndex={0}
+                    onClick={() => { window.location.href = '/settings?tab=notifications' }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        window.location.href = '/settings?tab=notifications'
+                      }
+                    }}
+                    className='cursor-pointer group'
+                  >
+                    <div className='flex items-center justify-between w-full px-3 py-2 text-xs border border-slate-200 bg-slate-50 rounded-lg group-hover:border-slate-300 transition'>
+                      <span className='text-slate-500'>{editFormData.email || 'No email set'}</span>
+                      <Lock size={12} className='text-slate-400' />
+                    </div>
+                  </div>
+                  <p className='text-[10px] text-slate-500 mt-1 pl-1'>Edit account info in Settings</p>
                 </div>
 
                 <div>

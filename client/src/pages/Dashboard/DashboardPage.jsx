@@ -446,9 +446,9 @@ const DashboardPage = () => {
                     Based on your profile & goals
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className='flex w-full sm:w-auto items-center gap-2 min-w-0'>
                     {advisors.length > 3 && (
-                        <div className="flex items-center gap-1 mr-2">
+                        <div className='flex items-center gap-1 mr-1 shrink-0'>
                              <button 
                                 onClick={prevAdvisor}
                                 disabled={advisorPageIndex === 0}
@@ -467,7 +467,7 @@ const DashboardPage = () => {
                     )}
                     <button 
                     onClick={() => navigate('/explore')}
-                    className='w-full sm:w-auto px-5 py-2.5 bg-gray-50 text-[#163146] text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-[#163146] hover:text-white transition-all border border-gray-100 shrink-0'
+                    className='flex-1 min-w-0 sm:flex-none sm:w-auto px-4 py-2.5 bg-gray-50 text-[#163146] text-[10px] font-black uppercase tracking-[0.18em] rounded-xl hover:bg-[#163146] hover:text-white transition-all border border-gray-100 whitespace-nowrap'
                     >
                     Explore All
                     </button>

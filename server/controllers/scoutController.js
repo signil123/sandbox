@@ -3,7 +3,9 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import Profile from '../models/Profile.js'
+import StripePlan from '../models/StripePlan.js'
 import User from '../models/User.js'
+import { canAccessSubscriptionUi } from '../utils/entitlements.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -82,6 +84,10 @@ const PLATFORM_KEYWORDS = [
   'advisor pricing',
   'agent pricing',
 ]
+const PRICING_REGEX =
+  /\b(pricing|price|prices|cost|costs|plan|plans|tier|tiers|membership|subscription|subscriptions|how much|charge|charges|monthly|per month|paid|upgrade|package|packages|free plan|growth|pro)\b/i
+const ATHLETE_PRICING_REGEX =
+  /\b(athlete|athletes)\b.*\b(pricing|price|prices|cost|costs|plan|plans|tier|tiers|membership|subscription|subscriptions|how much|charge|charges|monthly|per month|paid|upgrade|package|packages)\b|\b(pricing|price|prices|cost|costs|plan|plans|tier|tiers|membership|subscription|subscriptions|how much|charge|charges|monthly|per month|paid|upgrade|package|packages)\b.*\b(athlete|athletes)\b/i
 
 const PROFILE_DISCOVERY_KEYWORDS = [
   'find',
@@ -168,6 +174,47 @@ const normalizeText = (value) => {
     .trim()
 }
 
+const formatPlanPrice = (plan) => {
+  const amount = Number(plan?.amount || 0)
+  const currency = String(plan?.currency || 'usd').toUpperCase()
+  const interval = plan?.interval || 'month'
+  return `${currency} ${amount % 1 === 0 ? amount.toFixed(0) : amount.toFixed(2)}/${interval}`
+}
+
+const isPricingQuestion = (message) => {
+  const normalized = normalizeText(message)
+  if (!normalized) return false
+  return PRICING_REGEX.test(normalized)
+}
+
+const isAthletePricingQuestion = (message) => {
+  const normalized = normalizeText(message)
+  if (!normalized) return false
+  return ATHLETE_PRICING_REGEX.test(normalized)
+}
+
+const buildPricingReply = async (requester) => {
+  if (!canAccessSubscriptionUi(requester)) {
+    return 'Pricing plans in Settings > Plans are available to advisors and agents only. Athletes do not have purchasable plans.'
+  }
+
+  const plans = await StripePlan.find({ active: true })
+    .sort({ amount: 1, createdAt: -1 })
+    .select('name tier amount currency interval')
+    .lean()
+
+  if (!plans.length) {
+    return 'I could not find active plans right now. Please open Settings > Plans to check again.'
+  }
+
+  const lines = plans.map((plan) => {
+    const safeName = clampString(String(plan.name || plan.tier || 'Plan'), 80)
+    return `- ${safeName} (${String(plan.tier || '').toUpperCase()}): ${formatPlanPrice(plan)}`
+  })
+
+  return `Current pricing from Settings > Plans:\n${lines.join('\n')}`
+}
+
 const parseJsonObject = (text) => {
   if (!text || typeof text !== 'string') return null
   try {
@@ -252,6 +299,7 @@ const getMessageIntent = (message) => {
   if (GREETING_REGEX.test(normalized) || SMALL_TALK_REGEX.test(normalized)) {
     return 'small_talk'
   }
+  if (isPricingQuestion(normalized)) return 'platform_info'
   if (shouldSuggestProfiles(normalized)) return 'discovery'
   if (SIGNIL_NAME_REGEX.test(normalized)) return 'platform_info'
   if (
@@ -400,10 +448,49 @@ export const chatWithScout = async (req, res, next) => {
     }
 
     const intent = getMessageIntent(message)
+    const athletePricingQuestion = isAthletePricingQuestion(message)
+    const pricingQuestion = isPricingQuestion(message)
     const knowledgeMatch = intent === 'discovery' ? null : findKnowledgeMatch(message)
 
     const groqApiKey = process.env.GROQ_API_KEY
     const model = process.env.GROQ_MODEL || DEFAULT_GROQ_MODEL
+
+    if (athletePricingQuestion) {
+      return res.status(200).json({
+        status: 'success',
+        data: {
+          reply: 'Athletes do not have any pricing.',
+          suggestions: [],
+          options: [
+            toOption('Advisor pricing'),
+            toOption('Agent pricing'),
+            toOption('How Signil works'),
+          ],
+          searchSummary: '',
+          model,
+          fallbackMode: false,
+        },
+      })
+    }
+
+    if (pricingQuestion) {
+      const pricingReply = await buildPricingReply(requester)
+      return res.status(200).json({
+        status: 'success',
+        data: {
+          reply: clampString(pricingReply, 1200),
+          suggestions: [],
+          options: [
+            toOption('Open Settings > Plans'),
+            toOption('Advisor pricing'),
+            toOption('Agent pricing'),
+          ],
+          searchSummary: '',
+          model,
+          fallbackMode: false,
+        },
+      })
+    }
 
     if (!groqApiKey) {
       if (knowledgeMatch) {

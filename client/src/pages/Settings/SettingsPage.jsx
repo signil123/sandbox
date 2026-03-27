@@ -5,7 +5,6 @@ import {
   CheckCircle2,
   CreditCard,
   Globe,
-  Lock,
   ShieldCheck,
   User,
   Zap,
@@ -30,6 +29,7 @@ import axiosInstance from '../../config'
 import { profileService } from '../../services/profileService'
 import { subscriptionService } from '../../services/subscriptionService'
 import { pushService } from '../../services/pushService'
+import { authService } from '../../services/authService'
 import DashboardLayout from '../Layout/DashboardLayout'
 
 const formatDate = (dateValue) => {
@@ -74,6 +74,18 @@ const SettingsPage = () => {
   const [isUpdatingPanelNotifications, setIsUpdatingPanelNotifications] = useState(false)
   const [isUpdatingMessageNotifications, setIsUpdatingMessageNotifications] = useState(false)
   const [isUpdatingLastSeen, setIsUpdatingLastSeen] = useState(false)
+  const [accountFormData, setAccountFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+  })
+  const [passwordFormData, setPasswordFormData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  })
+  const [isSavingAccount, setIsSavingAccount] = useState(false)
+  const [isChangingPassword, setIsChangingPassword] = useState(false)
   const currentUserRef = useRef(currentUser)
   const refreshInFlightRef = useRef(false)
   const hasLoadedRef = useRef(false)
@@ -84,8 +96,7 @@ const SettingsPage = () => {
   const tabs = [
     ...(isSubscriptionEligible ? [{ id: 'subscription', label: 'Subscription', icon: CreditCard }] : []),
     ...(isSubscriptionEligible ? [{ id: 'plans', label: 'Plans', icon: ShieldCheck }] : []),
-    { id: 'notifications', label: 'Notifications', icon: Bell },
-    { id: 'security', label: 'Security', icon: Lock },
+    { id: 'notifications', label: 'Notifications & Security', icon: Bell },
   ]
   const validTabIds = useMemo(() => tabs.map((tab) => tab.id), [tabs])
 
@@ -126,6 +137,14 @@ const SettingsPage = () => {
     const enabled = currentUser?.settings?.showLastSeen
     setShowLastSeen(enabled === undefined ? true : Boolean(enabled))
   }, [currentUser?.settings?.showLastSeen])
+
+  useEffect(() => {
+    setAccountFormData({
+      name: currentUser?.name || '',
+      email: currentUser?.email || '',
+      phone: currentUser?.phone || '',
+    })
+  }, [currentUser?.name, currentUser?.email, currentUser?.phone])
 
   const persistNotificationsEnabled = (enabled) => {
     pushService.setMessageNotificationsEnabled(enabled)
@@ -228,6 +247,55 @@ const SettingsPage = () => {
       toast.error(error || 'Failed to update last seen setting.')
     } finally {
       setIsUpdatingLastSeen(false)
+    }
+  }
+
+  const handleSaveAccount = async () => {
+    if (isSavingAccount) return
+    setIsSavingAccount(true)
+    try {
+      const response = await authService.updateAccount({
+        name: accountFormData.name,
+        email: accountFormData.email,
+        phone: accountFormData.phone,
+      })
+      const updatedUser = response?.data?.user
+      if (updatedUser) {
+        dispatch(setUser(updatedUser))
+      }
+      toast.success('Account details updated.')
+    } catch (error) {
+      toast.error(error || 'Failed to update account details.')
+    } finally {
+      setIsSavingAccount(false)
+    }
+  }
+
+  const handleChangePassword = async () => {
+    if (isChangingPassword) return
+    const { currentPassword, newPassword, confirmPassword } = passwordFormData
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      toast.error('Fill current, new, and confirm password.')
+      return
+    }
+
+    setIsChangingPassword(true)
+    try {
+      const response = await authService.changePassword(currentPassword, newPassword, confirmPassword)
+      const updatedUser = response?.data?.user
+      if (updatedUser) {
+        dispatch(setUser(updatedUser))
+      }
+      setPasswordFormData({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      })
+      toast.success('Password updated successfully.')
+    } catch (error) {
+      toast.error(error || 'Failed to change password.')
+    } finally {
+      setIsChangingPassword(false)
     }
   }
 
@@ -898,141 +966,242 @@ const SettingsPage = () => {
     )
   }
 
-  const renderNotificationsTab = () => (
-    <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8 md:p-10">
-      <div className="flex items-start gap-4 mb-8">
-        <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center">
-          <Bell size={22} />
-        </div>
-        <div>
-          <h3 className="text-xl font-bold text-gray-900">Notifications</h3>
-          <p className="text-sm text-gray-500 mt-1">
-            Control notification panel updates and message alerts separately.
+  const SettingSwitchRow = ({
+    title,
+    description,
+    checked,
+    onClick,
+    disabled,
+    isUpdating,
+    tone = 'default',
+    ariaLabel,
+    icon: Icon,
+  }) => (
+    <div
+      className={`flex flex-wrap items-center justify-between gap-3 rounded-xl md:rounded-2xl border px-4 md:px-5 py-3.5 md:py-4 ${
+        tone === 'amber' ? 'border-amber-100 bg-amber-50/70' : 'border-gray-100 bg-gray-50'
+      }`}
+    >
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          {Icon && (
+            <span
+              className={`w-6 h-6 md:w-7 md:h-7 rounded-lg flex items-center justify-center ${
+                tone === 'amber' ? 'bg-amber-100 text-amber-700' : 'bg-white text-slate-700'
+              }`}
+            >
+              <Icon size={12} />
+            </span>
+          )}
+          <p
+            className={`text-xs md:text-sm font-semibold leading-tight ${
+              tone === 'amber' ? 'text-amber-900' : 'text-gray-900'
+            }`}
+          >
+            {title}
           </p>
         </div>
-      </div>
-
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-gray-100 bg-gray-50 px-5 py-4">
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-gray-900 leading-tight">Notification panel</p>
-            <p className="text-xs text-gray-500 leading-tight">
-              Show updates in the bell drawer and notification badges.
-            </p>
-            {isUpdatingPanelNotifications && (
-              <p className="text-xs text-gray-400 leading-tight mt-1">Updating...</p>
-            )}
-          </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={inAppNotificationsEnabled}
-            aria-label="Toggle notification panel"
-            onClick={togglePanelNotifications}
-            disabled={isUpdatingPanelNotifications}
-            className={`relative inline-flex h-7 w-12 items-center rounded-full transition ${
-              inAppNotificationsEnabled ? 'bg-emerald-500' : 'bg-gray-300'
-            } ${isUpdatingPanelNotifications ? 'opacity-60 cursor-not-allowed' : ''}`}
-          >
-            <span
-              className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${
-                inAppNotificationsEnabled ? 'translate-x-6' : 'translate-x-1'
-              }`}
-            />
-          </button>
-        </div>
-
-        {!notificationsSupported ? (
-          <div className="rounded-2xl border border-gray-100 bg-gray-50 px-5 py-4 text-sm text-gray-500">
-            Message/browser push notifications are not supported on this device.
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-100 bg-amber-50/70 px-5 py-4">
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-amber-900 leading-tight">Message notifications</p>
-                <p className="text-xs text-amber-700 leading-tight">
-                  Receive browser push alerts for new messages, even outside chat.
-                </p>
-                {isUpdatingMessageNotifications && (
-                  <p className="text-xs text-amber-700/80 leading-tight mt-1">Updating...</p>
-                )}
-              </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={notificationsEnabled && notificationPermission === 'granted'}
-                aria-label="Toggle message notifications"
-                onClick={toggleMessageNotifications}
-                disabled={notificationPermission === 'denied' || isUpdatingMessageNotifications}
-                className={`relative inline-flex h-7 w-12 items-center rounded-full transition ${
-                  notificationsEnabled && notificationPermission === 'granted'
-                    ? 'bg-emerald-500'
-                    : 'bg-gray-300'
-                } ${notificationPermission === 'denied' || isUpdatingMessageNotifications ? 'cursor-not-allowed opacity-60' : ''}`}
-              >
-                <span
-                  className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${
-                    notificationsEnabled && notificationPermission === 'granted'
-                      ? 'translate-x-6'
-                      : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </div>
-
-            {notificationPermission === 'denied' && (
-              <div className="rounded-2xl border border-gray-100 bg-gray-50 px-5 py-4 text-xs text-gray-500">
-                Notifications are blocked in your browser settings. Allow them there to enable alerts.
-              </div>
-            )}
-          </div>
+        <p className={`text-[11px] md:text-xs leading-tight mt-1 ${tone === 'amber' ? 'text-amber-700' : 'text-gray-500'}`}>
+          {description}
+        </p>
+        {isUpdating && (
+          <p className={`text-xs leading-tight mt-1 ${tone === 'amber' ? 'text-amber-700/80' : 'text-gray-400'}`}>
+            Updating...
+          </p>
         )}
       </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-label={ariaLabel}
+        onClick={onClick}
+        disabled={disabled}
+        className={`relative inline-flex h-7 w-12 items-center rounded-full transition ${
+          checked ? 'bg-emerald-500' : 'bg-gray-300'
+        } ${disabled ? 'opacity-60 cursor-not-allowed' : ''}`}
+      >
+        <span
+          className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${
+            checked ? 'translate-x-6' : 'translate-x-1'
+          }`}
+        />
+      </button>
     </div>
   )
 
-  const renderSecurityTab = () => (
-    <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8 md:p-10">
-      <div className="flex items-start gap-4 mb-8">
-        <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-700 flex items-center justify-center">
-          <Lock size={22} />
+  const renderNotificationsTab = () => (
+    <div className="space-y-4 md:space-y-6">
+      <div className="bg-white rounded-2xl md:rounded-3xl border border-gray-100 shadow-sm p-4 md:p-8">
+        <div className="flex items-start gap-3 mb-4 md:mb-6">
+          <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center">
+            <Bell size={18} />
+          </div>
+          <div>
+            <h3 className="text-lg md:text-xl font-bold text-gray-900">Notifications & Security</h3>
+            <p className="text-xs md:text-sm text-gray-500 mt-1">
+              Manage message alerts and account visibility in one place.
+            </p>
+          </div>
         </div>
-        <div>
-          <h3 className="text-xl font-bold text-gray-900">Security</h3>
-          <p className="text-sm text-gray-500 mt-1">
-            Privacy and account visibility controls.
-          </p>
-        </div>
-      </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-gray-100 bg-gray-50 px-5 py-4">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-gray-900 leading-tight">Last seen</p>
-          <p className="text-xs text-gray-500 leading-tight">
-            Let other users see when you were last active.
-          </p>
-          {isUpdatingLastSeen && (
-            <p className="text-xs text-gray-400 leading-tight mt-1">Updating...</p>
-          )}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 mb-4 md:mb-5">
+          <div className="rounded-xl md:rounded-2xl border border-gray-100 bg-gray-50 px-3 py-2.5">
+            <p className="text-[9px] font-bold uppercase tracking-wider text-gray-400">In App</p>
+            <p className="mt-1 text-xs md:text-sm font-bold text-gray-900">
+              {inAppNotificationsEnabled ? 'Enabled' : 'Muted'}
+            </p>
+          </div>
+          <div className="rounded-xl md:rounded-2xl border border-gray-100 bg-gray-50 px-3 py-2.5">
+            <p className="text-[9px] font-bold uppercase tracking-wider text-gray-400">Browser Push</p>
+            <p className="mt-1 text-xs md:text-sm font-bold text-gray-900">
+              {!notificationsSupported
+                ? 'Unavailable'
+                : notificationsEnabled && notificationPermission === 'granted'
+                  ? 'Enabled'
+                  : 'Disabled'}
+            </p>
+          </div>
+          <div className="rounded-xl md:rounded-2xl border border-gray-100 bg-gray-50 px-3 py-2.5">
+            <p className="text-[9px] font-bold uppercase tracking-wider text-gray-400">Permission</p>
+            <p className="mt-1 text-xs md:text-sm font-bold text-gray-900 capitalize">
+              {!notificationsSupported ? 'Not supported' : notificationPermission}
+            </p>
+          </div>
+          <div className="rounded-xl md:rounded-2xl border border-gray-100 bg-gray-50 px-3 py-2.5">
+            <p className="text-[9px] font-bold uppercase tracking-wider text-gray-400">Last Seen</p>
+            <p className="mt-1 text-xs md:text-sm font-bold text-gray-900">
+              {showLastSeen ? 'Visible' : 'Hidden'}
+            </p>
+          </div>
         </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={showLastSeen}
-          aria-label="Toggle last seen visibility"
-          onClick={toggleLastSeen}
-          disabled={isUpdatingLastSeen}
-          className={`relative inline-flex h-7 w-12 items-center rounded-full transition ${
-            showLastSeen ? 'bg-emerald-500' : 'bg-gray-300'
-          } ${isUpdatingLastSeen ? 'opacity-60 cursor-not-allowed' : ''}`}
-        >
-          <span
-            className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${
-              showLastSeen ? 'translate-x-6' : 'translate-x-1'
-            }`}
+
+        <div className="space-y-3 md:space-y-4">
+          <h4 className="text-[11px] md:text-xs uppercase tracking-widest text-gray-400 font-bold">Notifications</h4>
+          <SettingSwitchRow
+            title="Notification panel"
+            description="Show updates in the bell drawer and notification badges."
+            checked={inAppNotificationsEnabled}
+            onClick={togglePanelNotifications}
+            disabled={isUpdatingPanelNotifications}
+            isUpdating={isUpdatingPanelNotifications}
+            ariaLabel="Toggle notification panel"
+            icon={Bell}
           />
-        </button>
+
+          {!notificationsSupported ? (
+            <div className="rounded-xl md:rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs md:text-sm text-gray-500">
+              Message/browser push notifications are not supported on this device.
+            </div>
+          ) : (
+            <div className="space-y-3 md:space-y-4">
+              <SettingSwitchRow
+                title="Message notifications"
+                description="Receive browser push alerts for new messages, even outside chat."
+                checked={notificationsEnabled && notificationPermission === 'granted'}
+                onClick={toggleMessageNotifications}
+                disabled={notificationPermission === 'denied' || isUpdatingMessageNotifications}
+                isUpdating={isUpdatingMessageNotifications}
+                tone="amber"
+                ariaLabel="Toggle message notifications"
+                icon={Zap}
+              />
+
+              {notificationPermission === 'denied' && (
+                <div className="rounded-xl md:rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 text-[11px] md:text-xs text-gray-500">
+                  Notifications are blocked in your browser settings. Allow them there to enable alerts.
+                </div>
+              )}
+            </div>
+          )}
+          <h4 className="text-[11px] md:text-xs uppercase tracking-widest text-gray-400 font-bold pt-1">Security</h4>
+          <SettingSwitchRow
+            title="Last seen"
+            description="Let other users see when you were last active."
+            checked={showLastSeen}
+            onClick={toggleLastSeen}
+            disabled={isUpdatingLastSeen}
+            isUpdating={isUpdatingLastSeen}
+            ariaLabel="Toggle last seen visibility"
+            icon={User}
+          />
+
+          <h4 className="text-[11px] md:text-xs uppercase tracking-widest text-gray-400 font-bold pt-1">Account</h4>
+          <div className="rounded-xl md:rounded-2xl border border-gray-100 bg-gray-50 p-4 md:p-5 space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-3">
+              <input
+                type="text"
+                placeholder="Full name"
+                value={accountFormData.name}
+                onChange={(e) => setAccountFormData({ ...accountFormData, name: e.target.value })}
+                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-400 transition"
+              />
+              <input
+                type="email"
+                placeholder="Email"
+                value={accountFormData.email}
+                onChange={(e) => setAccountFormData({ ...accountFormData, email: e.target.value })}
+                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-400 transition"
+              />
+              <input
+                type="tel"
+                placeholder="Phone"
+                value={accountFormData.phone}
+                onChange={(e) => setAccountFormData({ ...accountFormData, phone: e.target.value })}
+                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-400 transition"
+              />
+            </div>
+            <div className="flex justify-end">
+              <Button
+                onClick={handleSaveAccount}
+                disabled={isSavingAccount}
+                className="rounded-lg bg-[#163146] hover:bg-[#1f4461] text-white text-xs font-bold"
+              >
+                {isSavingAccount ? 'Saving...' : 'Save Account'}
+              </Button>
+            </div>
+          </div>
+
+          <div className="rounded-xl md:rounded-2xl border border-gray-100 bg-gray-50 p-4 md:p-5 space-y-3">
+            <p className="text-xs font-semibold text-gray-900">Change Password</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-3">
+              <input
+                type="password"
+                placeholder="Current password"
+                value={passwordFormData.currentPassword}
+                onChange={(e) => setPasswordFormData({ ...passwordFormData, currentPassword: e.target.value })}
+                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-400 transition"
+                autoComplete="current-password"
+              />
+              <input
+                type="password"
+                placeholder="New password"
+                value={passwordFormData.newPassword}
+                onChange={(e) => setPasswordFormData({ ...passwordFormData, newPassword: e.target.value })}
+                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-400 transition"
+                autoComplete="new-password"
+              />
+              <input
+                type="password"
+                placeholder="Confirm new password"
+                value={passwordFormData.confirmPassword}
+                onChange={(e) => setPasswordFormData({ ...passwordFormData, confirmPassword: e.target.value })}
+                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-400 transition"
+                autoComplete="new-password"
+              />
+            </div>
+            <div className="flex justify-end">
+              <Button
+                onClick={handleChangePassword}
+                disabled={isChangingPassword}
+                variant="outline"
+                className="rounded-lg text-xs font-bold"
+              >
+                {isChangingPassword ? 'Updating...' : 'Update Password'}
+              </Button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -1069,8 +1238,7 @@ const SettingsPage = () => {
                 {activeTab === 'subscription' && renderSubscriptionTab()}
                 {activeTab === 'plans' && renderPlansTab()}
                 {activeTab === 'notifications' && renderNotificationsTab()}
-                {activeTab === 'security' && renderSecurityTab()}
-                {activeTab !== 'subscription' && activeTab !== 'plans' && activeTab !== 'notifications' && activeTab !== 'security' && (
+                {activeTab !== 'subscription' && activeTab !== 'plans' && activeTab !== 'notifications' && (
                   <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-12 text-center">
                     <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6 text-gray-300">
                       {(() => {
