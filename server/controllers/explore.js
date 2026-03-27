@@ -5,7 +5,6 @@ import Profile from '../models/Profile.js'
 import { Connection } from '../models/Relationship.js'
 import User from '../models/User.js'
 import {
-  canBeVisibleToAthletes,
   canViewFullAthleteProfiles,
   getUserEntitlements,
   isAdvisorOrAgent,
@@ -132,7 +131,6 @@ export const exploreUsers = async (req, res, next) => {
 
     // Build query
     let query = {
-      verified: true, // Only show verified users
       isPublic: true, // Only show public profiles
     }
 
@@ -146,12 +144,7 @@ export const exploreUsers = async (req, res, next) => {
       isActive: true,
       isBlocked: { $ne: true },
     })
-    const matchingTypeUserIds = matchingTypeUsers
-      .filter((candidate) => {
-        if (user.userType !== 'athlete') return true
-        return canBeVisibleToAthletes(candidate)
-      })
-      .map((candidate) => candidate._id)
+    const matchingTypeUserIds = matchingTypeUsers.map((candidate) => candidate._id)
     
     query.user = { $in: matchingTypeUserIds }
 
@@ -459,17 +452,11 @@ export const getTrendingUsers = async (req, res, next) => {
       isActive: true,
       isBlocked: { $ne: true },
     })
-    const matchingTypeUserIds = matchingTypeUsers
-      .filter((candidate) => {
-        if (user.userType !== 'athlete') return true
-        return canBeVisibleToAthletes(candidate)
-      })
-      .map((candidate) => candidate._id)
+    const matchingTypeUserIds = matchingTypeUsers.map((candidate) => candidate._id)
 
-    let query = { 
-      verified: true, 
+    let query = {
       isPublic: true,
-      user: { $in: matchingTypeUserIds }
+      user: { $in: matchingTypeUserIds },
     }
 
     // Trending = highest rated with recent activity
@@ -530,18 +517,12 @@ export const getFeaturedUsers = async (req, res, next) => {
       userType: { $in: targetUserTypes },
       _id: { $ne: userId }
     })
-    const matchingTypeUserIds = matchingTypeUsers
-      .filter((candidate) => {
-        if (user.userType !== 'athlete') return true
-        return canBeVisibleToAthletes(candidate)
-      })
-      .map((candidate) => candidate._id)
+    const matchingTypeUserIds = matchingTypeUsers.map((candidate) => candidate._id)
 
     let query = {
-      verified: true,
       isPublic: true,
       featured: true,
-      user: { $in: matchingTypeUserIds }
+      user: { $in: matchingTypeUserIds },
     }
 
     const featuredProfiles = await Profile.find(query)
@@ -598,18 +579,12 @@ export const getSimilarUsers = async (req, res, next) => {
       userType: { $in: targetUserTypes },
       _id: { $ne: userId }
     })
-    const matchingTypeUserIds = matchingTypeUsers
-      .filter((candidate) => {
-        if (user.userType !== 'athlete') return true
-        return canBeVisibleToAthletes(candidate)
-      })
-      .map((candidate) => candidate._id)
+    const matchingTypeUserIds = matchingTypeUsers.map((candidate) => candidate._id)
 
     // Find users with similar interests
-    let query = { 
-      verified: true, 
-      isPublic: true, 
-      user: { $in: matchingTypeUserIds } 
+    let query = {
+      isPublic: true,
+      user: { $in: matchingTypeUserIds },
     }
 
     // Get candidates
@@ -679,7 +654,7 @@ export const getExploreFilters = async (req, res, next) => {
       // Show expertise areas from advisors
       const advisorProfiles = await Profile.find({
         profileType: { $in: targetUserTypes },
-        verified: true,
+        isPublic: true,
       })
       const expertise = new Set()
       advisorProfiles.forEach((p) => {

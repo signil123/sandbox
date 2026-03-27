@@ -173,6 +173,42 @@ const ProfilePopup = ({
   const hasRating = profile.reviewCount > 0
   const canConnect = onConnect && (currentUserType === 'athlete' || profile.verified)
   const canMessage = onMessage && (currentUserType === 'athlete' || profile.verified)
+  const stats = []
+
+  if (profile.experience !== undefined && profile.experience !== null) {
+    stats.push({
+      key: 'experience',
+      label: 'Experience',
+      value: String(profile.experience).toLowerCase().includes('year')
+        ? profile.experience
+        : `${profile.experience} years`,
+      icon: Briefcase,
+    })
+  }
+
+  stats.push({
+    key: 'specialty',
+    label: 'Specialty',
+    value: profile.specialty || 'General',
+    icon: Award,
+  })
+
+  if (profile.connections !== undefined) {
+    stats.push({
+      key: 'network',
+      label: 'Network',
+      value: profile.connections,
+      icon: UserPlus,
+      subValue: 'connections',
+    })
+  }
+
+  const statsGridClassName =
+    stats.length === 1
+      ? 'grid-cols-1'
+      : stats.length === 2
+        ? 'grid-cols-2'
+        : 'grid-cols-3'
 
   return (
     <>
@@ -286,27 +322,16 @@ const ProfilePopup = ({
                   </div>
 
                   {/* Stats Grid */}
-                  <div className='grid grid-cols-3 gap-2 mt-8'>
-                    {profile.experience !== undefined && profile.experience !== null && (
-                        <StatCard 
-                            label="Experience" 
-                            value={String(profile.experience).toLowerCase().includes('year') ? profile.experience : `${profile.experience} years`} 
-                            icon={Briefcase}
-                        />
-                    )}
-                    <StatCard 
-                        label="Specialty" 
-                        value={profile.specialty || 'General'} 
-                        icon={Award}
-                    />
-                    {profile.connections !== undefined && (
-                        <StatCard 
-                            label="Network" 
-                            value={profile.connections} 
-                            icon={UserPlus}
-                            subValue="connections"
-                        />
-                    )}
+                  <div className={`grid gap-2 mt-8 ${statsGridClassName}`}>
+                    {stats.map((stat) => (
+                      <StatCard
+                        key={stat.key}
+                        label={stat.label}
+                        value={stat.value}
+                        icon={stat.icon}
+                        subValue={stat.subValue}
+                      />
+                    ))}
                   </div>
 
                   {/* About Section */}

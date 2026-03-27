@@ -5,6 +5,7 @@ import {
     Calendar,
     CheckCircle2,
     ChevronDown,
+    ChevronRight,
     Compass,
     Clock,
     CreditCard,
@@ -1296,19 +1297,38 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: -10, scale: 0.95 }}
                       transition={{ duration: 0.15 }}
-                      className='absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg overflow-hidden z-50'
+                      className='absolute right-0 mt-2 w-72 bg-white border border-gray-200 rounded-2xl overflow-hidden z-50 shadow-xl shadow-slate-900/5'
                       onClick={(e) => e.stopPropagation()}
                     >
                       {/* User Info */}
-                      <div className='px-4 py-3 border-b border-gray-100'>
-                        <p className='text-sm font-semibold text-gray-900'>
-                          {userFullName}
-                        </p>
-                        <p className='text-xs text-gray-500 mt-0.5'>
-                          {userEmail}
-                        </p>
+                      <div className='px-4 py-4 border-b border-gray-100 bg-gradient-to-b from-stone-50/90 to-white'>
+                        <div className='flex items-center gap-3'>
+                          <div className='w-14 h-14 rounded-full bg-gradient-to-br from-[#d3a86f] to-[#986a41] p-[3px] shadow-sm shrink-0'>
+                            <div className='w-full h-full rounded-full bg-gradient-to-br from-[#163146] to-[#0f1f27] flex items-center justify-center overflow-hidden'>
+                              {currentUser?.profileImage ? (
+                                <img
+                                  src={getImageUrl(currentUser.profileImage)}
+                                  alt='Profile'
+                                  className='w-full h-full object-cover'
+                                />
+                              ) : (
+                                <div className='text-white text-xl font-semibold'>
+                                  {userFullName.split(' ').map((n) => n[0]).join('').toUpperCase()}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div className='min-w-0'>
+                            <p className='text-xl font-black tracking-tight text-gray-900 truncate'>
+                              {userFullName}
+                            </p>
+                            <p className='text-sm text-gray-500 truncate mt-0.5'>
+                              {userEmail}
+                            </p>
+                          </div>
+                        </div>
                         {currentUser?.role !== 'admin' && (
-                          <div className='mt-2 inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-[#163146]'>
+                          <div className='mt-3 w-full flex items-center justify-center rounded-xl bg-slate-100 px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-[#163146]'>
                             {(currentUser?.tier || 'free')} plan
                           </div>
                         )}
@@ -1316,6 +1336,7 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
 
                       {currentUser?.role !== 'admin' && (
                         <div className='px-4 py-4 border-b border-gray-100 bg-white'>
+                          <div className='rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white px-3 py-3'>
                           <div className='flex items-center justify-between mb-3'>
                             <div className='flex items-center gap-2'>
                               <div className={`w-2 h-2 rounded-full ${
@@ -1346,7 +1367,7 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
                                 }}
                                 className={`group relative py-2.5 rounded-2xl border text-center transition-all ${
                                   currentUser?.status === s.id
-                                    ? 'bg-[#163146] border-transparent text-white'
+                                    ? 'bg-[#163146] border-transparent text-white shadow-sm'
                                     : 'bg-stone-50 border-stone-100 text-gray-600 hover:border-stone-200 hover:bg-white'
                                 }`}
                               >
@@ -1357,31 +1378,38 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
                               </motion.button>
                             ))}
                           </div>
+                          </div>
                         </div>
                       )}
                       {/* Menu Items */}
                       {currentUser?.role !== 'admin' && (
-                        <div className='py-2'>
+                        <div className='py-1 divide-y divide-gray-100'>
                           {['advisor', 'agent'].includes(currentUser?.userType) && (
                             <Link to="/settings">
                               <motion.div
-                                className='flex items-center gap-3 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer'
+                                className='flex items-center justify-between gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer'
                                 whileHover={{ x: 4 }}
                                 transition={{ duration: 0.1 }}
                               >
-                                <CreditCard size={18} className='text-gray-400' />
-                                <span className='font-medium'>Subscription</span>
+                                <span className='flex items-center gap-3'>
+                                  <CreditCard size={18} className='text-[#986a41]' />
+                                  <span className='font-semibold'>Subscription</span>
+                                </span>
+                                <ChevronRight size={16} className='text-gray-400' />
                               </motion.div>
                             </Link>
                           )}
                           <Link to="/settings">
                             <motion.div
-                              className='flex items-center gap-3 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer'
+                              className='flex items-center justify-between gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer'
                               whileHover={{ x: 4 }}
                               transition={{ duration: 0.1 }}
                             >
-                              <Settings size={18} className='text-gray-400' />
-                              <span className='font-medium'>Settings</span>
+                              <span className='flex items-center gap-3'>
+                                <Settings size={18} className='text-gray-400' />
+                                <span className='font-semibold'>Settings</span>
+                              </span>
+                              <ChevronRight size={16} className='text-gray-400' />
                             </motion.div>
                           </Link>
                         </div>

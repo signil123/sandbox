@@ -8,6 +8,13 @@ import {
   ShieldCheck,
   User,
   Zap,
+  Lock,
+  Mail,
+  Phone,
+  Shield,
+  Key,
+  Smartphone,
+  Info
 } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
@@ -567,167 +574,206 @@ const SettingsPage = () => {
   }, [currentUser])
 
   const renderSubscriptionTab = () => (
-    <div className="space-y-6">
-      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="p-8 bg-gradient-to-br from-[#163146] to-[#0f1f27] text-white">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div>
-              <div className="flex items-center gap-3 mb-2">
-                <h3 className="text-sm font-bold uppercase tracking-widest text-[#986a41]">Current Status</h3>
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="bg-gradient-to-br from-[#163146] to-[#0f1f27] rounded-[32px] border border-[#163146] shadow-2xl shadow-blue-900/10 overflow-hidden">
+        <div className="p-8 md:p-12 relative overflow-hidden">
+          {/* Decorative Background Elements */}
+          <div className="absolute top-0 right-0 w-64 h-64 bg-[#926435]/5 rounded-full blur-3xl -mr-32 -mt-32" />
+          <div className="absolute bottom-0 left-0 w-64 h-64 bg-[#926435]/5 rounded-full blur-3xl -ml-32 -mb-32" />
+
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <span className="px-3 py-1 bg-[#926435]/10 text-[#926435] text-[10px] font-black uppercase tracking-[0.2em] rounded-full border border-[#926435]/20">
+                  Current Status
+                </span>
                 {currentSubscriptionTier === TIERS.PRO && <ProBadge size="md" />}
               </div>
-              <h2 className="text-4xl font-black mb-1">
-                {subscription?.plan?.name || TIER_DETAILS[currentSubscriptionTier]?.name || 'Free'} Plan
-              </h2>
-              <p className="text-gray-400 text-sm">
-                {subscription?.cancelAtPeriodEnd ? 'Downgrade takes effect:' : 'Next billing date:'}{' '}
-                <span className="text-white font-medium">
-                  {formatDate(subscription?.currentPeriodEnd)}
-                </span>
-              </p>
+              
+              <div className="space-y-1">
+                <h2 className="text-4xl md:text-5xl font-black text-white tracking-tight">
+                  {subscription?.plan?.name || TIER_DETAILS[currentSubscriptionTier]?.name || 'Free'} Plan
+                </h2>
+                <div className="flex items-center gap-2 text-blue-100/60">
+                  <Bell size={14} className="shrink-0" />
+                  <p className="text-sm font-medium">
+                    {subscription?.cancelAtPeriodEnd ? 'Downgrade takes effect:' : 'Next billing cycle:'}{' '}
+                    <span className="text-white font-bold">{formatDate(subscription?.currentPeriodEnd)}</span>
+                  </p>
+                </div>
+              </div>
+
               {subscription?.cancelAtPeriodEnd && (
-                <p className="text-amber-200 text-xs font-semibold mt-2 uppercase tracking-[0.15em]">
-                  Scheduled downgrade at period end
-                </p>
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#926435]/10 rounded-xl border border-[#926435]/20">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#926435] animate-pulse" />
+                  <span className="text-[#926435] text-[10px] font-black uppercase tracking-widest">Scheduled Downgrade</span>
+                </div>
               )}
             </div>
+
             <Button
               onClick={() => handleTabChange('plans')}
-              className="bg-[#986a41] hover:bg-[#855c38] text-white font-bold rounded-2xl px-8 py-6 text-lg shadow-xl shadow-[#986a41]/20 transition-all border-none"
+              className="group relative h-16 px-10 bg-[#926435] hover:bg-[#7e5c3e] text-white rounded-[24px] font-black uppercase tracking-widest text-xs shadow-xl shadow-[#926435]/20 transition-all border-none overflow-hidden"
             >
-              Manage Subscription
+              <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/10 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+              <span className="relative flex items-center gap-2">
+                Manage Subscription <Zap size={14} fill="currentColor" />
+              </span>
             </Button>
           </div>
         </div>
 
-        <div className="p-8 grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600">
-              <ShieldCheck size={28} />
+        <div className="p-8 bg-black/20 backdrop-blur-sm grid grid-cols-1 md:grid-cols-3 gap-8">
+          {[
+            { 
+              icon: ShieldCheck, 
+              label: 'Identity Verification', 
+              value: isVerified ? 'Verified' : 'Pending', 
+              color: isVerified ? 'text-emerald-400' : 'text-[#926435]',
+              bg: isVerified ? 'bg-emerald-400/10' : 'bg-[#926435]/10'
+            },
+            { 
+              icon: Zap, 
+              label: 'Connectivity Usage', 
+              value: currentSubscriptionTier === TIERS.PRO
+                ? 'Unlimited'
+                : `${usage.connectionRequestsSent || 0}/15 Sent`,
+              sub: currentSubscriptionTier === TIERS.GROWTH ? `${usage.connectionsAccepted || 0}/5 Accepted` : null,
+              color: 'text-blue-400',
+              bg: 'bg-blue-400/10'
+            },
+            { 
+              icon: Globe, 
+              label: 'Global Exposure', 
+              value: currentSubscriptionTier === TIERS.FREE ? 'Limited' : 'Full Access',
+              color: 'text-purple-400',
+              bg: 'bg-purple-400/10'
+            }
+          ].map((item, i) => (
+            <div key={i} className="flex items-center gap-4">
+              <div className={`w-12 h-12 rounded-2xl ${item.bg} ${item.color} flex items-center justify-center shadow-inner`}>
+                <item.icon size={22} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-black text-white/30 uppercase tracking-widest">{item.label}</p>
+                <div className="flex flex-col">
+                  <p className={`text-sm font-black ${item.color} tracking-tight`}>{item.value}</p>
+                  {item.sub && <p className="text-[10px] font-bold text-white/40">{item.sub}</p>}
+                </div>
+              </div>
             </div>
-            <div>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Verification</p>
-              <p className={`text-sm font-bold ${isVerified ? 'text-emerald-600' : 'text-amber-600'}`}>
-                {isVerified ? 'Verified Account' : 'Pending Verification'}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600">
-              <Zap size={28} />
-            </div>
-            <div>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Plan Limit</p>
-              <p className="text-sm font-bold text-gray-900">
-                {currentSubscriptionTier === TIERS.PRO
-                  ? 'Unlimited'
-                  : currentSubscriptionTier === TIERS.GROWTH
-                    ? `${usage.connectionRequestsSent || 0}/15 sent • ${usage.connectionsAccepted || 0}/5 accepted`
-                    : 'Upgrade Required'}
-              </p>
-              {currentSubscriptionTier === TIERS.GROWTH && usageMonthKey && (
-                <p className="text-[10px] text-gray-500 mt-1">UTC month: {usageMonthKey}</p>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-purple-50 rounded-2xl flex items-center justify-center text-purple-600">
-              <Globe size={28} />
-            </div>
-            <div>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Visibility</p>
-              <p className="text-sm font-bold text-gray-900">
-                {currentSubscriptionTier === TIERS.FREE ? 'Limited' : 'Full Exposure'}
-              </p>
-            </div>
-          </div>
+          ))}
         </div>
       </div>
 
-      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8">
-        <div className="flex items-center justify-between mb-6">
+      <div className="bg-white rounded-[32px] border border-slate-100 shadow-sm transition-all hover:shadow-md overflow-hidden">
+        <div className="p-8 border-b border-slate-50 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
-            <h3 className="text-xl md:text-2xl font-bold text-gray-900">Payment Methods</h3>
-            <p className="text-gray-500 text-xs md:text-sm mt-1">First added card becomes default automatically.</p>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-8 h-8 rounded-lg bg-[#926435]/10 text-[#926435] flex items-center justify-center">
+                <CreditCard size={18} />
+              </div>
+              <h3 className="text-xl font-black text-slate-800 tracking-tight">Payment Methods</h3>
+            </div>
+            <p className="text-slate-400 text-xs font-medium ml-11">First added card becomes default automatically.</p>
           </div>
           <Button
             onClick={handleAddCard}
-            className="rounded-2xl bg-[#163146] hover:bg-[#1f4461] text-white font-bold"
+            className="rounded-2xl bg-[#163146] hover:bg-[#1f4461] text-white px-8 py-6 font-black uppercase tracking-widest text-[10px] shadow-lg shadow-blue-900/10 transition-all border-none"
           >
-            Add Card
+            Add New Card
           </Button>
         </div>
 
-        {subscriptionError && (
-          <div className="mb-5 px-4 py-3 rounded-xl bg-red-50 border border-red-100 text-sm text-red-700">
-            {subscriptionError}
-          </div>
-        )}
+        <div className="p-8">
+          {subscriptionError && (
+            <div className="mb-8 p-4 rounded-2xl bg-red-50 border border-red-100 flex items-center gap-3 text-red-600">
+              <Shield size={18} className="shrink-0" />
+              <p className="text-sm font-bold">{subscriptionError}</p>
+            </div>
+          )}
 
-        {isLoadingCards ? (
-          <div className="grid md:grid-cols-2 gap-4">
-            {Array.from({ length: 2 }).map((_, idx) => (
-              <div key={idx} className="rounded-2xl border border-gray-100 p-5 bg-gray-50/60 animate-pulse">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-2">
-                    <div className="h-4 w-40 rounded-full bg-gray-200" />
-                    <div className="h-3 w-24 rounded-full bg-gray-200" />
-                  </div>
-                  <div className="h-4 w-16 rounded-full bg-gray-200" />
-                </div>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <div className="h-9 w-28 rounded-xl bg-gray-200" />
-                  <div className="h-9 w-24 rounded-xl bg-gray-200" />
-                </div>
+          {isLoadingCards ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {Array.from({ length: 2 }).map((_, idx) => (
+                <div key={idx} className="h-44 rounded-[28px] bg-slate-50/50 border border-slate-100 animate-pulse" />
+              ))}
+            </div>
+          ) : paymentMethods.length === 0 ? (
+            <div className="rounded-[28px] border-2 border-dashed border-slate-100 p-12 text-center">
+              <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center mx-auto mb-4 text-slate-300">
+                <CreditCard size={32} />
               </div>
-            ))}
-          </div>
-        ) : paymentMethods.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-gray-200 p-6 text-sm text-gray-500">
-            No cards yet. Add a card to manage subscriptions faster.
-          </div>
-        ) : (
-          <div className="grid md:grid-cols-2 gap-4">
-            {paymentMethods.map((method) => {
-              const isDefault = method.id === defaultPaymentMethodId
-              const brand = method.card?.brand || 'card'
-              const last4 = method.card?.last4 || '----'
-              const exp = method.card ? `${method.card.exp_month}/${method.card.exp_year}` : ''
+              <p className="text-slate-400 font-bold text-sm">No cards yet. Add a card to manage subscriptions.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {paymentMethods.map((method) => {
+                const isDefault = method.id === defaultPaymentMethodId
+                const brand = method.card?.brand || 'card'
+                const last4 = method.card?.last4 || '----'
+                const exp = method.card ? `${method.card.exp_month}/${method.card.exp_year}` : ''
 
-              return (
-                <div key={method.id} className="rounded-2xl border border-gray-100 p-5 bg-gray-50/60">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-bold text-[#163146] capitalize">{brand} •••• {last4}</p>
-                      <p className="text-xs text-gray-500 mt-1">Expires {exp}</p>
+                return (
+                  <div 
+                    key={method.id} 
+                    className={`relative group rounded-[32px] p-6 transition-all duration-300 border
+                      ${isDefault 
+                        ? 'bg-[#163146] text-white border-[#163146] shadow-xl shadow-blue-900/20' 
+                        : 'bg-slate-50 border-slate-100 hover:border-slate-200 text-slate-800'}`}
+                  >
+                    <div className="flex flex-col h-full justify-between gap-8">
+                      <div className="flex items-start justify-between">
+                        <div className="space-y-1">
+                          <p className={`text-[10px] font-black uppercase tracking-[0.2em] ${isDefault ? 'text-blue-200/60' : 'text-slate-400'}`}>
+                            {brand}
+                          </p>
+                          <p className="text-xl font-black tracking-widest whitespace-nowrap">
+                            •••• •••• •••• {last4}
+                          </p>
+                        </div>
+                        {isDefault && (
+                          <div className="px-3 py-1 bg-amber-400/20 text-amber-400 rounded-lg text-[10px] font-black uppercase tracking-widest border border-amber-400/30">
+                            Default
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-end justify-between">
+                        <div className="space-y-1">
+                          <p className={`text-[8px] font-black uppercase tracking-widest ${isDefault ? 'text-blue-200/40' : 'text-slate-400'}`}>Expiry</p>
+                          <p className="font-bold tracking-tight">{exp}</p>
+                        </div>
+                        
+                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {!isDefault && (
+                            <Button
+                              variant="ghost"
+                              className="h-10 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest bg-white border-none text-[#163146] hover:bg-white shadow-sm"
+                              onClick={() => handleSetDefaultCard(method.id)}
+                            >
+                              Default
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            className={`h-10 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest border-none
+                              ${isDefault 
+                                ? 'bg-white/10 text-white hover:bg-white/20' 
+                                : 'bg-red-50 text-red-600 hover:bg-red-100'}`}
+                            onClick={() => handleRemoveCard(method.id)}
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      </div>
                     </div>
-                    {isDefault && (
-                      <span className="text-[10px] uppercase tracking-widest text-emerald-600 font-bold">Default</span>
-                    )}
                   </div>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {!isDefault && (
-                      <Button
-                        variant="outline"
-                        className="rounded-xl font-bold"
-                        onClick={() => handleSetDefaultCard(method.id)}
-                      >
-                        Make Default
-                      </Button>
-                    )}
-                    <Button
-                      variant="outline"
-                      className="rounded-xl font-bold text-rose-600 border-rose-200 hover:text-rose-700"
-                      onClick={() => handleRemoveCard(method.id)}
-                    >
-                      Remove
-                    </Button>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
+                )
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8">
@@ -778,164 +824,119 @@ const SettingsPage = () => {
     const isPlansUiLoading = isLoadingPlans || isLoadingCards
 
     return (
-      <div className="space-y-6">
-      <div className="flex items-center justify-end">
-        <Button
-          onClick={handleManageSubscription}
-          variant="outline"
-          className="rounded-2xl px-5 py-3 font-bold"
-        >
-          Refresh Status
-        </Button>
-      </div>
+      <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="flex items-center justify-between bg-white rounded-[24px] p-4 border border-slate-100 shadow-sm">
+          <div>
+            <h3 className="text-lg font-black text-slate-800 tracking-tight ml-2">Available Plans</h3>
+            <p className="text-xs text-slate-400 font-medium ml-2">Choose the perfect tier for your professional growth</p>
+          </div>
+          <Button
+            onClick={handleManageSubscription}
+            variant="outline"
+            className="rounded-2xl px-6 py-3 font-black uppercase tracking-widest text-[10px] border-slate-200 hover:bg-slate-50 transition-all"
+          >
+            Refresh Status
+          </Button>
+        </div>
 
-      <div className="bg-transparent">
-        {isPlansUiLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-5">
-            {Array.from({ length: 3 }).map((_, idx) => (
-              <div key={idx} className="relative flex flex-col p-6 rounded-[28px] bg-white shadow-sm border border-slate-100 animate-pulse">
-                <div className="mb-4 space-y-2">
-                  <div className="h-4 w-16 rounded-full bg-gray-200" />
-                  <div className="h-5 w-32 rounded-full bg-gray-200" />
-                  <div className="h-6 w-24 rounded-full bg-gray-200" />
-                </div>
-                <div className="flex-1 space-y-2 mb-6">
-                  {Array.from({ length: 5 }).map((__, lineIdx) => (
-                    <div key={lineIdx} className="flex items-center gap-2">
-                      <div className="w-4 h-4 rounded-full bg-gray-200" />
-                      <div className="h-3 flex-1 rounded-full bg-gray-200" />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {isPlansUiLoading ? (
+            Array.from({ length: 3 }).map((_, idx) => (
+              <div key={idx} className="relative flex flex-col p-8 rounded-[40px] bg-white shadow-sm border border-slate-100 animate-pulse">
+                <div className="h-4 w-16 rounded-full bg-slate-100 mb-4" />
+                <div className="h-8 w-40 rounded-full bg-slate-100 mb-6" />
+                <div className="space-y-3 mb-8">
+                  {Array.from({ length: 5 }).map((__, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <div className="w-4 h-4 rounded-full bg-slate-100" />
+                      <div className="h-3 flex-1 rounded-full bg-slate-100" />
                     </div>
                   ))}
                 </div>
-                <div className="h-10 rounded-lg bg-gray-200" />
+                <div className="h-14 rounded-2xl bg-slate-100" />
               </div>
-            ))}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-            {visiblePlans.map((plan) => {
+            ))
+          ) : (
+            visiblePlans.map((plan) => {
               const tier = plan.tier || 'free'
               const isCurrent = currentSubscriptionTier === tier
               const isPro = tier === 'pro'
-              const currentRank = { free: 0, growth: 1, pro: 2 }[currentSubscriptionTier] ?? 0
-              const targetRank = { free: 0, growth: 1, pro: 2 }[tier] ?? 0
-              const isUpgrade = targetRank > currentRank
-              const isDowngrade = targetRank < currentRank
-              const canPurchase = tier === 'free'
-                ? true
-                : isUpgrade
-                  ? (isVerified && paymentMethods.length > 0)
-                  : true
-              const actionButtonClass = isDowngrade
-                ? 'bg-white border-2 border-slate-200 text-slate-700 hover:bg-slate-50'
-                : 'bg-[#163146] hover:bg-[#1f4461] text-white shadow-md'
+              const isGrowth = tier === 'growth'
+              const isPlanChange = currentSubscriptionTier !== 'free' && tier !== 'free'
+              const actionButtonClass = isPro 
+                ? 'bg-[#926435] hover:bg-[#7e5c3e] text-white shadow-xl shadow-[#926435]/20' 
+                : isGrowth ? 'bg-[#163146] hover:bg-[#1f4461] text-white shadow-xl shadow-blue-900/20' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
 
               return (
                 <div
                   key={plan._id}
-                  className={`relative flex flex-col p-6 rounded-[28px] transition-all duration-300 bg-white
-                    ${isPro
-                      ? 'shadow-[0_18px_40px_-18px_rgba(152,106,65,0.35)] border border-[#986a41]/30'
-                      : 'shadow-sm border border-slate-100'
-                    }`}
+                  className={`relative flex flex-col p-8 rounded-[40px] transition-all duration-500 hover:scale-[1.02] bg-white
+                    ${isPro ? 'shadow-2xl shadow-[#926435]/10 border-2 border-[#926435]/20' : 'shadow-sm border border-slate-100'}`}
                 >
                   {isPro && (
-                    <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-[#986a41] to-[#855c38] text-[8px] md:text-[9px] text-white font-black px-3.5 py-1 rounded-full uppercase tracking-[0.1em] flex items-center gap-1 z-20 shadow-md">
-                      <Zap size={8} fill="currentColor" /> Most Popular
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-[#926435] to-[#7e5c3e] text-[10px] text-white font-black px-6 py-1.5 rounded-full uppercase tracking-[0.2em] shadow-lg whitespace-nowrap z-10">
+                      Most Intensive
                     </div>
                   )}
 
-                  <div className="mb-4">
-                    <div
-                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-widest mb-2
-                      ${isPro ? 'bg-[#986a41]/10 text-[#986a41]' : 'bg-gray-100 text-gray-400'}`}
-                    >
+                  <div className="mb-8">
+                    <div className={`inline-flex px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest mb-4
+                      ${isPro ? 'bg-[#926435]/10 text-[#926435]' : isGrowth ? 'bg-blue-400/10 text-blue-600' : 'bg-slate-100 text-slate-400'}`}>
                       {tier}
                     </div>
-                    <h3 className={`text-base md:text-lg font-black tracking-tight mb-1 ${isPro ? 'text-[#986a41]' : 'text-[#163146]'}`}>
-                      {plan.name}
-                    </h3>
+                    <h3 className="text-2xl font-black text-slate-900 tracking-tight mb-2">{plan.name}</h3>
                     <div className="flex items-baseline gap-1">
-                      <span className="text-2xl md:text-3xl font-black text-[#163146]">
+                      <span className="text-4xl font-black text-slate-900">
                         {new Intl.NumberFormat('en-US', {
                           style: 'currency',
                           currency: (plan.currency || 'usd').toUpperCase(),
                           maximumFractionDigits: plan.amount % 1 === 0 ? 0 : 2,
                         }).format(plan.amount || 0)}
-                        /mo
                       </span>
+                      <span className="text-sm font-bold text-slate-400 uppercase tracking-widest">/mo</span>
                     </div>
                   </div>
 
-                  <div className="flex-1 space-y-2 mb-6">
-                    {(plan.features || []).slice(0, 7).map((feature, idx) => (
-                      <div key={idx} className="flex gap-2 items-start text-[11px] md:text-[12px] text-[#2c3e50] leading-tight">
-                        <div
-                          className={`mt-0.5 w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0
-                          ${isPro ? 'bg-[#986a41]/15 text-[#986a41]' : 'bg-gray-100 text-gray-400'}`}
-                        >
-                          <CheckCircle2 size={10} strokeWidth={3} />
+                  <div className="flex-1 space-y-4 mb-10">
+                    {(plan.features || []).map((feature, idx) => (
+                      <div key={idx} className="flex gap-3 items-start text-sm leading-snug">
+                        <div className={`mt-0.5 shrink-0 w-5 h-5 rounded-full flex items-center justify-center
+                          ${isPro ? 'bg-amber-400/10 text-amber-600' : 'bg-emerald-400/10 text-emerald-600'}`}>
+                          <CheckCircle2 size={12} strokeWidth={3} />
                         </div>
-                        <span className="font-semibold">{feature}</span>
+                        <span className="font-bold text-slate-600">{feature}</span>
                       </div>
                     ))}
                   </div>
 
                   {isCurrent ? (
-                    <div className="flex items-center justify-center gap-1.5 py-2.5 px-3 bg-slate-50 rounded-lg text-slate-400 font-black text-[10px] uppercase tracking-widest">
-                      <CheckCircle2 size={14} className="text-emerald-500" />
-                      Current
+                    <div className="flex items-center justify-center gap-2 py-5 bg-slate-50 rounded-3xl text-slate-400 font-black text-[10px] uppercase tracking-[0.2em] border border-slate-100">
+                      <CheckCircle2 size={16} className="text-emerald-500" />
+                      Active Tier
                     </div>
                   ) : (
-                    <div className="space-y-2">
-                      {!canPurchase && (
-                        <div className="flex items-center justify-center gap-1 py-1 px-2 bg-amber-50/50 rounded-lg border border-amber-200/50">
-                          <ShieldCheck size={10} className="text-amber-600" />
-                          <span className="text-[8px] font-bold text-amber-700 uppercase">
-                            {isVerified ? 'Add Card First' : 'Verification Required'}
-                          </span>
-                        </div>
-                      )}
-                      {!canPurchase && !isVerified && (
-                        <Button
-                          variant="outline"
-                          className="w-full rounded-lg font-bold text-[10px] uppercase tracking-wider"
-                          onClick={() => setIsDocumentManagerOpen(true)}
-                        >
-                          Complete Verification
-                        </Button>
-                      )}
-                      {!canPurchase && isVerified && paymentMethods.length === 0 && (
-                        <Button
-                          variant="outline"
-                          className="w-full rounded-lg font-bold text-[10px] uppercase tracking-wider"
-                          onClick={() => setIsAddCardModalOpen(true)}
-                        >
-                          Add Card
-                        </Button>
-                      )}
+                    <div className="space-y-4">
                       <Button
-                        className={`w-full h-10 md:h-11 rounded-lg font-black text-[10px] md:text-[11px] tracking-widest uppercase transition-all duration-300
-                          ${actionButtonClass} ${!canPurchase && 'grayscale opacity-60'}`}
-                        disabled={!canPurchase || checkoutPlanId === plan._id}
+                        className={`w-full h-16 rounded-3xl font-black text-[11px] tracking-widest uppercase transition-all duration-300 border-none
+                          ${actionButtonClass} ${checkoutPlanId === plan._id ? 'opacity-50' : 'opacity-100'}`}
+                        disabled={checkoutPlanId === plan._id}
                         onClick={() => handleCheckout(plan)}
                       >
-                        {checkoutPlanId === plan._id
-                          ? 'Processing...'
-                          : isDowngrade
-                            ? 'Schedule Downgrade'
-                            : isUpgrade
-                              ? 'Upgrade Now'
-                              : 'Get Started'}
+                        {checkoutPlanId === plan._id 
+                          ? 'Initializing...' 
+                          : tier === 'free' 
+                            ? 'Stay Free' 
+                            : isPlanChange 
+                              ? 'Change Plan' 
+                              : 'Upgrade Now'}
                       </Button>
                     </div>
                   )}
                 </div>
               )
-            })}
-          </div>
-        )}
-      </div>
+            })
+          )}
+        </div>
       </div>
     )
   }
@@ -978,37 +979,41 @@ const SettingsPage = () => {
     icon: Icon,
   }) => (
     <div
-      className={`flex flex-wrap items-center justify-between gap-3 rounded-xl md:rounded-2xl border px-4 md:px-5 py-3.5 md:py-4 ${
-        tone === 'amber' ? 'border-amber-100 bg-amber-50/70' : 'border-gray-100 bg-gray-50'
+      className={`group flex items-center justify-between gap-4 rounded-2xl border p-4 transition-all duration-300 ${
+        tone === 'amber'
+          ? 'border-[#926435]/20 bg-[#926435]/5 hover:bg-[#926435]/10'
+          : 'border-slate-100 bg-slate-50/40 hover:bg-slate-50/80 hover:border-slate-200'
       }`}
     >
-      <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          {Icon && (
-            <span
-              className={`w-6 h-6 md:w-7 md:h-7 rounded-lg flex items-center justify-center ${
-                tone === 'amber' ? 'bg-amber-100 text-amber-700' : 'bg-white text-slate-700'
-              }`}
-            >
-              <Icon size={12} />
-            </span>
-          )}
+      <div className="flex items-center gap-4 min-w-0">
+        <div
+          className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
+            tone === 'amber'
+              ? 'bg-[#926435]/15 text-[#926435]'
+              : checked
+                ? 'bg-blue-50 text-blue-600'
+                : 'bg-white text-slate-400 border border-slate-100'
+          }`}
+        >
+          {Icon && <Icon size={18} />}
+        </div>
+        <div className="min-w-0">
           <p
-            className={`text-xs md:text-sm font-semibold leading-tight ${
-              tone === 'amber' ? 'text-amber-900' : 'text-gray-900'
+            className={`text-sm font-bold leading-tight ${
+              tone === 'amber' ? 'text-[#926435]' : 'text-slate-900'
             }`}
           >
             {title}
           </p>
-        </div>
-        <p className={`text-[11px] md:text-xs leading-tight mt-1 ${tone === 'amber' ? 'text-amber-700' : 'text-gray-500'}`}>
-          {description}
-        </p>
-        {isUpdating && (
-          <p className={`text-xs leading-tight mt-1 ${tone === 'amber' ? 'text-amber-700/80' : 'text-gray-400'}`}>
-            Updating...
+          <p className={`text-xs leading-tight mt-1 truncate ${tone === 'amber' ? 'text-[#926435]/70' : 'text-slate-500'}`}>
+            {description}
           </p>
-        )}
+          {isUpdating && (
+            <p className="text-[10px] font-bold text-blue-500 mt-1 animate-pulse uppercase tracking-wider">
+              Updating...
+            </p>
+          )}
+        </div>
       </div>
       <button
         type="button"
@@ -1017,12 +1022,12 @@ const SettingsPage = () => {
         aria-label={ariaLabel}
         onClick={onClick}
         disabled={disabled}
-        className={`relative inline-flex h-7 w-12 items-center rounded-full transition ${
-          checked ? 'bg-emerald-500' : 'bg-gray-300'
-        } ${disabled ? 'opacity-60 cursor-not-allowed' : ''}`}
+        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#163146] focus:ring-offset-2 ${
+          checked ? 'bg-[#163146]' : 'bg-slate-200'
+        } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
       >
         <span
-          className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${
+          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${
             checked ? 'translate-x-6' : 'translate-x-1'
           }`}
         />
@@ -1031,174 +1036,247 @@ const SettingsPage = () => {
   )
 
   const renderNotificationsTab = () => (
-    <div className="space-y-4 md:space-y-6">
-      <div className="bg-white rounded-2xl md:rounded-3xl border border-gray-100 shadow-sm p-4 md:p-8">
-        <div className="flex items-start gap-3 mb-4 md:mb-6">
-          <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center">
-            <Bell size={18} />
-          </div>
-          <div>
-            <h3 className="text-lg md:text-xl font-bold text-gray-900">Notifications & Security</h3>
-            <p className="text-xs md:text-sm text-gray-500 mt-1">
-              Manage message alerts and account visibility in one place.
-            </p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 mb-4 md:mb-5">
-          <div className="rounded-xl md:rounded-2xl border border-gray-100 bg-gray-50 px-3 py-2.5">
-            <p className="text-[9px] font-bold uppercase tracking-wider text-gray-400">In App</p>
-            <p className="mt-1 text-xs md:text-sm font-bold text-gray-900">
-              {inAppNotificationsEnabled ? 'Enabled' : 'Muted'}
-            </p>
-          </div>
-          <div className="rounded-xl md:rounded-2xl border border-gray-100 bg-gray-50 px-3 py-2.5">
-            <p className="text-[9px] font-bold uppercase tracking-wider text-gray-400">Browser Push</p>
-            <p className="mt-1 text-xs md:text-sm font-bold text-gray-900">
-              {!notificationsSupported
-                ? 'Unavailable'
-                : notificationsEnabled && notificationPermission === 'granted'
-                  ? 'Enabled'
-                  : 'Disabled'}
-            </p>
-          </div>
-          <div className="rounded-xl md:rounded-2xl border border-gray-100 bg-gray-50 px-3 py-2.5">
-            <p className="text-[9px] font-bold uppercase tracking-wider text-gray-400">Permission</p>
-            <p className="mt-1 text-xs md:text-sm font-bold text-gray-900 capitalize">
-              {!notificationsSupported ? 'Not supported' : notificationPermission}
-            </p>
-          </div>
-          <div className="rounded-xl md:rounded-2xl border border-gray-100 bg-gray-50 px-3 py-2.5">
-            <p className="text-[9px] font-bold uppercase tracking-wider text-gray-400">Last Seen</p>
-            <p className="mt-1 text-xs md:text-sm font-bold text-gray-900">
-              {showLastSeen ? 'Visible' : 'Hidden'}
-            </p>
-          </div>
-        </div>
-
-        <div className="space-y-3 md:space-y-4">
-          <h4 className="text-[11px] md:text-xs uppercase tracking-widest text-gray-400 font-bold">Notifications</h4>
-          <SettingSwitchRow
-            title="Notification panel"
-            description="Show updates in the bell drawer and notification badges."
-            checked={inAppNotificationsEnabled}
-            onClick={togglePanelNotifications}
-            disabled={isUpdatingPanelNotifications}
-            isUpdating={isUpdatingPanelNotifications}
-            ariaLabel="Toggle notification panel"
-            icon={Bell}
-          />
-
-          {!notificationsSupported ? (
-            <div className="rounded-xl md:rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs md:text-sm text-gray-500">
-              Message/browser push notifications are not supported on this device.
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      {/* Summary Status Header */}
+      <div className="bg-gradient-to-br from-[#163146] to-[#0f1f27] rounded-[32px] p-1 shadow-2xl shadow-blue-900/10">
+        <div className="bg-white/5 backdrop-blur-xl rounded-[31px] p-6 md:p-8">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center text-[#926435] shadow-inner">
+                <Shield size={28} />
+              </div>
+              <div>
+                <h3 className="text-xl md:text-2xl font-black text-white tracking-tight">Security & Notifications</h3>
+                <p className="text-blue-100/60 text-sm font-medium">Protect your account and stay updated</p>
+              </div>
             </div>
-          ) : (
-            <div className="space-y-3 md:space-y-4">
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Left Column: Preferences */}
+        <div className="space-y-8">
+          {/* Notifications Section */}
+          <div className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden transition-all hover:shadow-md">
+            <div className="p-6 border-b border-slate-50 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#926435]/10 text-[#926435] flex items-center justify-center">
+                  <Bell size={20} />
+                </div>
+                <h4 className="text-lg font-black text-slate-800 tracking-tight">Communication</h4>
+              </div>
+            </div>
+            
+            <div className="p-6 space-y-4">
               <SettingSwitchRow
-                title="Message notifications"
-                description="Receive browser push alerts for new messages, even outside chat."
-                checked={notificationsEnabled && notificationPermission === 'granted'}
-                onClick={toggleMessageNotifications}
-                disabled={notificationPermission === 'denied' || isUpdatingMessageNotifications}
-                isUpdating={isUpdatingMessageNotifications}
-                tone="amber"
-                ariaLabel="Toggle message notifications"
-                icon={Zap}
+                title="Notification Drawer"
+                description="View all activity updates in your navigation panel."
+                checked={inAppNotificationsEnabled}
+                onClick={togglePanelNotifications}
+                disabled={isUpdatingPanelNotifications}
+                isUpdating={isUpdatingPanelNotifications}
+                ariaLabel="Toggle notification panel"
+                icon={Bell}
               />
 
-              {notificationPermission === 'denied' && (
-                <div className="rounded-xl md:rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 text-[11px] md:text-xs text-gray-500">
-                  Notifications are blocked in your browser settings. Allow them there to enable alerts.
+              {!notificationsSupported ? (
+                <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 italic text-slate-400">
+                  <Info size={16} className="mt-0.5" />
+                  <p className="text-xs leading-relaxed">Browser push notifications are not supported on this device/browser.</p>
                 </div>
+              ) : (
+                <>
+                  <SettingSwitchRow
+                    title="Real-time Alerts"
+                    description="Get push notifications for new messages instantly."
+                    checked={notificationsEnabled && notificationPermission === 'granted'}
+                    onClick={toggleMessageNotifications}
+                    disabled={notificationPermission === 'denied' || isUpdatingMessageNotifications}
+                    isUpdating={isUpdatingMessageNotifications}
+                    tone="amber"
+                    ariaLabel="Toggle message notifications"
+                    icon={Zap}
+                  />
+
+                  {notificationPermission === 'denied' && (
+                    <div className="flex items-center gap-3 p-4 bg-red-50/50 rounded-2xl border border-red-100 text-red-600">
+                      <Shield size={14} className="shrink-0" />
+                      <p className="text-[10px] font-bold uppercase tracking-wider">Blocked in browser settings</p>
+                    </div>
+                  )}
+                </>
               )}
             </div>
-          )}
-          <h4 className="text-[11px] md:text-xs uppercase tracking-widest text-gray-400 font-bold pt-1">Security</h4>
-          <SettingSwitchRow
-            title="Last seen"
-            description="Let other users see when you were last active."
-            checked={showLastSeen}
-            onClick={toggleLastSeen}
-            disabled={isUpdatingLastSeen}
-            isUpdating={isUpdatingLastSeen}
-            ariaLabel="Toggle last seen visibility"
-            icon={User}
-          />
+          </div>
 
-          <h4 className="text-[11px] md:text-xs uppercase tracking-widest text-gray-400 font-bold pt-1">Account</h4>
-          <div className="rounded-xl md:rounded-2xl border border-gray-100 bg-gray-50 p-4 md:p-5 space-y-3">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-3">
-              <input
-                type="text"
-                placeholder="Full name"
-                value={accountFormData.name}
-                onChange={(e) => setAccountFormData({ ...accountFormData, name: e.target.value })}
-                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-400 transition"
-              />
-              <input
-                type="email"
-                placeholder="Email"
-                value={accountFormData.email}
-                onChange={(e) => setAccountFormData({ ...accountFormData, email: e.target.value })}
-                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-400 transition"
-              />
-              <input
-                type="tel"
-                placeholder="Phone"
-                value={accountFormData.phone}
-                onChange={(e) => setAccountFormData({ ...accountFormData, phone: e.target.value })}
-                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-400 transition"
+          {/* Privacy Section */}
+          <div className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden transition-all hover:shadow-md">
+            <div className="p-6 border-b border-slate-50 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <ShieldCheck size={20} />
+                </div>
+                <h4 className="text-lg font-black text-slate-800 tracking-tight">Privacy & Presence</h4>
+              </div>
+            </div>
+            
+            <div className="p-6">
+              <SettingSwitchRow
+                title="Active Status"
+                description="Allow others to see when you were last online."
+                checked={showLastSeen}
+                onClick={toggleLastSeen}
+                disabled={isUpdatingLastSeen}
+                isUpdating={isUpdatingLastSeen}
+                ariaLabel="Toggle last seen visibility"
+                icon={User}
               />
             </div>
-            <div className="flex justify-end">
-              <Button
-                onClick={handleSaveAccount}
-                disabled={isSavingAccount}
-                className="rounded-lg bg-[#163146] hover:bg-[#1f4461] text-white text-xs font-bold"
-              >
-                {isSavingAccount ? 'Saving...' : 'Save Account'}
-              </Button>
+          </div>
+        </div>
+
+        {/* Right Column: Identity */}
+        <div className="space-y-8">
+          {/* Account Details */}
+          <div className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden transition-all hover:shadow-md">
+            <div className="p-6 border-b border-slate-50 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center">
+                  <User size={20} />
+                </div>
+                <h4 className="text-lg font-black text-slate-800 tracking-tight">Account Profile</h4>
+              </div>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              <div className="space-y-4">
+                <div className="relative group">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1.5 block">Full Name</label>
+                  <div className="relative flex items-center">
+                    <User size={16} className="absolute left-4 text-slate-400 group-focus-within:text-[#163146] transition-colors" />
+                    <input
+                      type="text"
+                      placeholder="e.g. John Doe"
+                      value={accountFormData.name}
+                      onChange={(e) => setAccountFormData({ ...accountFormData, name: e.target.value })}
+                      className="w-full pl-11 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#163146]/5 focus:border-[#163146] transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="relative group">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1.5 block">Email Address</label>
+                    <div className="relative flex items-center">
+                      <Mail size={16} className="absolute left-4 text-slate-400 group-focus-within:text-[#163146] transition-colors" />
+                      <input
+                        type="email"
+                        placeholder="john@example.com"
+                        value={accountFormData.email}
+                        onChange={(e) => setAccountFormData({ ...accountFormData, email: e.target.value })}
+                        className="w-full pl-11 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#163146]/5 focus:border-[#163146] transition-all"
+                      />
+                    </div>
+                  </div>
+                  <div className="relative group">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1.5 block">Phone Number</label>
+                    <div className="relative flex items-center">
+                      <Phone size={16} className="absolute left-4 text-slate-400 group-focus-within:text-[#163146] transition-colors" />
+                      <input
+                        type="tel"
+                        placeholder="+1 234 567 890"
+                        value={accountFormData.phone}
+                        onChange={(e) => setAccountFormData({ ...accountFormData, phone: e.target.value })}
+                        className="w-full pl-11 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#163146]/5 focus:border-[#163146] transition-all"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <Button
+                  onClick={handleSaveAccount}
+                  disabled={isSavingAccount}
+                  className="rounded-2xl bg-[#163146] hover:bg-[#1f4461] text-white px-8 py-6 font-black uppercase tracking-widest text-[10px] shadow-lg shadow-blue-900/10 transition-all border-none"
+                >
+                  {isSavingAccount ? 'Saving...' : 'Save Account'}
+                </Button>
+              </div>
             </div>
           </div>
 
-          <div className="rounded-xl md:rounded-2xl border border-gray-100 bg-gray-50 p-4 md:p-5 space-y-3">
-            <p className="text-xs font-semibold text-gray-900">Change Password</p>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-3">
-              <input
-                type="password"
-                placeholder="Current password"
-                value={passwordFormData.currentPassword}
-                onChange={(e) => setPasswordFormData({ ...passwordFormData, currentPassword: e.target.value })}
-                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-400 transition"
-                autoComplete="current-password"
-              />
-              <input
-                type="password"
-                placeholder="New password"
-                value={passwordFormData.newPassword}
-                onChange={(e) => setPasswordFormData({ ...passwordFormData, newPassword: e.target.value })}
-                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-400 transition"
-                autoComplete="new-password"
-              />
-              <input
-                type="password"
-                placeholder="Confirm new password"
-                value={passwordFormData.confirmPassword}
-                onChange={(e) => setPasswordFormData({ ...passwordFormData, confirmPassword: e.target.value })}
-                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-400 transition"
-                autoComplete="new-password"
-              />
+          {/* Password Section */}
+          <div className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden transition-all hover:shadow-md">
+            <div className="p-6 border-b border-slate-50 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#926435]/10 text-[#926435] flex items-center justify-center">
+                  <Key size={20} />
+                </div>
+                <h4 className="text-lg font-black text-slate-800 tracking-tight">Security Credentials</h4>
+              </div>
             </div>
-            <div className="flex justify-end">
-              <Button
-                onClick={handleChangePassword}
-                disabled={isChangingPassword}
-                variant="outline"
-                className="rounded-lg text-xs font-bold"
-              >
-                {isChangingPassword ? 'Updating...' : 'Update Password'}
-              </Button>
+            
+            <div className="p-6 space-y-6">
+              <div className="space-y-4">
+                <div className="relative group">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1.5 block">Current Password</label>
+                  <div className="relative flex items-center">
+                    <Lock size={16} className="absolute left-4 text-slate-400 group-focus-within:text-[#163146] transition-colors" />
+                    <input
+                      type="password"
+                      placeholder="••••••••"
+                      value={passwordFormData.currentPassword}
+                      onChange={(e) => setPasswordFormData({ ...passwordFormData, currentPassword: e.target.value })}
+                      className="w-full pl-11 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#163146]/5 focus:border-[#163146] transition-all"
+                      autoComplete="current-password"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="relative group">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1.5 block">New Password</label>
+                    <div className="relative flex items-center">
+                      <Key size={16} className="absolute left-4 text-slate-400 group-focus-within:text-[#163146] transition-colors" />
+                      <input
+                        type="password"
+                        placeholder="••••••••"
+                        value={passwordFormData.newPassword}
+                        onChange={(e) => setPasswordFormData({ ...passwordFormData, newPassword: e.target.value })}
+                        className="w-full pl-11 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#163146]/5 focus:border-[#163146] transition-all"
+                        autoComplete="new-password"
+                      />
+                    </div>
+                  </div>
+                  <div className="relative group">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1.5 block">Confirm Password</label>
+                    <div className="relative flex items-center">
+                      <Lock size={16} className="absolute left-4 text-slate-400 group-focus-within:text-[#163146] transition-colors" />
+                      <input
+                        type="password"
+                        placeholder="••••••••"
+                        value={passwordFormData.confirmPassword}
+                        onChange={(e) => setPasswordFormData({ ...passwordFormData, confirmPassword: e.target.value })}
+                        className="w-full pl-11 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#163146]/5 focus:border-[#163146] transition-all"
+                        autoComplete="new-password"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <Button
+                  onClick={handleChangePassword}
+                  disabled={isChangingPassword}
+                  variant="outline"
+                  className="rounded-2xl border-slate-100 hover:bg-slate-50 px-8 py-6 font-black uppercase tracking-widest text-[10px] transition-all"
+                >
+                  {isChangingPassword ? 'Updating...' : 'Update Password'}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
