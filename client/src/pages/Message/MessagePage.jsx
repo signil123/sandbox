@@ -1840,9 +1840,15 @@ function MessagePage() {
             padding-bottom: max(env(safe-area-inset-bottom), 12px);
           }
         }
-        @media (min-width: 1024px) {
+        @media (min-width: 768px) {
           .message-page-container {
-            height: calc(100vh - 100px);
+            position: fixed;
+            left: 260px;
+            right: 16px;
+            top: 16px;
+            bottom: 16px;
+            height: auto;
+            overflow: hidden;
           }
         }
         .bg-brand-primary { background-color: #163146; }

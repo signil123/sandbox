@@ -898,7 +898,7 @@ function ExplorePageContent() {
 
   return (
     <>
-      <div className='min-h-screen' style={{ backgroundColor: '#fafafa' }}>
+      <div className='md:fixed md:left-[260px] md:right-4 md:top-4 md:bottom-4 md:overflow-y-auto min-h-screen md:min-h-0' style={{ backgroundColor: '#fafafa' }}>
         {/* Header - Desktop & Mobile */}
         <div>
           <div className='mx-auto max-w-8xl px-4 md:px-8 py-4 md:py-6'>

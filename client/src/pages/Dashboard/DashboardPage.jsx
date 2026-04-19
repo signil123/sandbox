@@ -333,560 +333,426 @@ const DashboardPage = () => {
     return advisors.slice(start, start + 3)
   }, [advisors, advisorPageIndex])
 
+  const SIDEBAR_W = 228 // matches DashboardLayout default; collapses handled by layout
+
   return (
     <DashboardLayout>
-      <div className='flex-1 overflow-y-auto bg-gray-50'>
-        <div className='max-w-8xl mx-auto px-4 md:px-8 py-6 space-y-6'>
-          {/* Greeting Banner - Text Only */}
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.5, delay: 0.1 }}
-              className='mb-2'
-            >
-              <p className='text-xs font-semibold tracking-wide text-gray-600 uppercase'>
-                Happy {dayOfWeek}
-              </p>
-            </motion.div>
-            <motion.h1
-              initial={{ opacity: 0, y: 5 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-              className='text-2xl md:text-3xl font-bold leading-tight text-gray-900'
-            >
-              Welcome back, <span className='text-[#163146]'>{currentUser?.firstName || 'Alex'}</span>!
-            </motion.h1>
-            <div className='flex flex-wrap gap-2 mt-2'>
-             
-              {(currentUser?.specialization || currentUser?.profile?.specialization || [])[0] && (
-                <span className='text-[10px] px-2 py-0.5 bg-gray-50 text-gray-600 rounded-full font-medium border border-gray-100 uppercase tracking-wide'>
-                  {(currentUser?.specialization || currentUser?.profile?.specialization || [])[0]}
-                </span>
-              )}
-            </div>
-            <motion.div
-              initial={{ opacity: 0, y: 5 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.3 }}
-              className='mt-2'
-            >
-              <p className='text-sm italic font-light text-gray-600'>
-                "{dailyQuote}"
-              </p>
-            </motion.div>
-          </motion.div>
+      {/* Full-viewport dashboard grid — desktop only one-page layout */}
+      <div
+        className='hidden md:grid'
+        style={{
+          position: 'fixed',
+          left: SIDEBAR_W + 32,
+          right: 16,
+          top: 16,
+          bottom: 16,
+          gridTemplateRows: 'auto auto 2fr 1fr',
+          gap: 12,
+          overflow: 'hidden',
+        }}
+      >
+        {/* Row 1: Greeting */}
+        <div style={{ fontSize: 34, fontWeight: 900, color: '#163146', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+          Welcome back, <span style={{ color: '#986a41' }}>{currentUser?.firstName || 'Alex'}</span>!
+        </div>
 
-          {/* Key Insights Bar */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.1 }}
-            className='grid grid-cols-2 lg:grid-cols-4 gap-6'
-          >
-            {keyInsights.map((insight, index) => {
-              const Icon = insight.icon
-              const isPrimary = index % 2 === 0
-              return (
-                <motion.div
-                  key={insight.label}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: index * 0.05 }}
-                  onClick={() => navigate(insightRoutes[insight.label])}
-                  className='bg-white rounded-2xl p-3 md:p-4 border border-gray-50 cursor-pointer transition-all hover:border-[#163146]/10 hover:shadow-sm flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 group min-w-0'
-                >
-                  <div className={`p-2 md:p-2.5 rounded-xl transition-colors shrink-0 ${
-                    isPrimary 
-                      ? 'bg-[#163146]/5 text-[#163146] group-hover:bg-[#163146] group-hover:text-white' 
-                      : 'bg-[#986a41]/5 text-[#986a41] group-hover:bg-[#986a41] group-hover:text-white'
-                  }`}>
-                    <Icon size={16} className='md:hidden' />
-                    <Icon size={18} className='hidden md:block' />
-                  </div>
-                  <div className='flex-1 min-w-0 w-full'>
-                    <p className='text-[8px] md:text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none mb-1 md:mb-1.5 truncate'>
-                      {insight.label}
-                    </p>
-                    <div className='flex items-end justify-between md:justify-start md:gap-2'>
-                      <h4 className='text-lg md:text-xl font-black text-gray-900 leading-none truncate'>
-                        {insight.value}
-                      </h4>
-                      <span className='text-[8px] md:text-[9px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md'>
-                        {insight.trend}
-                      </span>
-                    </div>
-                  </div>
-                </motion.div>
-              )
-            })}
-          </motion.div>
-          {/* Main Content Grid */}
-          <div className='grid grid-cols-1 gap-6'>
-            {/* Recommended Advisors - Full Width */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: 0.2 }}
-              className='bg-white rounded-2xl p-6 border border-gray-200'
-            >
-              <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 pb-4 border-b border-gray-50'>
-                <div className='min-w-0'>
-                  <div className='flex items-center gap-2 mb-1.5'>
-                    <div className='w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0' />
-                    <h2 className='text-xl md:text-2xl font-black text-gray-900 leading-tight truncate'>
-                      Recommended For You
-                    </h2>
-                  </div>
-                  <p className='text-[10px] md:text-xs text-gray-400 font-bold uppercase tracking-widest truncate'>
-                    Based on your profile & goals
-                  </p>
+        {/* Row 2: KPI Cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12 }}>
+          {keyInsights.map((insight, index) => {
+            const isHighlighted = index === 0
+            return (
+              <motion.div
+                key={insight.label}
+                onClick={() => navigate(insightRoutes[insight.label])}
+                style={{
+                  background: isHighlighted ? '#163146' : '#fff',
+                  color: isHighlighted ? '#fff' : '#163146',
+                  border: isHighlighted ? '1px solid #163146' : '1px solid rgba(22,49,70,.05)',
+                  borderRadius: 16,
+                  padding: '14px 16px',
+                  position: 'relative',
+                  cursor: 'pointer',
+                  minWidth: 0,
+                }}
+                whileHover={{ y: -2, boxShadow: '0 8px 24px -8px rgba(22,49,70,.18)' }}
+                transition={{ duration: 0.15 }}
+              >
+                <div style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.18em', textTransform: 'uppercase', color: isHighlighted ? 'rgba(255,255,255,.55)' : 'rgba(22,49,70,.4)', marginBottom: 8 }}>{insight.label}</div>
+                <div style={{ fontSize: 28, fontWeight: 900, letterSpacing: '-0.02em', lineHeight: 1 }}>{insight.value}</div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: isHighlighted ? 'rgba(255,255,255,.5)' : 'rgba(22,49,70,.4)', marginTop: 6 }}>{insight.trend}</div>
+                <div style={{ position: 'absolute', top: 16, right: 16, width: 32, height: 32, borderRadius: '50%', background: '#986a41', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
+                  <ExternalLink size={13} strokeWidth={2} />
                 </div>
-                <div className='flex w-full sm:w-auto items-center gap-2 min-w-0'>
-                    {advisors.length > 3 && (
-                        <div className='flex items-center gap-1 mr-1 shrink-0'>
-                             <button 
-                                onClick={prevAdvisor}
-                                disabled={advisorPageIndex === 0}
-                                className='p-2 rounded-lg bg-gray-50 text-gray-400 hover:text-[#163146] hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed'
-                             >
-                                <ChevronLeft size={16} />
-                             </button>
-                             <button 
-                                onClick={nextAdvisor}
-                                disabled={advisorPageIndex >= totalAdvisorPages - 1}
-                                className='p-2 rounded-lg bg-gray-50 text-gray-400 hover:text-[#163146] hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed'
-                             >
-                                <ChevronRight size={16} />
-                             </button>
-                        </div>
-                    )}
-                    <button 
-                    onClick={() => navigate('/explore')}
-                    className='flex-1 min-w-0 sm:flex-none sm:w-auto px-4 py-2.5 bg-gray-50 text-[#163146] text-[10px] font-black uppercase tracking-[0.18em] rounded-xl hover:bg-[#163146] hover:text-white transition-all border border-gray-100 whitespace-nowrap'
-                    >
-                    Explore All
+              </motion.div>
+            )
+          })}
+        </div>
+
+        {/* Row 3: Recommended + Scout (fills remaining) */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12, minHeight: 0, overflow: 'hidden' }}>
+          {/* Recommended section — spans 3 cols to align with Upcoming Events KPI above */}
+          <div style={{ gridColumn: 'span 3', minWidth: 0, minHeight: 0, background: '#fff', border: '1px solid rgba(22,49,70,.05)', borderRadius: 16, padding: '14px 16px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 14, flexShrink: 0 }}>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: '#163146', letterSpacing: '-0.005em' }}>Recommended For You</div>
+                <div style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,49,70,.4)', marginTop: 4 }}>Based on your profile & goals</div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                {advisors.length > 3 && (
+                  <>
+                    <button onClick={prevAdvisor} disabled={advisorPageIndex === 0} style={{ width: 26, height: 26, borderRadius: 8, background: 'rgba(22,49,70,.04)', border: '1px solid rgba(22,49,70,.08)', color: 'rgba(22,49,70,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', opacity: advisorPageIndex === 0 ? 0.4 : 1 }}>
+                      <ChevronLeft size={13} strokeWidth={2.2} />
                     </button>
-                </div>
+                    <button onClick={nextAdvisor} disabled={advisorPageIndex >= totalAdvisorPages - 1} style={{ width: 26, height: 26, borderRadius: 8, background: 'rgba(22,49,70,.04)', border: '1px solid rgba(22,49,70,.08)', color: 'rgba(22,49,70,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', opacity: advisorPageIndex >= totalAdvisorPages - 1 ? 0.4 : 1 }}>
+                      <ChevronRight size={13} strokeWidth={2.2} />
+                    </button>
+                  </>
+                )}
+                <button onClick={() => navigate('/explore')} style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#163146', padding: '7px 13px', borderRadius: 10, background: 'rgba(22,49,70,.04)', border: '1px solid rgba(22,49,70,.08)', cursor: 'pointer' }}>
+                  Explore All
+                </button>
               </div>
-              <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
-                <AnimatePresence mode='wait'>
-                  {loadingAdvisors ? (
-                    <>
-                      <SkeletonCard type="recommendation" />
-                      <SkeletonCard type="recommendation" />
-                      <SkeletonCard type="recommendation" />
-                    </>
-                  ) : visibleAdvisors.length === 0 ? (
-                    <>
-                      <SkeletonCard type="recommendation" />
-                      <SkeletonCard type="recommendation" />
-                      <SkeletonCard type="recommendation" />
-                    </>
-                  ) : (
-                    visibleAdvisors.map((advisor, index) => (
-                      <AdvisorRecommendationCard 
-                        key={`${advisor.id}-${index}`}
-                        advisor={advisor}
-                        onConnect={handleConnect}
-                        onView={(a) => {
-                          if (a.isBlurred && ['advisor', 'agent'].includes(currentUser?.userType) && currentUser?.tier === 'free') {
-                            navigate('/settings?tab=plans')
-                            return
-                          }
-                          setSelectedProfile(a)
-                          setProfilePopupOpen(true)
-                        }}
-                      />
-                    ))
-                  )}
-                </AnimatePresence>
-              </div>
-              {/* Navigation CTA */}
-              <div className='mt-10 pt-6 border-t border-gray-50 text-center'>
-                 <p className='text-xs text-gray-400 mb-4 font-medium'>Want to see expert matches with different specialties?</p>
-                 <button 
-                    onClick={() => navigate('/explore')}
-                    className='text-xs font-black text-[#163146] hover:text-[#986a41] transition-colors flex items-center gap-2 mx-auto uppercase tracking-widest'
-                 >
-                    Search full expert directory <ChevronRight size={14} />
-                 </button>
-              </div>
-            </motion.div>
-
-            {/* Network Section - Role Specific */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: 0.25 }}
-            >
-              {currentUser?.userType === 'athlete' ? (
-                <CurrentAdvisors 
-                  advisors={network.advisors} 
-                  loading={network.loading} 
-                />
-              ) : (
-                <AdvisorRoster 
-                  athletes={network.roster} 
-                  loading={network.loading} 
-                />
-              )}
-            </motion.div>
-          </div>
-          {/* Bottom Grid - Events, News/Stats */}
-          <div className='grid grid-cols-1 lg:grid-cols-2 gap-8'>
-            {/* Upcoming Events */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: 0.3 }}
-              className='bg-white rounded-[2rem] p-8 border border-gray-50 shadow-sm relative overflow-hidden h-full flex flex-col'
-            >
-              <div className='flex items-center justify-between mb-8'>
-                <div className='flex items-center gap-3'>
-                  <div className='p-2 bg-[#163146]/5 rounded-xl text-[#163146]'>
-                    <Calendar size={20} />
-                  </div>
-                  <div>
-                    <h2 className='text-xl font-bold text-gray-900 leading-none'>
-                      Upcoming Events
-                    </h2>
-                    <p className='text-[10px] items-center gap-1 text-gray-400 font-bold uppercase tracking-wider mt-1.5 hidden sm:flex'>
-                       {upcomingEvents.length} Scheduled
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-2">
-                   <div className="flex bg-gray-50 rounded-lg p-1 gap-1">
-                      <button 
-                        onClick={() => setEventsPage(p => Math.max(0, p - 1))}
-                        disabled={eventsPage === 0}
-                        className="p-1.5 rounded-md hover:bg-white hover:shadow-sm text-gray-400 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:shadow-none transition-all"
-                      >
-                         <ChevronLeft size={16} />
-                      </button>
-                      <button 
-                        onClick={() => setEventsPage(p => (p + 1) * ITEMS_PER_PAGE < upcomingEvents.length ? p + 1 : p)}
-                        disabled={(eventsPage + 1) * ITEMS_PER_PAGE >= upcomingEvents.length}
-                        className="p-1.5 rounded-md hover:bg-white hover:shadow-sm text-gray-400 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:shadow-none transition-all"
-                      >
-                         <ChevronRight size={16} />
-                      </button>
-                   </div>
-                   <button 
-                    onClick={() => navigate('/calendar')}
-                    className='hidden sm:block px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-[#163146] bg-[#163146]/5 hover:bg-[#163146] hover:text-white rounded-lg transition-all ml-2'
-                   >
-                     View Calendar
-                   </button>
-                </div>
-              </div>
-
-              <div className='space-y-3 flex-1'>
-                <AnimatePresence mode="wait">
-                  {upcomingEvents.length > 0 ? (
-                    <motion.div
-                      key={eventsPage}
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -20 }}
-                      transition={{ duration: 0.2 }}
-                      className="space-y-3"
-                    >
-                      {upcomingEvents
-                        .slice(eventsPage * ITEMS_PER_PAGE, (eventsPage + 1) * ITEMS_PER_PAGE)
-                        .map((event, index) => {
-                        const dateObj = new Date(event.startDate)
-                        const month = dateObj.toLocaleString('en-US', { month: 'short' }).toUpperCase()
-                        const day = dateObj.getDate()
-                        const time = dateObj.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
-                        const isPrimary = index === 0 && eventsPage === 0
-                        
-                        return (
-                          <motion.div
-                            key={event._id}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.2, delay: index * 0.05 }}
-                            onClick={() => navigate(`/calendar?eventId=${event._id}`)}
-                            className={`group flex items-center gap-4 p-3 rounded-2xl border transition-all cursor-pointer relative overflow-hidden ${
-                                isPrimary 
-                                ? 'bg-[#163146] border-[#163146] text-white shadow-lg shadow-[#163146]/20' 
-                                : 'bg-white border-gray-100 hover:border-[#163146]/20 hover:shadow-md'
-                            }`}
-                          >
-                            {/* Decorative gradient for primary item */}
-                            {isPrimary && (
-                                <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none" />
-                            )}
-
-                            <div className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all duration-300 shrink-0 ${
-                                isPrimary
-                                ? 'bg-white/10 text-white backdrop-blur-sm'
-                                : 'bg-gray-50 text-gray-900 group-hover:bg-[#163146] group-hover:text-white'
-                            }`}>
-                              <span className={`text-[9px] font-black uppercase tracking-tighter leading-none mb-0.5 ${isPrimary ? 'opacity-70' : 'text-gray-400 group-hover:text-white/70'}`}>{month}</span>
-                              <span className='text-lg font-black leading-none'>{day}</span>
-                            </div>
-      
-                            <div className='flex-1 min-w-0 z-10'>
-                              <h4 className={`font-bold text-sm truncate mb-1 ${isPrimary ? 'text-white' : 'text-gray-900'}`}>
-                                {event.title}
-                              </h4>
-                              <div className='flex items-center gap-3'>
-                                <p className={`text-[10px] font-medium flex items-center gap-1.5 ${isPrimary ? 'text-gray-300' : 'text-gray-400'}`}>
-                                    <Clock size={12} strokeWidth={2.5} />
-                                    {time}
-                                </p>
-                                <span className={`w-1 h-1 rounded-full ${isPrimary ? 'bg-white/30' : 'bg-gray-300'}`} />
-                                <p className={`text-[10px] font-bold uppercase tracking-wider ${
-                                    isPrimary ? 'text-[#cbbea8]' : 'text-[#986a41]'
-                                }`}>
-                                    {event.locationType || 'Event'}
-                                </p>
-                              </div>
-                            </div>
-      
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
-                                isPrimary
-                                ? 'bg-white/10 text-white hover:bg-white hover:text-[#163146]'
-                                : 'bg-gray-50 text-gray-300 group-hover:bg-[#163146] group-hover:text-white'
-                            }`}>
-                              <ChevronRight size={14} strokeWidth={3} />
-                            </div>
-                          </motion.div>
-                        )
-                      })}
-                    </motion.div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-[300px] text-center">
-                      <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center text-gray-300 mb-4">
-                        <Calendar size={24} />
-                      </div>
-                      <p className="text-gray-900 font-bold text-sm">No upcoming events</p>
-                      <p className="text-gray-400 text-xs mt-1 max-w-[200px]">Your schedule is clear for now. Time to plan ahead?</p>
-                      <button 
-                         onClick={() => navigate('/calendar?action=create')}
-                         className="mt-4 px-4 py-2 bg-[#163146] text-white text-[10px] font-bold uppercase tracking-widest rounded-xl hover:bg-[#0f2a36] transition-all shadow-lg shadow-[#163146]/20"
-                       >
-                         Schedule Event
-                       </button>
-                    </div>
-                  )}
-                </AnimatePresence>
-              </div>
-
-              {upcomingEvents.length > 0 && (
-                  <div className="mt-6 flex items-center justify-center gap-1.5">
-                      {Array.from({ length: Math.ceil(upcomingEvents.length / ITEMS_PER_PAGE) }).map((_, idx) => (
-                          <button 
-                            key={idx}
-                            onClick={() => setEventsPage(idx)}
-                            className={`w-1.5 h-1.5 rounded-full transition-all ${
-                                idx === eventsPage ? 'bg-[#163146] w-4' : 'bg-gray-200 hover:bg-gray-300'
-                            }`}
-                          />
-                      ))}
-                  </div>
-              )}
-            </motion.div>
-
-            {/* Toggle between News and Stats */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: 0.35 }}
-              className='bg-white rounded-[2rem] p-8 border border-gray-50 shadow-sm h-full flex flex-col'
-            >
-              {/* Header with Toggle */}
-              <div className='flex items-center justify-between mb-8'>
-                <div className='flex items-center gap-3'>
-                  <div className={`p-2 rounded-xl transition-all ${showStats ? 'bg-[#163146]/5 text-[#163146]' : 'bg-[#986a41]/5 text-[#986a41]'}`}>
-                    {showStats ? <LineChart size={20} /> : <Newspaper size={20} />}
-                  </div>
-                  <h2 className='text-xl font-bold text-gray-900'>
-                    {showStats ? 'Network Analytics' : 'Latest News'}
-                  </h2>
-                </div>
-                <div className='bg-gray-50 p-1 rounded-xl flex gap-1'>
-                  <button
-                    onClick={() => setShowStats(false)}
-                    className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
-                      !showStats ? 'bg-white shadow-sm text-[#163146]' : 'text-gray-400 hover:text-gray-600'
-                    }`}
-                  >
-                    News
-                  </button>
-                  <button
-                    onClick={() => setShowStats(true)}
-                    className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
-                      showStats ? 'bg-white shadow-sm text-[#986a41]' : 'text-gray-400 hover:text-gray-600'
-                    }`}
-                  >
-                    Analytics
-                  </button>
-                </div>
-              </div>
-
+            </div>
+            <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, minHeight: 0, overflow: 'hidden' }}>
               <AnimatePresence mode='wait'>
-                {showStats ? (
-                  <motion.div
-                    key='stats'
-                    initial={{ opacity: 0, scale: 0.98 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 1.02 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    {/* Time Range Selector */}
-                    <div className='flex gap-2 mb-8'>
-                      {['1W', '1M', '1Y', 'ALL'].map((range) => (
-                        <button
-                          key={range}
-                          onClick={() => setTimeRange(range)}
-                          className={`px-4 py-2 text-[10px] font-black rounded-xl transition-all ${
-                            timeRange === range
-                              ? 'bg-[#163146] text-white shadow-lg shadow-[#163146]/20'
-                              : 'bg-white border border-gray-100 text-gray-400 hover:bg-gray-50'
-                          }`}
-                        >
-                          {range}
-                        </button>
-                      ))}
-                    </div>
-                    
-                    {/* Check if data exists */}
-                    {currentStatsData && currentStatsData.length > 0 && currentStatsData.some(d => d.value > 0) ? (
-                      <>
-                        {/* Chart */}
-                        <div className='h-64 -ml-4'>
-                          <ResponsiveContainer width='100%' height='100%'>
-                            <RechartsLineChart data={currentStatsData}>
-                              <defs>
-                                <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="5%" stopColor="#163146" stopOpacity={0.1}/>
-                                  <stop offset="95%" stopColor="#163146" stopOpacity={0}/>
-                                </linearGradient>
-                              </defs>
-                              <CartesianGrid
-                                strokeDasharray='3 3'
-                                vertical={false}
-                                stroke='#f1f5f9'
-                              />
-                              <XAxis
-                                dataKey={
-                                  timeRange === '1W' ? 'day' :
-                                  timeRange === '1M' ? 'week' :
-                                  timeRange === '1Y' ? 'month' : 'year'
-                                }
-                                stroke='#94a3b8'
-                                axisLine={false}
-                                tickLine={false}
-                                style={{ fontSize: '10px', fontWeight: '700' }}
-                                dy={10}
-                              />
-                              <YAxis
-                                stroke='#94a3b8'
-                                axisLine={false}
-                                tickLine={false}
-                                style={{ fontSize: '10px', fontWeight: '700' }}
-                                dx={-10}
-                              />
-                              <Tooltip
-                                contentStyle={{
-                                  backgroundColor: '#163146',
-                                  border: 'none',
-                                  borderRadius: '16px',
-                                  color: 'white',
-                                  boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)',
-                                  padding: '12px'
-                                }}
-                                itemStyle={{ color: 'white', fontSize: '12px', fontWeight: 'bold' }}
-                                labelStyle={{ color: 'rgba(255,255,255,0.5)', fontSize: '10px', marginBottom: '4px' }}
-                              />
-                              <Line
-                                type='monotone'
-                                dataKey='value'
-                                stroke='#163146'
-                                strokeWidth={4}
-                                dot={false}
-                                activeDot={{ r: 6, fill: '#163146', stroke: '#fff', strokeWidth: 2 }}
-                              />
-                            </RechartsLineChart>
-                          </ResponsiveContainer>
-                        </div>
-                        <div className='mt-8 p-5 bg-gray-50 rounded-3xl border border-gray-100 flex items-center justify-between'>
-                          <div>
-                            <p className='text-[10px] text-gray-400 font-bold uppercase tracking-widest leading-none mb-1.5'>Connection Growth</p>
-                            <p className='text-sm text-gray-900 font-black'>+{currentStatsData?.reduce((acc, curr) => acc + curr.value, 0) || 0} New Connections</p>
-                          </div>
-                          <div className='flex items-center gap-1 text-emerald-500 font-black text-xs'>
-                            <TrendingUp size={14} />
-                            {Math.min(100, Math.round(((currentStatsData?.reduce((acc, curr) => acc + curr.value, 0) || 0) / (statsSummary?.acceptedConnections || 1)) * 100))}%
-                          </div>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center h-64 text-center">
-                        <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center text-gray-300 mb-4">
-                          <LineChart size={24} />
-                        </div>
-                        <p className="text-gray-900 font-bold text-sm">No analytics data yet</p>
-                        <p className="text-gray-400 text-xs mt-1 max-w-[250px]">Your network growth analytics will appear here as you make connections.</p>
-                      </div>
-                    )}
-                  </motion.div>
+                {loadingAdvisors ? (
+                  <>
+                    <SkeletonCard type="recommendation" />
+                    <SkeletonCard type="recommendation" />
+                    <SkeletonCard type="recommendation" />
+                  </>
+                ) : visibleAdvisors.length === 0 ? (
+                  <>
+                    <SkeletonCard type="recommendation" />
+                    <SkeletonCard type="recommendation" />
+                    <SkeletonCard type="recommendation" />
+                  </>
                 ) : (
-                  <motion.div
-                    key='news'
-                    initial={{ opacity: 0, x: 10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -10 }}
-                    transition={{ duration: 0.2 }}
-                    className='space-y-4'
-                  >
-                    {!loadingNews && news.length > 0 ? (
-                      news.slice(0, 3).map((newsItem, index) => (
-                        <motion.div
-                          key={newsItem.id}
-                          onClick={() => window.open(newsItem.url, '_blank')}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.3, delay: index * 0.1 }}
-                          className='group p-4 rounded-3xl border border-gray-50 hover:bg-gray-50 transition-all cursor-pointer'
-                        >
-                          <div className='flex items-center gap-2 mb-2'>
-                            <span className='px-2 py-0.5 bg-[#986a41]/10 text-[#986a41] text-[9px] font-black uppercase tracking-tighter rounded-md'>
-                              {newsItem.category}
-                            </span>
-                            <span className='text-[10px] text-gray-400 font-bold'>{newsItem.timestamp}</span>
-                          </div>
-                          <p className='text-sm font-bold text-gray-900 line-clamp-2 group-hover:text-[#163146] transition-colors'>
-                            {newsItem.title}
-                          </p>
-                          <div className='flex items-center gap-2 mt-3'>
-                             <div className='w-5 h-5 rounded-full bg-gray-200' />
-                             <span className='text-[10px] text-gray-500 font-bold'>{newsItem.source}</span>
-                          </div>
-                        </motion.div>
-                      ))
-                    ) : (
-                      <div className="text-center py-8">
-                        <p className="text-gray-500 text-xs text-center">No latest news available.</p>
-                      </div>
-                    )}
-                  </motion.div>
+                  visibleAdvisors.map((advisor, index) => (
+                    <AdvisorRecommendationCard
+                      key={`${advisor.id}-${index}`}
+                      advisor={advisor}
+                      onConnect={handleConnect}
+                      onView={(a) => {
+                        if (a.isBlurred && ['advisor', 'agent'].includes(currentUser?.userType) && currentUser?.tier === 'free') {
+                          navigate('/settings?tab=plans')
+                          return
+                        }
+                        setSelectedProfile(a)
+                        setProfilePopupOpen(true)
+                      }}
+                    />
+                  ))
                 )}
               </AnimatePresence>
-            </motion.div>
+            </div>
           </div>
 
-          {/* Profile Popup */}
-          <ProfilePopup
+          {/* Scout AI Panel — 1 col, aligns with Connected Advisors KPI above */}
+          <div style={{ minWidth: 0, minHeight: 0, background: '#fff', border: '1px solid rgba(22,49,70,.05)', borderRadius: 18, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ padding: '13px 15px', background: '#163146', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(255,255,255,.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                  <img src='/scout.png' alt='' style={{ width: 18, height: 18, objectFit: 'contain', filter: 'brightness(0) invert(1)' }} onError={(e) => { e.target.style.display = 'none' }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 800 }}>Scout AI</div>
+                  <div style={{ fontSize: 9, color: 'rgba(255,255,255,.55)', fontWeight: 500 }}>Signil assistant</div>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  const isScoutSidebarOpen = true
+                  // startNewChat via DashboardLayout — here we just use our local scout state
+                }}
+                style={{ fontSize: 8, fontWeight: 900, letterSpacing: '0.15em', padding: '4px 8px', borderRadius: 5, background: 'rgba(255,255,255,.1)', color: '#fff', border: 'none', cursor: 'pointer' }}
+              >
+                NEW CHAT
+              </button>
+            </div>
+            <div style={{ flex: 1, padding: 12, background: '#faf7f2', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ background: '#fff', border: '1px solid rgba(22,49,70,.06)', borderRadius: 12, padding: '10px 12px', fontSize: 11, lineHeight: 1.55, color: '#163146' }}>
+                Hi there. I can help you find the right people on Signil. Share the role, sport, or expertise you need.
+              </div>
+            </div>
+            <div style={{ padding: '9px 11px', borderTop: '1px solid rgba(22,49,70,.06)', display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0 }}>
+              <input
+                type='text'
+                placeholder='Ask for athletes, advisors...'
+                style={{ flex: 1, background: '#f4f1ea', border: 0, borderRadius: 9, padding: '8px 11px', fontSize: 11, color: '#163146', fontFamily: 'inherit', outline: 'none' }}
+              />
+              <button style={{ width: 30, height: 30, borderRadius: 9, background: '#986a41', color: '#fff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Send size={12} strokeWidth={2} />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Row 4: Network + Events + News */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, minHeight: 0 }}>
+          {/* My Advisors / Athlete Roster */}
+          <div style={{ background: '#fff', border: '1px solid rgba(22,49,70,.05)', borderRadius: 16, padding: '12px 14px', display: 'flex', flexDirection: 'column', minWidth: 0, height: '100%' }}>
+            {(() => {
+              const isAthlete = currentUser?.userType === 'athlete'
+              const list = isAthlete ? (network.advisors || []) : (network.roster || [])
+              const title = isAthlete ? 'My Advisors' : 'Athlete Roster'
+              const colors = ['#b5c3d4', '#986a41', '#8aa8d4', '#4a9e8e']
+              return (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexShrink: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Users size={14} strokeWidth={2} style={{ color: '#163146' }} />
+                      <div style={{ fontSize: 13, fontWeight: 800, color: '#163146' }}>{title}</div>
+                    </div>
+                    <div style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,49,70,.4)' }}>
+                      {list.length} Connected
+                    </div>
+                  </div>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10, overflow: 'hidden' }}>
+                    {list.length === 0 ? (
+                      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: 'rgba(22,49,70,.45)', fontWeight: 500 }}>
+                        No connections yet
+                      </div>
+                    ) : (
+                      list.slice(0, 3).map((p, i) => {
+                        const name = p.name || `${p.firstName || ''} ${p.lastName || ''}`.trim() || 'User'
+                        const role = p.title || p.profile?.title || (p.userType ? p.userType.charAt(0).toUpperCase() + p.userType.slice(1) : '')
+                        const initials = name.split(' ').map(s => s[0]).join('').slice(0, 2).toUpperCase()
+                        const avatarImg = p.profileImage || p.profileImg || p.profile?.profileImage
+                        const avatarUrl = avatarImg && avatarImg.startsWith('http') ? avatarImg : (avatarImg ? getImageUrl(avatarImg) : null)
+                        return (
+                          <div
+                            key={p._id || p.id || i}
+                            onClick={() => navigate('/inbox', { state: { recipientId: p._id || p.id } })}
+                            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 2px', cursor: 'pointer' }}
+                          >
+                            <div style={{ width: 34, height: 34, borderRadius: '50%', background: colors[i % colors.length], color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0, overflow: 'hidden' }}>
+                              {avatarUrl ? (
+                                <img src={avatarUrl} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              ) : (
+                                initials
+                              )}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 12, fontWeight: 700, color: '#163146', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
+                              <div style={{ fontSize: 10, color: 'rgba(22,49,70,.55)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{role}</div>
+                            </div>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); navigate('/inbox', { state: { recipientId: p._id || p.id } }) }}
+                              style={{ width: 26, height: 26, borderRadius: 8, color: 'rgba(22,49,70,.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', cursor: 'pointer', flexShrink: 0 }}
+                            >
+                              <MessageSquare size={13} strokeWidth={1.8} />
+                            </button>
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+                </>
+              )
+            })()}
+          </div>
+
+          {/* Upcoming Events */}
+          <div style={{ background: '#fff', border: '1px solid rgba(22,49,70,.05)', borderRadius: 16, padding: '12px 14px', display: 'flex', flexDirection: 'column', minWidth: 0, height: '100%' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Calendar size={14} strokeWidth={2} style={{ color: '#163146' }} />
+                <span style={{ fontSize: 13, fontWeight: 800, color: '#163146' }}>Upcoming Events</span>
+              </div>
+              <button onClick={() => navigate('/calendar')} style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#163146', padding: '5px 10px', borderRadius: 8, background: 'rgba(22,49,70,.04)', border: '1px solid rgba(22,49,70,.08)', cursor: 'pointer' }}>
+                View Calendar
+              </button>
+            </div>
+            <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {upcomingEvents.length > 0 ? (
+                upcomingEvents.slice(0, 3).map((event, index) => {
+                  const dateObj = new Date(event.startDate)
+                  const month = dateObj.toLocaleString('en-US', { month: 'short' }).toUpperCase()
+                  const day = dateObj.getDate()
+                  const time = dateObj.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+                  const isPrimary = index === 0
+                  return (
+                    <div
+                      key={event._id}
+                      onClick={() => navigate(`/calendar?eventId=${event._id}`)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
+                        borderRadius: 12, cursor: 'pointer',
+                        background: isPrimary ? '#163146' : 'rgba(22,49,70,.02)',
+                        border: isPrimary ? '1px solid #163146' : '1px solid rgba(22,49,70,.06)',
+                        color: isPrimary ? '#fff' : '#163146',
+                      }}
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 8, background: isPrimary ? 'rgba(255,255,255,.12)' : 'rgba(22,49,70,.04)', flexShrink: 0 }}>
+                        <span style={{ fontSize: 7, fontWeight: 900, letterSpacing: '0.1em', opacity: isPrimary ? 0.7 : 0.5 }}>{month}</span>
+                        <span style={{ fontSize: 14, fontWeight: 900, lineHeight: 1 }}>{day}</span>
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{event.title}</div>
+                        <div style={{ fontSize: 9, opacity: 0.6, marginTop: 2 }}>{time}</div>
+                      </div>
+                    </div>
+                  )
+                })
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, textAlign: 'center', padding: '10px 0' }}>
+                  <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(22,49,70,.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(22,49,70,.35)', marginBottom: 10 }}>
+                    <Calendar size={18} strokeWidth={1.8} />
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: '#163146', marginBottom: 4 }}>No upcoming events</div>
+                  <div style={{ fontSize: 11, color: 'rgba(22,49,70,.5)', fontWeight: 500, maxWidth: 170, marginBottom: 12 }}>Your schedule is clear for now.</div>
+                  <button onClick={() => navigate('/calendar?action=create')} style={{ fontSize: 10, fontWeight: 900, letterSpacing: '0.15em', textTransform: 'uppercase', padding: '9px 16px', borderRadius: 10, background: '#163146', color: '#fff', border: 'none', cursor: 'pointer' }}>
+                    Schedule Event
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Latest News */}
+          <div style={{ background: '#fff', border: '1px solid rgba(22,49,70,.05)', borderRadius: 16, padding: '12px 14px', display: 'flex', flexDirection: 'column', minWidth: 0, height: '100%' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexShrink: 0 }}>
+              <Newspaper size={14} strokeWidth={2} style={{ color: '#163146' }} />
+              <span style={{ fontSize: 13, fontWeight: 800, color: '#163146' }}>Latest News</span>
+            </div>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10, overflow: 'hidden' }}>
+              {!loadingNews && news.length > 0 ? (
+                news.slice(0, 3).map((newsItem, index) => (
+                  <div
+                    key={newsItem.id}
+                    onClick={() => window.open(newsItem.url, '_blank')}
+                    style={{ paddingBottom: index < 2 ? 10 : 0, borderBottom: index < 2 ? '1px solid rgba(22,49,70,.05)' : 'none', cursor: 'pointer' }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                      <span style={{ fontSize: 7, fontWeight: 900, letterSpacing: '0.15em', padding: '2px 5px', borderRadius: 4, background: 'rgba(152,106,65,.1)', color: '#986a41', textTransform: 'uppercase' }}>{newsItem.category}</span>
+                      <span style={{ fontSize: 9, color: 'rgba(22,49,70,.4)', fontWeight: 600 }}>{newsItem.timestamp}</span>
+                    </div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#163146', lineHeight: 1.35, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{newsItem.title}</div>
+                    <div style={{ fontSize: 9, color: 'rgba(22,49,70,.45)', fontWeight: 500, marginTop: 3 }}>{newsItem.source}</div>
+                  </div>
+                ))
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
+                  <p style={{ fontSize: 11, color: 'rgba(22,49,70,.4)', textAlign: 'center' }}>No latest news available.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile layout — scrollable, same data */}
+      <div className='md:hidden flex-1 overflow-y-auto pt-14' style={{ background: '#ede9df' }}>
+        <div className='px-4 py-5 space-y-4'>
+          {/* Greeting */}
+          <div>
+            <div className='text-[10px] font-black uppercase tracking-widest text-[#163146]/50 mb-1'>Happy {dayOfWeek}</div>
+            <h1 className='text-2xl font-black text-[#163146] leading-tight'>
+              Welcome back, <span className='text-[#986a41]'>{currentUser?.firstName || 'Alex'}</span>!
+            </h1>
+          </div>
+
+          {/* KPI row */}
+          <div className='grid grid-cols-2 gap-3'>
+            {keyInsights.map((insight, index) => {
+              const Icon = insight.icon
+              const isHighlighted = index === 0
+              return (
+                <div
+                  key={insight.label}
+                  onClick={() => navigate(insightRoutes[insight.label])}
+                  className='rounded-2xl p-3 cursor-pointer'
+                  style={{ background: isHighlighted ? '#163146' : '#fff', color: isHighlighted ? '#fff' : '#163146', border: '1px solid rgba(22,49,70,.06)' }}
+                >
+                  <div className='text-[8px] font-black uppercase tracking-widest mb-2' style={{ color: isHighlighted ? 'rgba(255,255,255,.5)' : 'rgba(22,49,70,.4)' }}>{insight.label}</div>
+                  <div className='text-2xl font-black'>{insight.value}</div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Recommended */}
+          <div className='bg-white rounded-2xl p-4' style={{ border: '1px solid rgba(22,49,70,.05)' }}>
+            <div className='flex items-center justify-between mb-3'>
+              <div className='text-sm font-black text-[#163146]'>Recommended For You</div>
+              <button onClick={() => navigate('/explore')} className='text-[9px] font-black uppercase tracking-widest text-[#163146] px-3 py-1.5 rounded-lg' style={{ background: 'rgba(22,49,70,.05)', border: '1px solid rgba(22,49,70,.08)' }}>
+                Explore All
+              </button>
+            </div>
+            <div className='space-y-3'>
+              {loadingAdvisors ? (
+                <><SkeletonCard type="recommendation" /><SkeletonCard type="recommendation" /></>
+              ) : visibleAdvisors.slice(0, 2).map((advisor, index) => (
+                <AdvisorRecommendationCard
+                  key={`${advisor.id}-${index}`}
+                  advisor={advisor}
+                  onConnect={handleConnect}
+                  onView={(a) => { setSelectedProfile(a); setProfilePopupOpen(true) }}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Network */}
+          <div className='bg-white rounded-2xl p-4' style={{ border: '1px solid rgba(22,49,70,.05)' }}>
+            {currentUser?.userType === 'athlete' ? (
+              <CurrentAdvisors advisors={network.advisors} loading={network.loading} />
+            ) : (
+              <AdvisorRoster athletes={network.roster} loading={network.loading} />
+            )}
+          </div>
+
+          {/* Events */}
+          <div className='bg-white rounded-2xl p-4' style={{ border: '1px solid rgba(22,49,70,.05)' }}>
+            <div className='flex items-center justify-between mb-3'>
+              <div className='text-sm font-black text-[#163146]'>Upcoming Events</div>
+              <button onClick={() => navigate('/calendar')} className='text-[9px] font-black uppercase tracking-widest text-[#163146]'>View Calendar</button>
+            </div>
+            {upcomingEvents.length === 0 && (
+              <p className='text-xs text-[#163146]/50 text-center py-4'>No upcoming events</p>
+            )}
+            {upcomingEvents.slice(0, 3).map((event, index) => {
+              const dateObj = new Date(event.startDate)
+              const month = dateObj.toLocaleString('en-US', { month: 'short' }).toUpperCase()
+              const day = dateObj.getDate()
+              const time = dateObj.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+              return (
+                <div key={event._id} onClick={() => navigate(`/calendar?eventId=${event._id}`)} className='flex items-center gap-3 p-2.5 rounded-xl mb-2 cursor-pointer' style={{ background: index === 0 ? '#163146' : 'rgba(22,49,70,.03)', border: '1px solid rgba(22,49,70,.06)', color: index === 0 ? '#fff' : '#163146' }}>
+                  <div className='flex flex-col items-center w-9 h-9 rounded-lg justify-center' style={{ background: index === 0 ? 'rgba(255,255,255,.12)' : 'rgba(22,49,70,.06)', flexShrink: 0 }}>
+                    <span className='text-[7px] font-black opacity-60'>{month}</span>
+                    <span className='text-sm font-black leading-none'>{day}</span>
+                  </div>
+                  <div className='flex-1 min-w-0'>
+                    <div className='text-xs font-bold truncate'>{event.title}</div>
+                    <div className='text-[9px] opacity-60'>{time}</div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* News */}
+          <div className='bg-white rounded-2xl p-4 mb-24' style={{ border: '1px solid rgba(22,49,70,.05)' }}>
+            <div className='text-sm font-black text-[#163146] mb-3'>Latest News</div>
+            {!loadingNews && news.length > 0 ? news.slice(0, 3).map((n, i) => (
+              <div key={n.id} onClick={() => window.open(n.url, '_blank')} className='pb-3 mb-3 cursor-pointer' style={{ borderBottom: i < 2 ? '1px solid rgba(22,49,70,.05)' : 'none' }}>
+                <div className='flex items-center gap-2 mb-1'>
+                  <span className='text-[7px] font-black uppercase px-1.5 py-0.5 rounded' style={{ background: 'rgba(152,106,65,.1)', color: '#986a41' }}>{n.category}</span>
+                  <span className='text-[9px] text-[#163146]/40 font-bold'>{n.timestamp}</span>
+                </div>
+                <div className='text-xs font-bold text-[#163146] line-clamp-2'>{n.title}</div>
+                <div className='text-[9px] text-[#163146]/40 mt-1'>{n.source}</div>
+              </div>
+            )) : (
+              <p className='text-xs text-[#163146]/40 text-center py-4'>No news available.</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Profile Popup */}
+      <ProfilePopup
             profile={selectedProfile}
             isOpen={profilePopupOpen}
             onClose={() => setProfilePopupOpen(false)}
@@ -995,8 +861,6 @@ const DashboardPage = () => {
               </div>
             </DialogContent>
           </Dialog>
-        </div>
-      </div>
     </DashboardLayout>
   )
 }

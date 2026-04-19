@@ -1308,7 +1308,7 @@ const SettingsPage = () => {
 
   return (
     <DashboardLayout>
-      <div className="max-w-8xl mx-auto px-4 md:px-8 py-6 space-y-6">
+      <div className="md:fixed md:left-[260px] md:right-4 md:top-4 md:bottom-4 md:overflow-y-auto max-w-8xl mx-auto px-4 md:px-5 py-6 md:py-4 space-y-6">
 
         <div className="space-y-6">
           <div className="flex flex-wrap gap-2 bg-white p-2 rounded-[24px] border border-slate-200 shadow-sm w-fit mx-auto overflow-x-auto no-scrollbar">

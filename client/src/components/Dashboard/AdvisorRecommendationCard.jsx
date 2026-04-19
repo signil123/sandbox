@@ -1,196 +1,259 @@
 import { motion } from 'framer-motion'
-import { ExternalLink, Send, TrendingUp, UserPlus, Users } from 'lucide-react'
+import { ExternalLink, Plus, Send, UserPlus, Users } from 'lucide-react'
 import React from 'react'
 import ProfileBlurOverlay from '../Explore/ProfileBlurOverlay'
 
+const truncate = (text, max = 50) => {
+  if (!text) return ''
+  const clean = String(text).trim()
+  if (clean.length <= max) return clean
+  return `${clean.slice(0, max - 1).trimEnd()}…`
+}
+
 export const AdvisorRecommendationCard = ({ advisor, onConnect, onView }) => {
+  const bio = truncate(advisor.about, 150)
+
   return (
     <motion.div
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -20 }}
       transition={{ duration: 0.3 }}
-      className='relative border border-gray-200 rounded-2xl overflow-hidden hover:shadow-lg transition-shadow flex flex-col bg-white h-full group'
+      style={{
+        position: 'relative',
+        background: '#fff',
+        border: '1px solid rgba(22,49,70,.05)',
+        borderRadius: 14,
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        minWidth: 0,
+      }}
+      className='group'
     >
-      {advisor.isBlurred && (
-        <ProfileBlurOverlay onClick={() => onView(advisor)} />
-      )}
-      {/* Banner */}
-      <div
-        className='h-32 relative'
-        style={advisor.banner}
-      >
-        {/* Match Percentage Badge */}
-        {advisor.matchPercentage > 0 && (
-          <motion.div
-            className={`absolute top-3 left-3 bg-white/95 backdrop-blur px-3 py-1.5 rounded-full text-[10px] font-bold flex items-center gap-1.5 shadow-sm overflow-hidden border ${
-              advisor.matchPercentage >= 80 
-                ? 'text-emerald-700 border-emerald-100' 
-                : advisor.matchPercentage >= 50 
-                  ? 'text-amber-700 border-amber-100' 
-                  : 'text-slate-700 border-slate-100'
-            }`}
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            <motion.div
-              className={`absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent opacity-60`}
-              animate={{ x: advisor.matchPercentage >= 90 ? ['-100%', '100%'] : '0%' }}
-              transition={{
-                duration: 2,
-                repeat: Infinity,
-                ease: 'linear',
-              }}
-            />
-            <div className='flex items-center gap-1 relative'>
-              <TrendingUp size={12} className={
-                advisor.matchPercentage >= 80 ? 'text-emerald-500' :
-                advisor.matchPercentage >= 50 ? 'text-amber-500' :
-                'text-slate-400'
-              } />
-              <span>{advisor.matchPercentage >= 90 ? 'Best Match' : `${advisor.matchPercentage}% Match`}</span>
-            </div>
-          </motion.div>
+      {advisor.isBlurred && <ProfileBlurOverlay onClick={() => onView(advisor)} />}
+
+      {/* Banner — 25% of card height */}
+      <div style={{ flex: '0 0 25%', minHeight: 0, position: 'relative', ...advisor.banner }}>
+        {/* Location — bottom right */}
+        {advisor.location && (
+          <div style={{ position: 'absolute', right: 12, bottom: 10, color: '#fff', fontSize: 11, fontWeight: 600, opacity: 0.95 }}>
+            {advisor.location}
+          </div>
         )}
+        {/* Avatar — overlaps banner */}
+        <div
+          style={{
+            position: 'absolute',
+            left: 14,
+            bottom: -22,
+            width: 50,
+            height: 50,
+            borderRadius: '50%',
+            border: '3px solid #fff',
+            overflow: 'hidden',
+            background: '#b5c3d4',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#fff',
+            fontSize: 13,
+            fontWeight: 700,
+          }}
+        >
+          {advisor.profileImg ? (
+            <img
+              src={advisor.profileImg}
+              alt={advisor.name}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              onError={(e) => { e.target.style.display = 'none' }}
+            />
+          ) : (
+            advisor.initials
+          )}
+        </div>
       </div>
 
-      {/* Profile Section */}
-      <div className='px-4 py-4 flex-1 flex flex-col relative'>
-        {/* Profile Image - overlaps banner */}
-        <div className='-mt-12 mb-3 flex-shrink-0 w-fit relative z-10'>
-          <img
-            src={advisor.profileImg}
-            alt={advisor.name}
-            className='w-16 h-16 rounded-full border-2 border-white object-cover shadow-md'
-          />
+      {/* Content */}
+      <div style={{ padding: '28px 14px 12px', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        {/* Name + Title */}
+        <div style={{ fontSize: 13, fontWeight: 800, color: '#163146', letterSpacing: '-0.005em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {advisor.name}
+        </div>
+        <div style={{ fontSize: 11, color: 'rgba(22,49,70,.55)', fontWeight: 500, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {advisor.title}
         </div>
 
-        {/* Location - Top Right */}
-        {advisor.location && (
-          <div className='absolute top-2 right-2 text-right'>
-            <p className='text-[11px] font-semibold text-gray-900'>
-              {advisor.location}
-            </p>
-          </div>
-        )}
-
-        {/* Name and Title */}
-        <div className='min-h-[4rem]'>
-          <div className='flex items-center gap-2 mb-1'>
-            <p className='font-bold text-gray-900 text-sm line-clamp-1 group-hover:text-[#163146] transition-colors'>
-              {advisor.name}
-            </p>
-          </div>
-          <p className='text-xs text-gray-500 mb-2 line-clamp-2'>
-            {advisor.title}
-          </p>
-        </div>
-
-        {/* Specialty Bubbles */}
-        <div className='flex flex-wrap gap-1.5 mb-3 min-h-[2.5rem]'>
-          {advisor.specialties?.slice(0, 2).map((spec, idx) => (
+        {/* Specialty chips */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, margin: '10px 0 10px' }}>
+          {advisor.specialties?.slice(0, 2).map((s, idx) => (
             <span
               key={idx}
-              className='text-[10px] px-2.5 py-0.5 bg-slate-50 text-slate-700 rounded-full font-bold border border-slate-200 truncate flex items-center justify-center tracking-wide'
+              style={{
+                fontSize: 9,
+                fontWeight: 600,
+                padding: '3px 8px',
+                borderRadius: 999,
+                background: 'rgba(22,49,70,.04)',
+                color: '#163146',
+                border: '1px solid rgba(22,49,70,.08)',
+                maxWidth: '100%',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
             >
-              {spec}
+              {s}
             </span>
           ))}
           {advisor.specialties?.length > 2 && (
-            <div className='relative group/tooltip'>
-              <span className='text-[10px] px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full font-bold border border-slate-200 flex items-center justify-center cursor-help transition-colors hover:bg-slate-200'>
-                +{advisor.specialties.length - 2}
-              </span>
-              
-              {/* Tooltip */}
-              <div className='absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max max-w-[150px] p-2 bg-slate-800 text-white text-[10px] rounded-lg opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-200 shadow-xl z-50 text-center leading-relaxed font-medium pointer-events-none'>
-                {advisor.specialties.slice(2).join(', ')}
-                <div className='absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800'></div>
-              </div>
-            </div>
+            <span style={{ fontSize: 9, fontWeight: 700, padding: '3px 7px', borderRadius: 999, background: '#986a41', color: '#fff' }}>
+              +{advisor.specialties.length - 2}
+            </span>
           )}
         </div>
 
-        {/* Stats */}
-        <div className='grid grid-cols-3 gap-1 mb-4 py-2 bg-gray-50 rounded-lg'>
-          <div className='text-center px-1 min-h-[50px] flex flex-col justify-center text-ellipsis overflow-hidden'>
-            <p className='text-[10px] text-gray-500 font-medium leading-tight truncate'>
-              Experience
-            </p>
-            <p className='text-xs font-bold text-gray-900 leading-tight'>
-              {advisor.experience ? (
-                  String(advisor.experience).toLowerCase().includes('year') ? advisor.experience : `${advisor.experience} years`
-              ) : 'N/A'}
-            </p>
-          </div>
-          <div className='text-center px-1 border-l border-r border-gray-200 min-h-[50px] flex flex-col justify-center overflow-hidden'>
-            <p className='text-[10px] text-gray-500 font-medium leading-tight truncate px-1'>
-              Rating
-            </p>
-            <p className={`text-xs font-bold leading-tight ${advisor.rating > 0 ? 'text-gray-900' : 'text-gray-400'}`}>
-              {advisor.rating > 0 ? Number(advisor.rating).toFixed(1) : 'N/A'}
-            </p>
-          </div>
-          <div className='text-center px-1 min-h-[50px] flex flex-col justify-center'>
-            <p className='text-[10px] text-gray-500 font-medium leading-tight truncate'>
-              Connections
-            </p>
-            <p className='text-xs font-bold text-gray-900 leading-tight'>
-              {advisor.connections}
-            </p>
-          </div>
+        {/* Bio — middle area, fills free space */}
+        <div
+          style={{
+            flex: 1,
+            minHeight: 0,
+            fontSize: 11,
+            color: 'rgba(22,49,70,.68)',
+            fontWeight: 500,
+            lineHeight: 1.4,
+            marginBottom: 10,
+            overflow: 'hidden',
+            display: '-webkit-box',
+            WebkitLineClamp: 4,
+            WebkitBoxOrient: 'vertical',
+          }}
+        >
+          {bio}
+        </div>
+
+        {/* Stats — right above buttons */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr 1fr',
+            gap: 2,
+            padding: '9px 0',
+            borderTop: '1px solid rgba(22,49,70,.05)',
+            borderBottom: '1px solid rgba(22,49,70,.05)',
+            marginBottom: 10,
+          }}
+        >
+          {[
+            {
+              k: 'Experience',
+              v: advisor.experience
+                ? (String(advisor.experience).toLowerCase().includes('year') ? advisor.experience : `${advisor.experience} years`)
+                : 'N/A',
+            },
+            {
+              k: 'Rating',
+              v: advisor.rating > 0 ? Number(advisor.rating).toFixed(1) : 'N/A',
+            },
+            {
+              k: 'Connections',
+              v: advisor.connections ?? 0,
+            },
+          ].map((m) => (
+            <div key={m.k} style={{ textAlign: 'center', minWidth: 0, overflow: 'hidden' }}>
+              <div
+                style={{
+                  fontFamily: "'DM Sans', sans-serif",
+                  fontSize: 8,
+                  fontWeight: 900,
+                  letterSpacing: '0.18em',
+                  textTransform: 'uppercase',
+                  color: 'rgba(22,49,70,.4)',
+                  marginBottom: 2,
+                }}
+              >
+                {m.k}
+              </div>
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#163146', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {m.v}
+              </div>
+            </div>
+          ))}
         </div>
 
         {/* Buttons */}
-        <div className='flex gap-2 mt-auto'>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5 }}>
           <motion.button
             onClick={() => onView(advisor)}
-            className='flex-1 py-2 px-2 border border-gray-200 text-gray-900 rounded-lg font-medium text-xs hover:bg-gray-50 transition-colors flex items-center justify-center gap-1'
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 5,
+              padding: 8,
+              borderRadius: 10,
+              background: '#fff',
+              border: '1px solid rgba(22,49,70,.12)',
+              color: '#163146',
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
           >
-            <ExternalLink size={14} />
+            <ExternalLink size={11} strokeWidth={2} />
             View
           </motion.button>
           <motion.button
             onClick={() => onConnect(advisor)}
             disabled={advisor.isBlurred || advisor.connectionStatus !== 'not_connected'}
-            className={`flex-1 py-2 px-2 rounded-lg font-medium text-xs transition-colors flex items-center justify-center gap-1 ${
-              advisor.isBlurred
-                ? 'bg-slate-100 text-slate-400'
-                : advisor.connectionStatus === 'connected' 
-                ? 'bg-emerald-100 text-emerald-700' 
-                : advisor.connectionStatus === 'pending' || advisor.connectionStatus === 'received'
-                  ? 'bg-amber-100 text-amber-700'
-                  : 'bg-[#163146] text-white hover:bg-[#0f2a36]'
-            }`}
             whileHover={!advisor.isBlurred && advisor.connectionStatus === 'not_connected' ? { scale: 1.02 } : {}}
             whileTap={!advisor.isBlurred && advisor.connectionStatus === 'not_connected' ? { scale: 0.98 } : {}}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 5,
+              padding: 8,
+              borderRadius: 10,
+              fontSize: 11,
+              fontWeight: 700,
+              border: 'none',
+              cursor: advisor.isBlurred || advisor.connectionStatus !== 'not_connected' ? 'default' : 'pointer',
+              ...(advisor.isBlurred
+                ? { background: 'rgba(22,49,70,.06)', color: 'rgba(22,49,70,.55)' }
+                : advisor.connectionStatus === 'connected'
+                  ? { background: 'rgba(22,49,70,.06)', color: 'rgba(22,49,70,.55)' }
+                  : advisor.connectionStatus === 'pending' || advisor.connectionStatus === 'received'
+                    ? { background: 'rgba(180,130,60,.12)', color: '#986a41' }
+                    : { background: '#163146', color: '#fff' }),
+            }}
           >
             {advisor.isBlurred ? (
               <>
-                <UserPlus size={14} />
+                <UserPlus size={11} strokeWidth={2} />
                 Upgrade
               </>
             ) : advisor.connectionStatus === 'connected' ? (
               <>
-                <Users size={14} />
+                <Users size={11} strokeWidth={2} />
                 Connected
               </>
             ) : advisor.connectionStatus === 'pending' ? (
               <>
-                <Send size={14} />
+                <Send size={11} strokeWidth={2} />
                 Sent
               </>
             ) : advisor.connectionStatus === 'received' ? (
-                <>
-                  <UserPlus size={14} />
-                  Review
-                </>
+              <>
+                <UserPlus size={11} strokeWidth={2} />
+                Review
+              </>
             ) : (
               <>
-                <UserPlus size={14} />
+                <Plus size={11} strokeWidth={2.5} />
                 Connect
               </>
             )}

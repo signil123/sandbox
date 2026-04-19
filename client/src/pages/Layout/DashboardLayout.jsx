@@ -5,6 +5,7 @@ import {
     Calendar,
     CheckCircle2,
     ChevronDown,
+    ChevronLeft,
     ChevronRight,
     Compass,
     Clock,
@@ -987,178 +988,285 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
 
   const userEmail = currentUser?.email || 'user@example.com'
 
+  const SIDEBAR_W = 228
+
   return (
-    <div className='flex min-h-screen bg-gray-50'>
-      {/* Desktop Sidebar */}
+    <div className='flex min-h-screen' style={{ background: '#ede9df' }}>
+      {/* Desktop Floating Sidebar */}
       {!hideSidebar && (
-        <div className='hidden md:flex fixed left-6 top-1/2 transform -translate-y-1/2 z-40 items-center gap-4'>
-          <div className='bg-white rounded-full p-3 border border-gray-200'>
-            <div className='flex flex-col gap-2'>
-              {/* Navigation Bubbles */}
-              <div className='flex flex-col gap-2.5'>
-                {navItems.map((item) => {
-                  const Icon = item.icon
-                  const isActive = activeNav === item.id
-                  return (
-                    <Link to={item.path} key={item.id}>
-                      <div className='relative'>
-                        <motion.button
-                          className={`relative w-11 h-11 rounded-full flex items-center justify-center transition-colors ${
-                            isActive
-                              ? 'bg-[#163146] text-white'
-                              : 'text-gray-600 hover:bg-gray-100'
-                          }`}
-                          whileHover={{ scale: 1.2 }}
-                          whileTap={{ scale: 0.85 }}
-                          transition={{ duration: 0.12 }}
-                          onMouseEnter={() => setHoveredTooltip(item.id)}
-                          onMouseLeave={() => setHoveredTooltip(null)}
-                        >
-                          <Icon size={20} />
-                          {/* Active indicator ring */}
-                          {isActive && (
-                            <motion.div
-                              className='absolute inset-0 rounded-full border-2 border-[#163146]'
-                              initial={{ scale: 1.15, opacity: 0 }}
-                              animate={{ scale: 1.25, opacity: 0 }}
-                              transition={{
-                                duration: 0.4,
-                                repeat: Infinity,
-                                ease: 'easeOut',
-                              }}
-                            />
-                          )}
-                        </motion.button>
-                        
-                        {/* Unread Message Bubble for Sidebar */}
-                        {item.id === 'messages' && unreadMessagesCount > 0 && (
-                          <div className="absolute top-0 right-0 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center border border-white pointer-events-none z-10">
-                            <span className="text-[9px] font-bold text-white">
-                              {unreadMessagesCount > 99 ? '99+' : unreadMessagesCount}
-                            </span>
+        <aside
+          className='hidden md:flex fixed flex-col z-40'
+          style={{
+            left: 16,
+            top: 16,
+            bottom: 16,
+            width: SIDEBAR_W,
+            background: '#fff',
+            borderRadius: 24,
+            boxShadow: '0 10px 30px -10px rgba(22,49,70,.08), 0 2px 8px -2px rgba(22,49,70,.05)',
+            border: '1px solid rgba(22,49,70,.06)',
+            padding: '20px 14px',
+            overflow: 'hidden',
+          }}
+        >
+          {/* Logo */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', paddingBottom: 20, marginBottom: 4 }}>
+            <img src='/logo.png' alt='Signil' style={{ height: 30, width: 'auto', objectFit: 'contain' }} />
+          </div>
+
+          {/* MENU section */}
+          <p style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,49,70,.32)', padding: '0 14px', marginBottom: 6 }}>Menu</p>
+
+          <nav style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {navItems.slice(0, 5).map((item) => {
+              const Icon = item.icon
+              const isActive = activeNav === item.id
+              return (
+                <Link to={item.path} key={item.id} style={{ textDecoration: 'none' }}>
+                  <motion.button
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                      justifyContent: 'flex-start',
+                      padding: '11px 14px',
+                      borderRadius: 12,
+                      background: isActive ? '#163146' : 'transparent',
+                      color: isActive ? '#fff' : '#163146',
+                      fontSize: 13,
+                      fontWeight: isActive ? 700 : 500,
+                      width: '100%',
+                      border: 'none',
+                      cursor: 'pointer',
+                    }}
+                    whileHover={{ backgroundColor: isActive ? '#163146' : 'rgba(22,49,70,.05)' }}
+                  >
+                    <div style={{ position: 'relative', flexShrink: 0 }}>
+                      <Icon size={18} strokeWidth={1.7} />
+                      {item.id === 'messages' && unreadMessagesCount > 0 && (
+                        <div style={{ position: 'absolute', top: -4, right: -4, width: 14, height: 14, background: '#ef4444', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #fff' }}>
+                          <span style={{ fontSize: 8, fontWeight: 700, color: '#fff' }}>{unreadMessagesCount > 99 ? '99+' : unreadMessagesCount}</span>
+                        </div>
+                      )}
+                    </div>
+                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden' }}>{item.label}</span>
+                  </motion.button>
+                </Link>
+              )
+            })}
+          </nav>
+
+          {/* GENERAL section */}
+          <p style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,49,70,.32)', padding: '0 14px', margin: '20px 0 6px' }}>General</p>
+
+          <nav style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {/* Scout toggle */}
+            <motion.button
+              onClick={() => setIsScoutSidebarOpen(prev => !prev)}
+              style={{
+                display: 'flex', alignItems: 'center',
+                gap: 12,
+                justifyContent: 'flex-start',
+                padding: '11px 14px',
+                borderRadius: 12,
+                background: isScoutSidebarOpen ? 'rgba(22,49,70,.06)' : 'transparent',
+                color: '#163146', fontSize: 13, fontWeight: 500,
+                width: '100%', border: 'none', cursor: 'pointer',
+              }}
+              whileHover={{ backgroundColor: 'rgba(22,49,70,.05)' }}
+            >
+              <img src='/scout.png' alt='Scout' style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }} />
+              <span>Scout</span>
+            </motion.button>
+
+            {/* Notifications */}
+            <motion.button
+              onClick={() => { const newOpen = !isNotificationOpen; setIsNotificationOpen(newOpen); if (newOpen) handleMarkAllAsRead() }}
+              style={{
+                display: 'flex', alignItems: 'center',
+                gap: 12,
+                justifyContent: 'flex-start',
+                padding: '11px 14px',
+                borderRadius: 12,
+                background: 'transparent',
+                color: '#163146', fontSize: 13, fontWeight: 500,
+                width: '100%', border: 'none', cursor: 'pointer',
+                position: 'relative',
+              }}
+              whileHover={{ backgroundColor: 'rgba(22,49,70,.05)' }}
+            >
+              <div style={{ position: 'relative', flexShrink: 0 }}>
+                <Bell size={18} strokeWidth={1.7} />
+                {effectiveUnreadCount > 0 && (
+                  <div style={{ position: 'absolute', top: -4, right: -4, width: 14, height: 14, background: '#163146', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #fff' }}>
+                    <span style={{ fontSize: 8, fontWeight: 700, color: '#fff' }}>{effectiveUnreadCount > 9 ? '9+' : effectiveUnreadCount}</span>
+                  </div>
+                )}
+              </div>
+              <span>Notifications</span>
+            </motion.button>
+          </nav>
+
+          {/* Footer: profile + logout */}
+          <div style={{ marginTop: 'auto', paddingTop: 16, borderTop: '1px solid rgba(22,49,70,.06)' }}>
+            <>
+                <div
+                  ref={profileRef}
+                  style={{ position: 'relative' }}
+                >
+                  <motion.button
+                    onClick={() => setIsProfileOpen(!isProfileOpen)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 10, width: '100%', textAlign: 'left', border: 'none', background: 'transparent', cursor: 'pointer' }}
+                    whileHover={{ backgroundColor: 'rgba(22,49,70,.04)' }}
+                  >
+                    <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'linear-gradient(135deg,#986a41,#7a5435)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 11, fontWeight: 700, flexShrink: 0, overflow: 'hidden' }}>
+                      {currentUser?.profileImage ? (
+                        <img src={getImageUrl(currentUser.profileImage)} alt='Profile' style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        userFullName.split(' ').map(n => n[0]).join('').toUpperCase()
+                      )}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#163146', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{userFullName}</div>
+                      <div style={{ fontSize: 10, color: 'rgba(22,49,70,.5)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{currentUser?.tier ? `${currentUser.tier} plan` : 'free plan'}</div>
+                    </div>
+                    <ChevronDown size={14} strokeWidth={2} style={{ color: 'rgba(22,49,70,.4)', flexShrink: 0 }} />
+                  </motion.button>
+
+                  {/* Profile Dropdown */}
+                  <AnimatePresence>
+                    {isProfileOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                        transition={{ duration: 0.15 }}
+                        style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, marginBottom: 8, background: '#fff', border: '1px solid rgba(22,49,70,.08)', borderRadius: 16, overflow: 'hidden', zIndex: 50, boxShadow: '0 20px 40px -10px rgba(22,49,70,.15)' }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {/* Status selectors */}
+                        {currentUser?.role !== 'admin' && (
+                          <div style={{ padding: '12px 12px 8px' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4 }}>
+                              {[
+                                { id: 'online', label: 'Online', icon: CheckCircle2 },
+                                { id: 'away', label: 'Away', icon: Clock },
+                                { id: 'idle', label: 'Idle', icon: Eye }
+                              ].map((s) => (
+                                <motion.button
+                                  key={s.id}
+                                  whileTap={{ scale: 0.98 }}
+                                  onClick={(e) => { e.stopPropagation(); isAutoAwayRef.current = false; dispatch(updateUserStatus(s.id)) }}
+                                  style={{
+                                    padding: '8px 4px', borderRadius: 10, fontSize: 10, fontWeight: 700,
+                                    background: currentUser?.status === s.id ? '#163146' : 'rgba(22,49,70,.04)',
+                                    color: currentUser?.status === s.id ? '#fff' : '#163146',
+                                    border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3,
+                                  }}
+                                >
+                                  <s.icon size={11} /> {s.label}
+                                </motion.button>
+                              ))}
+                            </div>
                           </div>
                         )}
-
-                        {/* Tooltip */}
-                        <Tooltip
-                          text={item.label}
-                          visible={hoveredTooltip === item.id}
-                        />
-                      </div>
-                    </Link>
-                  )
-                })}
-                {/* Divider */}
-                <div className='h-px bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200'></div>
-                {/* Scout Toggle */}
-                <div className='relative'>
-                  <motion.button
-                    onClick={() => setIsScoutSidebarOpen((prev) => !prev)}
-                    className={`relative w-11 h-11 rounded-full flex items-center justify-center transition-colors ${
-                      isScoutSidebarOpen
-                        ? 'bg-gray-200 text-gray-700'
-                        : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                    whileHover={{ scale: 1.2 }}
-                    whileTap={{ scale: 0.85 }}
-                    transition={{ duration: 0.12 }}
-                    onMouseEnter={() => setHoveredTooltip('scout-toggle')}
-                    onMouseLeave={() => setHoveredTooltip(null)}
-                  >
-                    <img
-                      src='/scout.png'
-                      alt='Scout AI'
-                      className='w-5 h-5 object-contain'
-                    />
-                  </motion.button>
-                  <Tooltip
-                    text={isScoutSidebarOpen ? 'Hide Scout' : 'Show Scout'}
-                    visible={hoveredTooltip === 'scout-toggle'}
-                  />
-                </div>
-                {/* Logout Button */}
-                <div className='relative'>
-                  <motion.button
-                    onClick={() => setIsLogoutModalOpen(true)}
-                    className='relative w-11 h-11 rounded-full flex items-center justify-center transition-colors text-gray-600 hover:bg-red-50 hover:text-red-600'
-                    whileHover={{ scale: 1.2 }}
-                    whileTap={{ scale: 0.85 }}
-                    transition={{ duration: 0.12 }}
-                    onMouseEnter={() => setHoveredTooltip('logout')}
-                    onMouseLeave={() => setHoveredTooltip(null)}
-                  >
-                    <LogOut size={20} />
-                  </motion.button>
-                  {/* Tooltip */}
-                  <Tooltip text='Logout' visible={hoveredTooltip === 'logout'} />
-                </div>
-              </div>
-            </div>
-          </div>
-          {isScoutSidebarOpen && (
-          <div className='hidden lg:flex w-[320px] h-[520px] bg-white border border-gray-200 rounded-3xl shadow-sm flex-col overflow-hidden'>
-            <div className='px-4 py-3 bg-[#163146] text-white flex items-center justify-between'>
-              <div className='flex items-center gap-2.5'>
-                <img src='/scout.png' alt='Signil Scout' className='w-7 h-7 rounded-full bg-white/90 p-1' />
-                <div>
-                  <p className='text-sm font-bold leading-none'>Scout AI</p>
-                  <p className='text-[10px] text-gray-200 mt-1'>Signil assistant</p>
-                </div>
-              </div>
-              <div className='flex items-center gap-2'>
-                <button
-                  onClick={startNewScoutChat}
-                  className='px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-[10px] font-bold uppercase tracking-wide transition-colors'
-                  aria-label='New chat'
-                >
-                  New chat
-                </button>
-                <button
-                  onClick={() => setIsScoutSidebarOpen(false)}
-                  className='w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors'
-                  aria-label='Close Scout'
-                >
-                  <X size={14} className='text-white' />
-                </button>
-              </div>
-            </div>
-
-            <div className='flex-1 overflow-y-auto px-3 py-3 space-y-3 bg-gray-50/70'>
-              {scoutMessages.map((message) => (
-                <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div
-                    className={`max-w-[92%] rounded-2xl px-3 py-2 ${
-                      message.role === 'user'
-                        ? 'bg-[#163146] text-white rounded-br-md'
-                        : 'bg-white text-gray-700 border border-gray-200 rounded-bl-md'
-                    }`}
-                  >
-                    <p className='text-xs leading-relaxed whitespace-pre-wrap'>{message.content}</p>
-                    {Array.isArray(message.suggestions) && message.suggestions.length > 0 && (
-                      <div className='mt-2.5 space-y-2'>
-                        {message.suggestions.map((suggestion) => (
+                        <div style={{ borderTop: '1px solid rgba(22,49,70,.06)' }}>
+                          {currentUser?.role !== 'admin' && ['advisor', 'agent'].includes(currentUser?.userType) && (
+                            <Link to='/settings' style={{ textDecoration: 'none' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', fontSize: 12, fontWeight: 600, color: '#163146', cursor: 'pointer' }} onClick={() => setIsProfileOpen(false)}>
+                                <CreditCard size={15} strokeWidth={1.7} style={{ color: '#986a41' }} /> Subscription
+                              </div>
+                            </Link>
+                          )}
+                          <Link to='/settings' style={{ textDecoration: 'none' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', fontSize: 12, fontWeight: 600, color: '#163146', cursor: 'pointer' }} onClick={() => setIsProfileOpen(false)}>
+                              <Settings size={15} strokeWidth={1.7} style={{ color: 'rgba(22,49,70,.5)' }} /> Settings
+                            </div>
+                          </Link>
                           <button
-                            key={suggestion.userId}
-                            onClick={() => navigate(suggestion.profilePath || `/profile/public/${suggestion.userId}`)}
-                            className='w-full text-left bg-[#f7f8fa] border border-gray-200 rounded-xl p-2.5 hover:border-[#163146]/30 hover:bg-white transition-colors'
+                            onClick={() => { setIsProfileOpen(false); setIsLogoutModalOpen(true) }}
+                            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', fontSize: 12, fontWeight: 600, color: '#ef4444', width: '100%', border: 'none', background: 'transparent', cursor: 'pointer', borderTop: '1px solid rgba(22,49,70,.06)' }}
                           >
-                            <p className='text-xs font-semibold text-gray-900'>{suggestion.name}</p>
-                            <p className='text-[11px] text-gray-600 mt-0.5 capitalize'>
-                              {suggestion.userType}
-                              {suggestion.sport ? ` • ${suggestion.sport}` : ''}
-                            </p>
+                            <LogOut size={15} strokeWidth={1.7} /> Logout
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+                <motion.button
+                  onClick={() => setIsLogoutModalOpen(true)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', borderRadius: 12, color: '#163146', fontSize: 13, fontWeight: 500, textAlign: 'left', marginTop: 2, width: '100%', border: 'none', background: 'transparent', cursor: 'pointer' }}
+                  whileHover={{ backgroundColor: 'rgba(22,49,70,.05)' }}
+                >
+                  <LogOut size={17} strokeWidth={1.7} />
+                  <span>Logout</span>
+                </motion.button>
+              </>
+          </div>
+        </aside>
+      )}
+
+      {/* Scout Sidebar Panel (floating next to main sidebar) */}
+      <AnimatePresence>
+        {!hideSidebar && isScoutSidebarOpen && (
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.2 }}
+            className='hidden lg:flex'
+            style={{
+              position: 'fixed',
+              left: SIDEBAR_W + 32,
+              top: 16,
+              bottom: 16,
+              width: 300,
+              background: '#fff',
+              borderRadius: 24,
+              boxShadow: '0 10px 30px -10px rgba(22,49,70,.08)',
+              border: '1px solid rgba(22,49,70,.06)',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              zIndex: 39,
+            }}
+          >
+            <div style={{ padding: '14px 16px', background: '#163146', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(255,255,255,.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                  <img src='/scout.png' alt='' style={{ width: 20, height: 20, objectFit: 'contain', filter: 'brightness(0) invert(1)' }} onError={(e) => { e.target.style.display = 'none' }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 800 }}>Scout AI</div>
+                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,.55)', fontWeight: 500 }}>Signil assistant</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <button onClick={startNewScoutChat} style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.15em', padding: '5px 9px', borderRadius: 6, background: 'rgba(255,255,255,.1)', color: '#fff', border: 'none', cursor: 'pointer' }}>NEW CHAT</button>
+                <button onClick={() => setIsScoutSidebarOpen(false)} style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(255,255,255,.1)', color: '#fff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <X size={14} />
+                </button>
+              </div>
+            </div>
+            <div className='flex-1 overflow-y-auto' style={{ padding: '12px', background: '#faf7f2', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {scoutMessages.map((message) => (
+                <div key={message.id} style={{ display: 'flex', justifyContent: message.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                  <div style={{ maxWidth: '92%', background: message.role === 'user' ? '#163146' : '#fff', color: message.role === 'user' ? '#fff' : '#163146', borderRadius: message.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px', padding: '10px 12px', fontSize: 12, lineHeight: 1.55, border: message.role === 'user' ? 'none' : '1px solid rgba(22,49,70,.08)' }}>
+                    <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{message.content}</p>
+                    {Array.isArray(message.suggestions) && message.suggestions.length > 0 && (
+                      <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {message.suggestions.map((suggestion) => (
+                          <button key={suggestion.userId} onClick={() => navigate(suggestion.profilePath || `/profile/public/${suggestion.userId}`)} style={{ textAlign: 'left', background: '#f7f8fa', border: '1px solid rgba(22,49,70,.1)', borderRadius: 10, padding: '8px 10px', cursor: 'pointer' }}>
+                            <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: '#163146' }}>{suggestion.name}</p>
+                            <p style={{ margin: 0, fontSize: 10, color: 'rgba(22,49,70,.55)' }}>{suggestion.userType}{suggestion.sport ? ` • ${suggestion.sport}` : ''}</p>
                           </button>
                         ))}
                       </div>
                     )}
                     {Array.isArray(message.options) && message.options.length > 0 && (
-                      <div className='mt-2.5 flex flex-wrap gap-2'>
+                      <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 5 }}>
                         {message.options.map((option) => (
-                          <button
-                            key={`${message.id}-${option.value}`}
-                            onClick={() => handleScoutOptionClick(option.value)}
-                            className='px-2.5 py-1.5 rounded-full text-[10px] font-semibold bg-white text-[#163146] border border-[#163146]/20 hover:border-[#163146]/40 transition-colors'
-                          >
+                          <button key={`${message.id}-${option.value}`} onClick={() => handleScoutOptionClick(option.value)} style={{ padding: '5px 10px', borderRadius: 999, fontSize: 10, fontWeight: 600, background: '#fff', color: '#163146', border: '1px solid rgba(22,49,70,.2)', cursor: 'pointer' }}>
                             {option.label}
                           </button>
                         ))}
@@ -1168,290 +1276,51 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
                 </div>
               ))}
               {isScoutLoading && (
-                <div className='flex justify-start'>
-                  <div className='bg-white text-gray-500 border border-gray-200 rounded-2xl rounded-bl-md px-3 py-2 text-xs'>
-                    Scout is finding the best matches...
-                  </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                  <div style={{ background: '#fff', border: '1px solid rgba(22,49,70,.08)', borderRadius: '14px 14px 14px 4px', padding: '10px 12px', fontSize: 12, color: 'rgba(22,49,70,.5)' }}>Scout is finding the best matches...</div>
                 </div>
               )}
               <div ref={scoutEndRef} />
             </div>
-
-            <div className='border-t border-gray-100 p-3 bg-white'>
-              <div className='flex items-center gap-2'>
-                <input
-                  type='text'
-                  value={scoutInput}
-                  onChange={(event) => setScoutInput(event.target.value)}
-                  onKeyDown={handleScoutKeyDown}
-                  placeholder='Ask for athletes, advisors, or skills...'
-                  className='flex-1 px-3 py-2.5 bg-gray-100 rounded-xl text-xs text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#163146]/30'
-                />
-                <button
-                  onClick={sendScoutMessage}
-                  disabled={isScoutLoading || !scoutInput.trim()}
-                  className='w-10 h-10 rounded-xl bg-[#986a41] text-white flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed'
-                >
-                  <Send size={16} />
-                </button>
-              </div>
+            <div style={{ padding: '10px 12px', borderTop: '1px solid rgba(22,49,70,.06)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input type='text' value={scoutInput} onChange={(e) => setScoutInput(e.target.value)} onKeyDown={handleScoutKeyDown} placeholder='Ask for athletes, advisors, or skills...' style={{ flex: 1, background: '#f4f1ea', border: 0, borderRadius: 10, padding: '9px 12px', fontSize: 11, color: '#163146', fontFamily: 'inherit', outline: 'none' }} />
+              <button onClick={sendScoutMessage} disabled={isScoutLoading || !scoutInput.trim()} style={{ width: 32, height: 32, borderRadius: 10, background: '#986a41', color: '#fff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: (isScoutLoading || !scoutInput.trim()) ? 0.5 : 1 }}>
+                <Send size={13} strokeWidth={2} />
+              </button>
             </div>
-          </div>
-          )}
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* Top Bar - Full Width */}
+      {/* Notifications Drawer trigger is now in sidebar; drawer itself lives here */}
+
+      {/* (Top bar removed — greeting is now part of DashboardPage for the new design) */}
+      {/* Mobile-only top bar for small screens */}
       <motion.header
-        className='fixed top-0 left-0 right-0 z-30 bg-white border-b border-gray-200'
+        className='md:hidden fixed top-0 left-0 right-0 z-30 bg-white border-b border-gray-100'
         initial={{ y: -80, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.3, ease: 'easeOut' }}
       >
-        <div className='px-4 md:px-8 py-3'>
-          <div className='flex items-center justify-between gap-4'>
-            {/* Logo */}
-            <img
-              src='/logo.png'
-              alt='Signil'
-              className='h-8 w-auto object-contain'
-            />
-
-            {/* Right Section - Bubble Style */}
-            <div className='flex items-center gap-2'>
-              {/* Notifications Bubble */}
-              <div className='relative'>
-                <motion.button
-                  onClick={() => {
-                        const newIsOpen = !isNotificationOpen
-                        setIsNotificationOpen(newIsOpen)
-                        if (newIsOpen) {
-                            handleMarkAllAsRead()
-                        }
-                  }}
-                  className='relative w-10 h-10 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 flex items-center justify-center transition-colors'
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.85 }}
-                  transition={{ duration: 0.12 }}
-                >
-                  <Bell size={20} />
-                  {effectiveUnreadCount > 0 && (
-                    <motion.span
-                      className='absolute -top-1.5 -right-1.5 w-5 h-5 bg-[#163146] rounded-full text-white text-[10px] font-bold flex items-center justify-center'
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{ type: 'spring', stiffness: 200 }}
-                    >
-                      {effectiveUnreadCount > 9 ? '9+' : effectiveUnreadCount}
-                    </motion.span>
-                  )}
-                </motion.button>
-
-                {/* Notifications Drawer */}
-              </div>
-
-              {/* Divider */}
-              <div className='w-px h-6 bg-gray-200'></div>
-
-              {/* Profile Bubble */}
-              <div className='relative' ref={profileRef}>
-                <motion.button
-                  onClick={() => setIsProfileOpen(!isProfileOpen)}
-                  className='flex items-center gap-2 p-1.5 hover:bg-gray-100 rounded-full transition-colors'
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  transition={{ duration: 0.12 }}
-                >
-                  <div className='w-8 h-8 bg-gradient-to-br from-[#163146] to-[#0f1f27] rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden relative'>
-                    {currentUser?.profileImage ? (
-                      <img
-                        src={getImageUrl(currentUser.profileImage)}
-                        alt='Profile'
-                        className='w-full h-full object-cover'
-                      />
-                    ) : (
-                      <div className='w-full h-full flex items-center justify-center text-white text-xs font-bold'>
-                        {userFullName.split(' ').map(n => n[0]).join('').toUpperCase()}
-                      </div>
-                    )}
-                  </div>
-                  {/* Status Indicator on Avatar */}
-                  <div className={`absolute bottom-1 right-8 w-2.5 h-2.5 rounded-full border-2 border-white ${
-                    currentUser?.status === 'online' ? 'bg-green-500' : 
-                    currentUser?.status === 'away' ? 'bg-amber-500' : 
-                    currentUser?.status === 'idle' ? 'bg-amber-300' : 'bg-gray-400'
-                  }`} />
-                  <ChevronDown
-                    size={16}
-                    className={`text-gray-400 transition-transform ${
-                      isProfileOpen ? 'rotate-180' : ''
-                    }`}
-                  />
-                </motion.button>
-
-                {/* Profile Dropdown */}
-                <AnimatePresence>
-                  {isProfileOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                      transition={{ duration: 0.15 }}
-                      className='absolute right-0 mt-2 w-72 bg-white border border-gray-200 rounded-2xl overflow-hidden z-50 shadow-xl shadow-slate-900/5'
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {/* User Info */}
-                      <div className='px-4 py-4 border-b border-gray-100 bg-gradient-to-b from-stone-50/90 to-white'>
-                        <div className='flex items-center gap-3'>
-                          <div className='w-14 h-14 rounded-full bg-gradient-to-br from-[#d3a86f] to-[#986a41] p-[3px] shadow-sm shrink-0'>
-                            <div className='w-full h-full rounded-full bg-gradient-to-br from-[#163146] to-[#0f1f27] flex items-center justify-center overflow-hidden'>
-                              {currentUser?.profileImage ? (
-                                <img
-                                  src={getImageUrl(currentUser.profileImage)}
-                                  alt='Profile'
-                                  className='w-full h-full object-cover'
-                                />
-                              ) : (
-                                <div className='text-white text-xl font-semibold'>
-                                  {userFullName.split(' ').map((n) => n[0]).join('').toUpperCase()}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          <div className='min-w-0'>
-                            <p className='text-xl font-black tracking-tight text-gray-900 truncate'>
-                              {userFullName}
-                            </p>
-                            <p className='text-sm text-gray-500 truncate mt-0.5'>
-                              {userEmail}
-                            </p>
-                          </div>
-                        </div>
-                        {currentUser?.role !== 'admin' && (
-                          <div className='mt-3 w-full flex items-center justify-center rounded-xl bg-slate-100 px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-[#163146]'>
-                            {(currentUser?.tier || 'free')} plan
-                          </div>
-                        )}
-                      </div>
-
-                      {currentUser?.role !== 'admin' && (
-                        <div className='px-4 py-4 border-b border-gray-100 bg-white'>
-                          <div className='rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white px-3 py-3'>
-                          <div className='flex items-center justify-between mb-3'>
-                            <div className='flex items-center gap-2'>
-                              <div className={`w-2 h-2 rounded-full ${
-                                currentUser?.status === 'online' ? 'bg-green-500' :
-                                currentUser?.status === 'away' ? 'bg-amber-500' :
-                                currentUser?.status === 'idle' ? 'bg-amber-300' : 'bg-gray-400'
-                              }`} />
-                              <span className='text-[10px] font-bold text-gray-400 uppercase tracking-widest'>Presence</span>
-                            </div>
-                            <span className='text-[10px] font-semibold text-gray-700 capitalize'>
-                              {currentUser?.status || 'offline'}
-                            </span>
-                          </div>
-                          <div className='grid grid-cols-3 gap-2'>
-                            {[
-                              { id: 'online', label: 'Online', icon: CheckCircle2 },
-                              { id: 'away', label: 'Away', icon: Clock },
-                              { id: 'idle', label: 'Idle', icon: Eye }
-                            ].map((s) => (
-                              <motion.button
-                                key={s.id}
-                                whileHover={{ y: -1 }}
-                                whileTap={{ scale: 0.98 }}
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  isAutoAwayRef.current = false
-                                  dispatch(updateUserStatus(s.id))
-                                }}
-                                className={`group relative py-2.5 rounded-2xl border text-center transition-all ${
-                                  currentUser?.status === s.id
-                                    ? 'bg-[#163146] border-transparent text-white shadow-sm'
-                                    : 'bg-stone-50 border-stone-100 text-gray-600 hover:border-stone-200 hover:bg-white'
-                                }`}
-                              >
-                                <span className='flex items-center justify-center gap-1'>
-                                  <s.icon size={12} className='opacity-90' />
-                                  <span className='text-[10px] font-bold tracking-tight'>{s.label}</span>
-                                </span>
-                              </motion.button>
-                            ))}
-                          </div>
-                          </div>
-                        </div>
-                      )}
-                      {/* Menu Items */}
-                      {currentUser?.role !== 'admin' && (
-                        <div className='py-1 divide-y divide-gray-100'>
-                          {['advisor', 'agent'].includes(currentUser?.userType) && (
-                            <Link to="/settings">
-                              <motion.div
-                                className='flex items-center justify-between gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer'
-                                whileHover={{ x: 4 }}
-                                transition={{ duration: 0.1 }}
-                              >
-                                <span className='flex items-center gap-3'>
-                                  <CreditCard size={18} className='text-[#986a41]' />
-                                  <span className='font-semibold'>Subscription</span>
-                                </span>
-                                <ChevronRight size={16} className='text-gray-400' />
-                              </motion.div>
-                            </Link>
-                          )}
-                          <Link to="/settings">
-                            <motion.div
-                              className='flex items-center justify-between gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer'
-                              whileHover={{ x: 4 }}
-                              transition={{ duration: 0.1 }}
-                            >
-                              <span className='flex items-center gap-3'>
-                                <Settings size={18} className='text-gray-400' />
-                                <span className='font-semibold'>Settings</span>
-                              </span>
-                              <ChevronRight size={16} className='text-gray-400' />
-                            </motion.div>
-                          </Link>
-                        </div>
-                      )}
-                      {currentUser?.role === 'admin' && (
-                        <div className='py-2'>
-                          <Link to="/admin">
-                            <motion.div
-                              className='flex items-center gap-3 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer md:hidden'
-                              whileHover={{ x: 4 }}
-                              transition={{ duration: 0.1 }}
-                            >
-                              <Shield size={18} className='text-[#986a41]' />
-                              <span className='font-bold'>Admin Portal</span>
-                            </motion.div>
-                          </Link>
-                        </div>
-                      )}
-                      {/* Logout */}
-                      <div className='border-t border-gray-100 py-2'>
-                        <motion.button
-                          onClick={() => {
-                            setIsProfileOpen(false)
-                            setIsLogoutModalOpen(true)
-                          }}
-                          className='flex items-center gap-3 w-full px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors'
-                          whileHover={{ x: 4 }}
-                          transition={{ duration: 0.1 }}
-                        >
-                          <LogOut size={18} />
-                          <span className='font-medium'>Logout</span>
-                        </motion.button>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            </div>
+        <div className='px-4 py-3 flex items-center justify-between'>
+          <img src='/logo.png' alt='Signil' className='h-7 w-auto object-contain' />
+          <div className='flex items-center gap-2'>
+            <motion.button
+              onClick={() => { const newIsOpen = !isNotificationOpen; setIsNotificationOpen(newIsOpen); if (newIsOpen) handleMarkAllAsRead() }}
+              className='relative w-9 h-9 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 flex items-center justify-center'
+              whileTap={{ scale: 0.85 }}
+            >
+              <Bell size={18} />
+              {effectiveUnreadCount > 0 && (
+                <span className='absolute -top-1 -right-1 w-4 h-4 bg-[#163146] rounded-full text-white text-[9px] font-bold flex items-center justify-center'>
+                  {effectiveUnreadCount > 9 ? '9+' : effectiveUnreadCount}
+                </span>
+              )}
+            </motion.button>
           </div>
         </div>
       </motion.header>
-                <AnimatePresence mode='wait'>
+      <AnimatePresence mode='wait'>
                   {isNotificationOpen && (
                     <>
                       {/* Backdrop */}
@@ -1765,7 +1634,11 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
 
       {/* Main Content Wrapper */}
       <motion.div
-        className='flex-1 flex flex-col md:pl-20 pt-16'
+        className='flex-1 flex flex-col pt-14 md:pt-0'
+        style={{ marginLeft: 0 }}
+        drag='x'
+        dragConstraints={{ left: 0, right: 0 }}
+        dragElastic={0.1}
         onDragEnd={(e, { offset, velocity }) => {
           const swipe = Math.abs(offset.x) > 50 && Math.abs(velocity.x) > 500
           if (swipe) {

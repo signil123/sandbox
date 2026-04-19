@@ -572,7 +572,9 @@ const CalendarPage = () => {
 
   return (
     <DashboardLayout>
-      <div className='w-full h-full max-w-8xl mx-auto flex flex-col px-4 md:px-8 py-6 gap-6 bg-stone-50'>
+      {/* Responsive frame: on desktop, lock to viewport (no page scroll); on mobile, scrollable */}
+      <div className='md:fixed md:left-[260px] md:right-4 md:top-4 md:bottom-4 md:overflow-hidden flex flex-col'>
+      <div className='w-full h-full flex flex-col gap-4 md:bg-white md:rounded-[18px] md:border md:border-[rgba(22,49,70,0.05)] md:px-5 md:py-4 md:overflow-hidden bg-stone-50 px-4 py-6'>
 
         {/* Header */}
         <motion.div
@@ -1337,6 +1339,7 @@ const CalendarPage = () => {
             </motion.div>
           )}
         </div>
+      </div>
       </div>
 
       {/* Add Event Modal */}
