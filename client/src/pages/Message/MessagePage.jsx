@@ -1840,17 +1840,6 @@ function MessagePage() {
             padding-bottom: max(env(safe-area-inset-bottom), 12px);
           }
         }
-        @media (min-width: 768px) {
-          .message-page-container {
-            position: fixed;
-            left: 260px;
-            right: 16px;
-            top: 16px;
-            bottom: 16px;
-            height: auto;
-            overflow: hidden;
-          }
-        }
         .bg-brand-primary { background-color: #163146; }
         .text-brand-primary { color: #163146; }
         .bg-brand-accent { background-color: #926435; }
@@ -1868,8 +1857,9 @@ function MessagePage() {
             overflow: hidden;
         }
       `}</style>
+      <div className='md:fixed md:left-[260px] md:right-4 md:top-4 md:bottom-4 md:overflow-hidden flex flex-col'>
       <div
-        className='message-page-container w-full mx-auto max-w-8xl flex flex-col lg:flex-row gap-2 md:gap-4 px-4 md:px-8 py-6 overflow-hidden bg-stone-50'
+        className='message-page-container w-full h-full flex flex-col lg:flex-row gap-2 md:gap-4 px-4 md:px-5 py-6 md:py-4 overflow-hidden bg-stone-50 md:bg-white md:rounded-[18px] md:border md:border-[rgba(22,49,70,0.05)]'
         onMouseDown={handleDragStart}
         onMouseUp={handleDragEnd}
         onTouchStart={handleDragStart}
@@ -2994,6 +2984,7 @@ function MessagePage() {
             <p className='text-gray-500 font-medium'>Select a conversation to start messaging</p>
           </div>
         )}
+      </div>
       </div>
 
       {/* Profile Popup for Users */}

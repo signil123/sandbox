@@ -1018,7 +1018,7 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
           <p style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,49,70,.32)', padding: '0 14px', marginBottom: 6 }}>Menu</p>
 
           <nav style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            {navItems.slice(0, 5).map((item) => {
+            {navItems.filter((item) => item.id !== 'admin').map((item) => {
               const Icon = item.icon
               const isActive = activeNav === item.id
               return (

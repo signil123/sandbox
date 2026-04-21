@@ -425,7 +425,7 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
         currentUser={currentUser}
       />
 
-      <div className='w-full h-full max-w-8xl mx-auto flex flex-col bg-gradient-to-br from-slate-50 to-slate-100 min-h-screen'>
+      <div className='md:fixed md:left-[260px] md:right-4 md:top-4 md:bottom-4 md:overflow-y-auto w-full h-full max-w-8xl mx-auto flex flex-col bg-gradient-to-br from-slate-50 to-slate-100 min-h-screen md:min-h-0 md:rounded-[18px] md:border md:border-[rgba(22,49,70,0.05)]'>
         <motion.div
           className='mx-auto px-4 py-6 max-w-8xl w-full'
           variants={containerVariants}

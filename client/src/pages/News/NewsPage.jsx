@@ -63,8 +63,8 @@ const NewsPage = () => {
 
   return (
     <DashboardLayout>
-      <div className='md:fixed md:left-[260px] md:right-4 md:top-4 md:bottom-4 md:overflow-hidden w-full h-[calc(100vh-64px)] md:h-auto bg-[#F9FAFB] overflow-hidden flex flex-col'>
-        <div className='mx-auto px-4 md:px-5 py-6 md:py-4 w-full max-w-8xl flex-1 flex flex-col min-h-0'>
+      <div className='md:fixed md:left-[260px] md:right-4 md:top-4 md:bottom-4 md:overflow-hidden h-[calc(100vh-64px)] md:h-auto overflow-hidden flex flex-col'>
+        <div className='w-full h-full flex-1 flex flex-col min-h-0 md:bg-white md:rounded-[18px] md:border md:border-[rgba(22,49,70,0.05)] md:px-5 md:py-4 md:overflow-hidden bg-[#F9FAFB] px-4 py-6'>
           
           {/* Header */}
           <div className='mb-6 flex-shrink-0 flex items-baseline justify-between'>

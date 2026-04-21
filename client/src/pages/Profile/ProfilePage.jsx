@@ -733,20 +733,20 @@ const ProfileSkeleton = () => (
     <DashboardLayout>
       <Toaster position='bottom-right' theme='dark' />
 
-      <div className='md:fixed md:left-[260px] md:right-4 md:top-4 md:bottom-4 md:overflow-y-auto w-full h-full max-w-8xl mx-auto flex flex-col bg-gradient-to-br from-slate-50 to-slate-100 min-h-screen md:min-h-0'>
+      <div className='md:fixed md:left-[260px] md:right-4 md:top-4 md:bottom-4 md:overflow-y-auto w-full h-full max-w-8xl mx-auto flex flex-col bg-gradient-to-br from-slate-50 to-slate-100 min-h-screen md:min-h-0 md:rounded-[18px] md:border md:border-[rgba(22,49,70,0.05)]'>
         <motion.div
-          className='mx-auto px-4 py-6 max-w-8xl w-full'
+          className='mx-auto px-4 py-4 max-w-8xl w-full'
           variants={containerVariants}
           initial='hidden'
           animate='visible'
         >
-          <motion.div variants={itemVariants} className='mb-6'>
-            <div className='flex flex-col md:flex-row md:items-center md:justify-between gap-4'>
+          <motion.div variants={itemVariants} className='mb-3'>
+            <div className='flex flex-col md:flex-row md:items-center md:justify-between gap-3'>
               <div>
-                <h1 className='text-3xl font-bold text-slate-900 tracking-tight'>
+                <h1 className='text-2xl font-bold text-slate-900 tracking-tight'>
                   Your Profile
                 </h1>
-                <p className='text-xs text-slate-600 mt-1'>
+                <p className='text-xs text-slate-600 mt-0.5'>
                   Complete your profile to unlock opportunities
                 </p>
               </div>
@@ -763,15 +763,15 @@ const ProfileSkeleton = () => (
           </motion.div>
 
           {/* Main Grid */}
-          <div className='grid grid-cols-1 lg:grid-cols-3 gap-4'>
+          <div className='grid grid-cols-1 lg:grid-cols-3 gap-3'>
             {/* Left Content */}
-            <div className='lg:col-span-2 space-y-6'>
+            <div className='lg:col-span-2 space-y-3'>
               {/* Profile Card */}
               <motion.div variants={itemVariants}>
                 <div className='bg-white rounded-2xl border border-slate-200 overflow-hidden'>
                   {/* Hero */}
                   <div
-                    className='h-32 relative z-0 group/banner overflow-hidden'
+                    className='h-20 relative z-0 group/banner overflow-hidden'
                     style={profileData.banner 
                       ? { backgroundImage: `url(${getImageUrl(profileData.banner)})`, backgroundSize: 'cover', backgroundPosition: 'center' } 
                       : currentTheme.style
@@ -792,11 +792,11 @@ const ProfileSkeleton = () => (
                   </div>
 
                   {/* Content */}
-                  <div className='px-6 pb-6'>
+                  <div className='px-5 pb-4'>
                     {/* Profile Header */}
-                    <div className='-mt-16 mb-4 flex flex-col items-center text-center relative z-10'>
+                    <div className='-mt-10 mb-2 flex flex-col items-center text-center relative z-10'>
                       <motion.div
-                        className='w-32 h-32 rounded-full border-4 border-white flex-shrink-0 shadow-lg overflow-hidden mb-4 relative group bg-white/10 backdrop-blur-sm'
+                        className='w-20 h-20 rounded-full border-4 border-white flex-shrink-0 shadow-lg overflow-hidden mb-2 relative group bg-white/10 backdrop-blur-sm'
                         whileHover={{ scale: 1.02 }}
                       >
                         {profileData.photo ? (
@@ -806,8 +806,8 @@ const ProfileSkeleton = () => (
                             className='w-full h-full object-cover'
                           />
                         ) : (
-                          <div 
-                            className='w-full h-full flex items-center justify-center text-white font-bold text-3xl shadow-inner'
+                          <div
+                            className='w-full h-full flex items-center justify-center text-white font-bold text-xl shadow-inner'
                             style={{ background: `linear-gradient(135deg, ${currentTheme.primary} 0%, ${currentTheme.accent || currentTheme.primary} 100%)` }}
                           >
                             {getInitials(profileData.name)}
@@ -838,9 +838,9 @@ const ProfileSkeleton = () => (
                         </label>
                       </motion.div>
 
-                      <div className='mb-3'>
+                      <div className='mb-2'>
                         <div className='flex items-center justify-center gap-2'>
-                          <h2 className='text-2xl font-bold text-slate-900'>
+                          <h2 className='text-lg font-bold text-slate-900'>
                             {profileData.name || 'Your Name'}
                           </h2>
                           <motion.button
@@ -850,13 +850,13 @@ const ProfileSkeleton = () => (
                               setEditFormData(profileData)
                               setEditModalOpen(true)
                             }}
-                            className='p-2 rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors'
+                            className='p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors'
                           >
-                            <Edit3 size={14} className='text-slate-600' />
+                            <Edit3 size={12} className='text-slate-600' />
                           </motion.button>
                         </div>
 
-                        <div className='mt-2 space-y-1'>
+                        <div className='mt-1 space-y-0.5'>
                           {(profileData.position || profileData.sport) && (
                             <p className='text-sm font-semibold text-slate-700'>
                               {[profileData.position, profileData.sport].filter(Boolean).join(' • ')}
@@ -873,55 +873,56 @@ const ProfileSkeleton = () => (
 
                     {/* About */}
                     {profileData.aboutMe && (
-                      <div className='mb-5 pb-5 border-b border-slate-200'>
-                        <p className='text-sm text-slate-600 leading-relaxed text-center'>
+                      <div className='mb-3 pb-3 border-b border-slate-200'>
+                        <p className='text-xs text-slate-600 leading-relaxed text-center line-clamp-2'>
                           {profileData.aboutMe}
                         </p>
                       </div>
                     )}
 
                     {/* Contact */}
-                    <div className='grid grid-cols-2 gap-4 mb-5'>
+                    <div className='grid grid-cols-3 gap-2 mb-3'>
                       {profileData.email && (
-                        <div className='flex flex-col items-center p-3 bg-slate-50 rounded-xl'>
-                          <Mail size={16} className='text-slate-400 mb-1.5' />
-                          <p className='text-[10px] text-slate-500 font-semibold uppercase tracking-wide mb-1'>
-                            Email
-                          </p>
-                          <p className='text-xs text-slate-900 font-medium text-center w-full break-all'>
-                            {profileData.email}
-                          </p>
+                        <div className='flex items-center gap-2 p-2 bg-slate-50 rounded-lg min-w-0'>
+                          <Mail size={14} className='text-slate-400 flex-shrink-0' />
+                          <div className='min-w-0'>
+                            <p className='text-[9px] text-slate-500 font-semibold uppercase tracking-wide'>
+                              Email
+                            </p>
+                            <p className='text-[11px] text-slate-900 font-medium truncate'>
+                              {profileData.email}
+                            </p>
+                          </div>
                         </div>
                       )}
                       {profileData.phone && (
-                        <div className='flex flex-col items-center p-3 bg-slate-50 rounded-xl'>
-                          <Phone size={16} className='text-slate-400 mb-1.5' />
-                          <p className='text-[10px] text-slate-500 font-semibold uppercase tracking-wide mb-1'>
-                            Phone
-                          </p>
-                          <p className='text-xs text-slate-900 font-medium text-center w-full break-all'>
-                            {profileData.phone}
-                          </p>
+                        <div className='flex items-center gap-2 p-2 bg-slate-50 rounded-lg min-w-0'>
+                          <Phone size={14} className='text-slate-400 flex-shrink-0' />
+                          <div className='min-w-0'>
+                            <p className='text-[9px] text-slate-500 font-semibold uppercase tracking-wide'>
+                              Phone
+                            </p>
+                            <p className='text-[11px] text-slate-900 font-medium truncate'>
+                              {profileData.phone}
+                            </p>
+                          </div>
                         </div>
                       )}
-                      <div className='flex flex-col items-center p-3 bg-slate-50 rounded-xl'>
-                        <div className='flex items-center gap-1.5 mb-1.5'>
-                          {profileData.socialMedia?.linkedin && <Linkedin size={14} className='text-slate-400' />}
-                          {profileData.socialMedia?.twitter && <Twitter size={14} className='text-slate-400' />}
-                          {profileData.socialMedia?.website && <Globe size={14} className='text-slate-400' />}
-                          {!profileData.socialMedia?.linkedin && !profileData.socialMedia?.twitter && !profileData.socialMedia?.website && <Globe size={14} className='text-slate-400' />}
+                      <div className='flex items-center gap-2 p-2 bg-slate-50 rounded-lg min-w-0'>
+                        <Globe size={14} className='text-slate-400 flex-shrink-0' />
+                        <div className='min-w-0'>
+                          <p className='text-[9px] text-slate-500 font-semibold uppercase tracking-wide'>
+                            Socials
+                          </p>
+                          <p className='text-[11px] text-slate-900 font-medium truncate'>
+                            {Object.values(profileData.socialMedia || {}).filter(Boolean).length > 0 ? `${Object.values(profileData.socialMedia || {}).filter(Boolean).length} Links` : 'No links'}
+                          </p>
                         </div>
-                        <p className='text-[10px] text-slate-500 font-semibold uppercase tracking-wide mb-1'>
-                          Socials
-                        </p>
-                        <p className='text-xs text-slate-900 font-medium text-center truncate w-full'>
-                          {Object.values(profileData.socialMedia || {}).filter(Boolean).length > 0 ? `${Object.values(profileData.socialMedia || {}).filter(Boolean).length} Links` : 'No links'}
-                        </p>
                       </div>
                     </div>
 
                     {/* Visibility Toggle */}
-                    <div className='pt-4 border-t border-slate-200 flex items-center justify-between'>
+                    <div className='pt-3 border-t border-slate-200 flex items-center justify-between'>
                       <div className='flex items-center gap-2'>
                         <Lock size={14} className='text-slate-400' />
                         <span className='text-xs font-medium text-slate-600'>
@@ -972,13 +973,13 @@ const ProfileSkeleton = () => (
 
               {/* Interests Section */}
               <motion.div variants={itemVariants}>
-                <div className='bg-white rounded-2xl border border-slate-200 p-5'>
-                  <div className='flex items-center justify-between mb-4'>
+                <div className='bg-white rounded-2xl border border-slate-200 p-3'>
+                  <div className='flex items-center justify-between mb-2'>
                     <div>
-                      <h3 className='text-lg font-bold text-slate-900'>
+                      <h3 className='text-sm font-bold text-slate-900'>
                         Your Interests
                       </h3>
-                      <p className='text-xs text-slate-500 mt-0.5'>
+                      <p className='text-[11px] text-slate-500 mt-0.5'>
                         {getActiveInterestsCount()} interests selected
                       </p>
                     </div>
@@ -986,9 +987,9 @@ const ProfileSkeleton = () => (
                       whileHover={{ scale: 1.08 }}
                       whileTap={{ scale: 0.92 }}
                       onClick={() => setInterestsModalOpen(true)}
-                      className='p-2 rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors'
+                      className='p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors'
                     >
-                      <Edit3 size={14} className='text-slate-600' />
+                      <Edit3 size={12} className='text-slate-600' />
                     </motion.button>
                   </div>
 
@@ -1027,13 +1028,13 @@ const ProfileSkeleton = () => (
 
               {/* Advisors Section */}
               <motion.div variants={itemVariants}>
-                <div className='mb-4'>
-                  <h2 className='text-lg font-bold text-slate-900'>
+                <div className='mb-2'>
+                  <h2 className='text-sm font-bold text-slate-900'>
                     {advisors.length > 0
                       ? 'Your Advisors'
                       : 'Recommended Advisors'}
                   </h2>
-                  <p className='text-xs text-slate-500 mt-0.5'>
+                  <p className='text-[11px] text-slate-500 mt-0.5'>
                     Connect with experts to grow your NIL opportunities
                   </p>
                 </div>
@@ -1061,7 +1062,7 @@ const ProfileSkeleton = () => (
                   </div>
                 ) : (
                   <div className='relative group'>
-                    <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 transition-all duration-300'>
+                    <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 transition-all duration-300'>
                       <AnimatePresence mode='wait'>
                         {(advisors.length > 0 ? advisors : recommendedAdvisors)
                           .slice(advisorPage * advisorsPerPage, (advisorPage + 1) * advisorsPerPage)
@@ -1130,7 +1131,7 @@ const ProfileSkeleton = () => (
             </div>
 
             {/* Right Sidebar */}
-            <div className='space-y-4'>
+            <div className='space-y-3'>
               {/* My Network */}
               <motion.div
                 variants={itemVariants}

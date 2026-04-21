@@ -898,10 +898,10 @@ function ExplorePageContent() {
 
   return (
     <>
-      <div className='md:fixed md:left-[260px] md:right-4 md:top-4 md:bottom-4 md:overflow-y-auto min-h-screen md:min-h-0' style={{ backgroundColor: '#fafafa' }}>
+      <div className='md:fixed md:left-[260px] md:right-4 md:top-4 md:bottom-4 md:overflow-y-auto min-h-screen md:min-h-0 md:bg-white md:rounded-[18px] md:border md:border-[rgba(22,49,70,0.05)]' style={{ backgroundColor: '#fafafa' }}>
         {/* Header - Desktop & Mobile */}
         <div>
-          <div className='mx-auto max-w-8xl px-4 md:px-8 py-4 md:py-6'>
+          <div className='mx-auto w-full px-4 md:px-5 py-4 md:py-4'>
             <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 sm:mb-8'>
               <div>
                 <h1
@@ -1672,7 +1672,7 @@ function ExplorePageContent() {
         </div>
 
         {/* Results Grid */}
-        <div className='mx-auto max-w-8xl px-4 md:px-8 pt-2 pb-6 md:py-8'>
+        <div className='mx-auto w-full px-4 md:px-5 pt-2 pb-6 md:pb-4'>
           {loading ? (
             <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 mb-8'>
               {[...Array(6)].map((_, i) => (
