@@ -298,15 +298,22 @@ const HeaderCard = ({
   )
 }
 
-const Card = ({ title, count, children, className = '' }) => (
+const Card = ({
+  title,
+  count,
+  children,
+  className = '',
+  titleClassName = 'font-black text-[16px] tracking-[-0.02em] text-[#163146]',
+  headerPaddingClassName = 'px-[20px] pt-[14px] pb-1',
+}) => (
   <section
     className={`bg-white rounded-3xl border border-[rgba(22,49,70,0.05)] flex flex-col min-h-0 min-w-0 overflow-hidden transition-shadow duration-200 hover:shadow-[0_8px_20px_-4px_rgba(22,49,70,0.10),0_24px_60px_-12px_rgba(22,49,70,0.18)] ${className}`}
     style={{ boxShadow: '0 2px 8px -2px rgba(22,49,70,0.04), 0 10px 30px -10px rgba(22,49,70,0.05)' }}
   >
-    <div className='flex items-baseline gap-2.5 px-[20px] pt-[14px] pb-1 shrink-0'>
-      <h2 className='m-0 font-black text-[16px] tracking-[-0.02em] text-[#163146]'>{title}</h2>
+    <div className={`flex items-baseline gap-2.5 shrink-0 ${headerPaddingClassName}`}>
+      <h2 className={`m-0 ${titleClassName}`}>{title}</h2>
       {count != null && (
-        <span className='text-[12px] font-semibold text-[rgba(22,49,70,0.45)]'>({count})</span>
+        <span className='text-[11px] font-semibold text-[rgba(22,49,70,0.45)]'>({count})</span>
       )}
     </div>
     {children}
@@ -625,4 +632,5 @@ const AdvisorPublicView = ({
   )
 }
 
+export { Card, ExperienceEntry, EducationEntry, CertEntry, VerifiedPill, EmptyState }
 export default AdvisorPublicView
