@@ -46,6 +46,7 @@ import { profileService } from '../../services/profileService'
 import { getImageUrl } from '../../utils/imageUtils'
 import ConnectionsModal from '../../components/Connections/ConnectionsModal'
 import DashboardLayout from '../Layout/DashboardLayout'
+import AdvisorPublicView from './AdvisorPublicView'
 
 const PublicProfileSkeleton = () => (
   <div className='mx-auto px-4 py-8 max-w-8xl w-full animate-pulse'>
@@ -298,9 +299,26 @@ const PublicProfilePage = () => {
     <DashboardLayout>
       <Toaster position='bottom-right' theme='dark' />
       
-      <div className='md:fixed md:left-[260px] md:right-4 md:top-4 md:bottom-4 md:overflow-y-auto w-full h-full max-w-8xl mx-auto flex flex-col bg-slate-50/50 min-h-screen md:min-h-0 pb-24 lg:pb-0 md:rounded-[18px] md:border md:border-[rgba(22,49,70,0.05)]'>
+      <div className={`md:fixed md:left-[260px] md:right-4 md:top-4 md:bottom-4 md:overflow-y-auto w-full h-full ${!isAthlete ? 'lg:w-auto lg:h-auto lg:overflow-hidden' : ''} max-w-8xl mx-auto flex flex-col min-h-screen md:min-h-0 pb-24 lg:pb-0 md:rounded-[18px] md:border md:border-[rgba(22,49,70,0.05)]`} style={{ background: '#faf7f2' }}>
+        {!isAthlete && (
+          <AdvisorPublicView
+            profile={profileData}
+            user={user}
+            initials={getInitials(user.name)}
+            profileImg={profileImg}
+            email={publicEmail}
+            phone={publicPhone}
+            isOwnProfile={isOwnProfile}
+            connectionStatus={connectionStatus}
+            onConnect={handleConnect}
+            onAccept={handleAcceptRequest}
+            onDecline={handleDeclineRequest}
+            onCancel={handleCancelRequest}
+            onMessage={() => navigate('/inbox', { state: { recipientId: user._id } })}
+          />
+        )}
         <motion.div
-          className='mx-auto px-4 py-6 max-w-8xl w-full'
+          className={`mx-auto px-4 py-6 max-w-8xl w-full ${!isAthlete ? 'lg:hidden' : ''}`}
           variants={containerVariants}
           initial='hidden'
           animate='visible'
