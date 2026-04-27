@@ -1,0 +1,551 @@
+import { useEffect, useRef, useState } from 'react'
+import {
+  ArrowUp,
+  ArrowUpRight,
+  Bookmark,
+  Calculator,
+  Compass,
+  Copy,
+  FileText,
+  Megaphone,
+  Plus,
+  Share2,
+  ThumbsDown,
+  ThumbsUp,
+} from 'lucide-react'
+import DashboardLayout from '../Layout/DashboardLayout'
+import { scoutService } from '../../services/scoutService'
+
+const COMPOSER_MAX = 680
+const CONVO_MAX = 760
+const GREET_SIZE = 57
+
+const SUGGESTIONS = [
+  { icon: FileText, text: 'Review my apparel deal' },
+  { icon: Compass, text: 'Match me with an advisor' },
+  { icon: Calculator, text: 'Plan NIL taxes' },
+  { icon: Megaphone, text: 'Build my personal brand' },
+]
+
+const Composer = ({ value, setValue, onSend, autofocus, disabled }) => {
+  const ref = useRef(null)
+
+  useEffect(() => {
+    if (autofocus && ref.current) ref.current.focus()
+  }, [autofocus])
+
+  useEffect(() => {
+    if (!ref.current) return
+    ref.current.style.height = 'auto'
+    ref.current.style.height = Math.min(220, ref.current.scrollHeight) + 'px'
+  }, [value])
+
+  const handleKey = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      if (value.trim() && !disabled) onSend()
+    }
+  }
+  const empty = !value.trim() || disabled
+
+  return (
+    <div
+      style={{
+        width: '100%',
+        background: '#fff',
+        border: '1px solid var(--color-border-strong)',
+        borderRadius: 28,
+        boxShadow: '0 30px 80px -30px rgba(22,49,70,0.18), 0 1px 0 rgba(255,255,255,0.8) inset',
+        overflow: 'hidden',
+        transition: 'border-color var(--dur-med) var(--ease-signature), box-shadow var(--dur-med) var(--ease-signature)',
+      }}
+    >
+      <div style={{ padding: '14px 22px 8px' }}>
+        <textarea
+          ref={ref}
+          rows={1}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={handleKey}
+          placeholder='Ask Scout about NIL deals, advisors, taxes, contracts…'
+          style={{
+            width: '100%', border: 0, outline: 0, resize: 'none',
+            fontFamily: 'var(--font-sans)', fontWeight: 400,
+            fontSize: 15, lineHeight: 1.45,
+            color: 'var(--signil-navy)',
+            background: 'transparent',
+            minHeight: 22, maxHeight: 160,
+          }}
+        />
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '4px 10px 10px' }}>
+        <button
+          onClick={() => !empty && onSend()}
+          disabled={empty}
+          style={{
+            width: 32, height: 32, borderRadius: 999,
+            background: empty ? 'rgba(22,49,70,0.12)' : 'var(--signil-navy)',
+            color: '#fff',
+            display: 'grid', placeItems: 'center', border: 'none',
+            cursor: empty ? 'default' : 'pointer',
+            transition: 'all var(--dur-fast) var(--ease-signature)',
+          }}
+          aria-label='Send'
+        >
+          <ArrowUp size={16} strokeWidth={2} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+const Chip = ({ icon: IconCmp, text, onClick }) => (
+  <button
+    onClick={onClick}
+    style={{
+      display: 'inline-flex', alignItems: 'center', gap: 9,
+      padding: '10px 16px',
+      background: 'rgba(255,255,255,0.85)',
+      border: '1px solid var(--color-border-strong)',
+      borderRadius: 999,
+      fontSize: 12.5, fontWeight: 600, color: 'var(--signil-navy)',
+      transition: 'all var(--dur-fast) var(--ease-signature)',
+      backdropFilter: 'blur(10px)',
+      cursor: 'pointer',
+      fontFamily: 'var(--font-sans)',
+    }}
+    onMouseEnter={(e) => {
+      e.currentTarget.style.borderColor = 'var(--color-accent-border)'
+      e.currentTarget.style.transform = 'translateY(-2px)'
+      e.currentTarget.style.boxShadow = 'var(--shadow-sm)'
+    }}
+    onMouseLeave={(e) => {
+      e.currentTarget.style.borderColor = 'var(--color-border-strong)'
+      e.currentTarget.style.transform = 'none'
+      e.currentTarget.style.boxShadow = 'none'
+    }}
+  >
+    <IconCmp size={14} strokeWidth={1.5} color='var(--signil-bronze)' />
+    <span>{text}</span>
+  </button>
+)
+
+const EmptyState = ({ onSend, value, setValue, disabled }) => (
+  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 32px 56px', position: 'relative' }}>
+    <div style={{ width: '100%', maxWidth: COMPOSER_MAX, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 28 }}>
+      <h1
+        style={{
+          textAlign: 'center',
+          fontFamily: 'var(--font-sans)', fontWeight: 900,
+          fontSize: GREET_SIZE,
+          letterSpacing: '-0.025em',
+          lineHeight: 1.02,
+          color: 'var(--signil-navy)',
+          maxWidth: '14ch',
+          textWrap: 'balance',
+          margin: 0,
+        }}
+      >
+        Where would you like to{' '}
+        <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontWeight: 500, color: 'var(--signil-bronze)', letterSpacing: '-0.01em' }}>go</span>{' '}
+        today?
+        <span
+          style={{
+            display: 'block',
+            fontFamily: 'var(--font-sans)', fontWeight: 300,
+            fontSize: 16, letterSpacing: 0,
+            color: 'var(--color-fg-muted)',
+            marginTop: 18, lineHeight: 1.5, maxWidth: '52ch',
+          }}
+        >
+          I'm Scout. I help student-athletes, advisors, and families navigate every corner of NIL,
+          from contract review to vetted introductions. What are you working on?
+        </span>
+      </h1>
+
+      <Composer value={value} setValue={setValue} onSend={() => onSend(value)} autofocus disabled={disabled} />
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'center', marginTop: 4 }}>
+        {SUGGESTIONS.map((s) => (
+          <Chip key={s.text} icon={s.icon} text={s.text} onClick={() => onSend(s.text)} />
+        ))}
+      </div>
+    </div>
+  </div>
+)
+
+const TypingDots = () => (
+  <div style={{ display: 'inline-flex', gap: 4, alignItems: 'center', padding: '8px 0' }}>
+    {[0, 1, 2].map((i) => (
+      <span
+        key={i}
+        style={{
+          width: 6, height: 6, borderRadius: 999, background: 'var(--signil-bronze)',
+          animation: `scoutBob 1.2s var(--ease-signature) infinite`,
+          animationDelay: `${i * 0.15}s`,
+          opacity: 0.4,
+        }}
+      />
+    ))}
+    <style>{`@keyframes scoutBob { 0%,100%{transform:translateY(0);opacity:.4} 50%{transform:translateY(-3px);opacity:1} }`}</style>
+  </div>
+)
+
+const MsgActions = () => {
+  const actions = [
+    { icon: Copy, label: 'Copy' },
+    { icon: ThumbsUp, label: 'Helpful' },
+    { icon: ThumbsDown, label: 'Not helpful' },
+    { icon: Bookmark, label: 'Save' },
+    { icon: Share2, label: 'Share' },
+  ]
+  return (
+    <div style={{ display: 'flex', gap: 4, marginTop: 10 }}>
+      {actions.map(({ icon: IconCmp, label }) => (
+        <button
+          key={label}
+          title={label}
+          style={{
+            width: 28, height: 28, borderRadius: 8,
+            background: 'transparent', border: '1px solid transparent',
+            color: 'var(--color-fg-subtle)',
+            display: 'grid', placeItems: 'center', cursor: 'pointer',
+            transition: 'all var(--dur-fast) var(--ease-signature)',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(22,49,70,0.05)'
+            e.currentTarget.style.color = 'var(--signil-navy)'
+            e.currentTarget.style.borderColor = 'var(--color-border-strong)'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent'
+            e.currentTarget.style.color = 'var(--color-fg-subtle)'
+            e.currentTarget.style.borderColor = 'transparent'
+          }}
+        >
+          <IconCmp size={13} strokeWidth={1.5} />
+        </button>
+      ))}
+    </div>
+  )
+}
+
+const MatchCard = ({ initials, name, role, stats }) => (
+  <div
+    style={{
+      border: '1px solid var(--color-border-strong)',
+      borderRadius: 18,
+      padding: 14,
+      background: 'var(--signil-cream)',
+      display: 'flex', flexDirection: 'column', gap: 8,
+      transition: 'all var(--dur-med) var(--ease-signature)',
+      cursor: 'pointer',
+    }}
+    onMouseEnter={(e) => {
+      e.currentTarget.style.transform = 'translateY(-2px)'
+      e.currentTarget.style.borderColor = 'var(--color-accent-border)'
+      e.currentTarget.style.boxShadow = 'var(--shadow-sm)'
+    }}
+    onMouseLeave={(e) => {
+      e.currentTarget.style.transform = 'none'
+      e.currentTarget.style.borderColor = 'var(--color-border-strong)'
+      e.currentTarget.style.boxShadow = 'none'
+    }}
+  >
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ width: 32, height: 32, borderRadius: 10, background: 'var(--signil-navy)', color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 900, fontSize: 11, letterSpacing: '0.04em' }}>{initials}</div>
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+        <div style={{ fontWeight: 800, fontSize: 13, letterSpacing: '-0.005em', color: 'var(--signil-navy)' }}>{name}</div>
+        <div style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--signil-bronze)', marginTop: 2 }}>{role}</div>
+      </div>
+    </div>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 11, color: 'var(--color-fg-muted)', fontWeight: 500 }}>
+      {stats.map((stat, i) => (
+        <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+          <span>{stat}</span>
+          {i < stats.length - 1 && <span style={{ width: 3, height: 3, borderRadius: 999, background: 'var(--color-fg-subtle)' }} />}
+        </span>
+      ))}
+    </div>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8, borderTop: '1px solid var(--color-border-soft)' }}>
+      <span style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--signil-navy)', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+        <span style={{ width: 5, height: 5, borderRadius: 999, background: '#22c55e', display: 'inline-block' }} />
+        Verified
+      </span>
+      <span style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--signil-bronze)', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+        Open profile <ArrowUpRight size={11} strokeWidth={2} />
+      </span>
+    </div>
+  </div>
+)
+
+const ScoutBubble = ({ children }) => (
+  <div
+    style={{
+      flex: 1, minWidth: 0,
+      padding: '16px 20px',
+      borderRadius: 22,
+      borderTopLeftRadius: 6,
+      background: '#fff',
+      color: 'var(--signil-navy)',
+      border: '1px solid var(--color-border-soft)',
+      boxShadow: 'var(--shadow-xs)',
+      fontSize: 15, lineHeight: 1.62, fontWeight: 400,
+      fontFamily: 'var(--font-sans)',
+    }}
+  >
+    {children}
+  </div>
+)
+
+const UserBubble = ({ children }) => (
+  <div
+    style={{
+      padding: '16px 20px',
+      borderRadius: 22,
+      borderTopRightRadius: 6,
+      background: 'var(--signil-navy)',
+      color: '#fff',
+      maxWidth: '80%',
+      fontSize: 15, lineHeight: 1.62, fontWeight: 400,
+      fontFamily: 'var(--font-sans)',
+    }}
+  >
+    {children}
+  </div>
+)
+
+const Avatar = ({ role, initials }) => {
+  if (role === 'scout') {
+    return (
+      <div style={{ flex: '0 0 auto', width: 34, height: 34, borderRadius: 12, display: 'grid', placeItems: 'center', background: 'var(--signil-navy)', padding: 5 }}>
+        <img src='/signil-icon.png' alt='' style={{ width: '100%', height: '100%', objectFit: 'contain', filter: 'brightness(1.1)' }} />
+      </div>
+    )
+  }
+  return (
+    <div
+      style={{
+        flex: '0 0 auto', width: 34, height: 34, borderRadius: 12,
+        display: 'grid', placeItems: 'center',
+        background: 'linear-gradient(135deg, var(--signil-bronze), var(--signil-bronze-deep))',
+        color: '#fff', fontWeight: 900, fontSize: 11, letterSpacing: '.04em',
+      }}
+    >
+      {initials}
+    </div>
+  )
+}
+
+const ScoutPage = () => {
+  const [view, setView] = useState('empty')
+  const [emptyValue, setEmptyValue] = useState('')
+  const [convoValue, setConvoValue] = useState('')
+  const [messages, setMessages] = useState([])
+  const [typing, setTyping] = useState(false)
+  const convoRef = useRef(null)
+
+  const userInitials = 'JM'
+
+  useEffect(() => {
+    if (convoRef.current) convoRef.current.scrollTop = convoRef.current.scrollHeight
+  }, [messages, typing])
+
+  const sendMessage = async (text) => {
+    const trimmed = (text || '').trim()
+    if (!trimmed || typing) return
+
+    const userMsg = { id: Date.now(), role: 'user', text: trimmed }
+    const nextMessages = [...messages, userMsg]
+    setMessages(nextMessages)
+    setEmptyValue('')
+    setConvoValue('')
+    setView('convo')
+    setTyping(true)
+
+    try {
+      const history = nextMessages.map((m) => ({
+        role: m.role === 'scout' ? 'assistant' : 'user',
+        content: m.text || '',
+      }))
+      const data = await scoutService.chat({ message: trimmed, history })
+      const replyText = data?.reply || data?.message || data?.content ||
+        "Got it. Let me think on that and I'll come back with the right next step."
+      setMessages((m) => [...m, { id: Date.now() + 1, role: 'scout', text: replyText, matches: data?.matches || null }])
+    } catch (err) {
+      setMessages((m) => [
+        ...m,
+        {
+          id: Date.now() + 1,
+          role: 'scout',
+          text: 'Scout is unavailable right now. Please try again in a moment.',
+        },
+      ])
+    } finally {
+      setTyping(false)
+    }
+  }
+
+  const newChat = () => {
+    setMessages([])
+    setTyping(false)
+    setEmptyValue('')
+    setConvoValue('')
+    setView('empty')
+  }
+
+  return (
+    <DashboardLayout>
+      <div
+        style={{
+          position: 'relative',
+          minHeight: 'calc(100vh - 64px)',
+          background: 'var(--signil-cream)',
+          isolation: 'isolate',
+          overflow: 'hidden',
+          fontFamily: 'var(--font-sans)',
+          color: 'var(--signil-navy)',
+        }}
+      >
+        <div
+          aria-hidden
+          style={{
+            position: 'absolute', inset: 0,
+            backgroundImage: 'radial-gradient(#163146 1px, transparent 1px)',
+            backgroundSize: '40px 40px',
+            opacity: 0.03, pointerEvents: 'none', zIndex: 0,
+          }}
+        />
+        <div
+          aria-hidden
+          style={{
+            position: 'absolute', inset: 0,
+            background:
+              'radial-gradient(60% 40% at 80% 10%, rgba(152,106,65,0.08), transparent 60%), radial-gradient(50% 50% at 10% 90%, rgba(22,49,70,0.05), transparent 60%)',
+            pointerEvents: 'none', zIndex: 0, filter: 'blur(40px)',
+          }}
+        />
+
+        <div style={{ position: 'absolute', top: 24, left: 28, zIndex: 4, display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+          <img src='/signil-icon.png' alt='' style={{ width: 26, height: 26 }} />
+          <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontWeight: 500, fontSize: 22, color: 'var(--signil-navy)', letterSpacing: '-0.005em' }}>
+            Scout
+          </span>
+        </div>
+
+        {view === 'convo' && (
+          <button
+            onClick={newChat}
+            style={{
+              position: 'absolute', top: 24, right: 28, zIndex: 5,
+              display: 'inline-flex', alignItems: 'center', gap: 9,
+              padding: '11px 18px',
+              border: 'none',
+              background: 'var(--signil-navy)', color: '#fff',
+              borderRadius: 999,
+              fontSize: 11, fontWeight: 900, letterSpacing: '0.22em', textTransform: 'uppercase',
+              boxShadow: '0 12px 30px -10px rgba(22,49,70,0.35)',
+              cursor: 'pointer',
+              transition: 'all var(--dur-fast) var(--ease-signature)',
+              fontFamily: 'var(--font-sans)',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'var(--signil-bronze)'
+              e.currentTarget.style.transform = 'translateY(-1px)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'var(--signil-navy)'
+              e.currentTarget.style.transform = 'none'
+            }}
+          >
+            <Plus size={14} strokeWidth={2.2} /> <span>New Chat</span>
+          </button>
+        )}
+
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', minHeight: 'calc(100vh - 64px)' }}>
+          {view === 'empty' ? (
+            <EmptyState onSend={sendMessage} value={emptyValue} setValue={setEmptyValue} disabled={typing} />
+          ) : (
+            <>
+              <div
+                ref={convoRef}
+                style={{ flex: 1, overflowY: 'auto', padding: '88px 28px 140px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}
+              >
+                <div style={{ width: '100%', maxWidth: CONVO_MAX, display: 'flex', flexDirection: 'column', gap: 28 }}>
+                  {messages.map((m) => (
+                    <div
+                      key={m.id}
+                      style={{
+                        display: 'flex', gap: 14, alignItems: 'flex-start',
+                        flexDirection: m.role === 'user' ? 'row-reverse' : 'row',
+                        justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start',
+                      }}
+                    >
+                      <Avatar role={m.role} initials={userInitials} />
+                      <div style={{ flex: m.role === 'user' ? '0 1 auto' : 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                        {m.role === 'scout' ? (
+                          <ScoutBubble>
+                            <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{m.text}</p>
+                            {m.matches && m.matches.length > 0 && (
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 14 }}>
+                                {m.matches.slice(0, 4).map((mm, i) => (
+                                  <MatchCard
+                                    key={i}
+                                    initials={(mm.name || '').split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase()}
+                                    name={mm.name || 'Verified match'}
+                                    role={mm.role || mm.specialty || 'Advisor'}
+                                    stats={mm.stats || [mm.location, mm.years ? `${mm.years} yrs` : null, mm.reviews ? `${mm.reviews} reviews` : null].filter(Boolean)}
+                                  />
+                                ))}
+                              </div>
+                            )}
+                          </ScoutBubble>
+                        ) : (
+                          <UserBubble>{m.text}</UserBubble>
+                        )}
+                        {m.role === 'scout' && <MsgActions />}
+                      </div>
+                    </div>
+                  ))}
+                  {typing && (
+                    <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                      <Avatar role='scout' />
+                      <div
+                        style={{
+                          padding: '12px 18px',
+                          borderRadius: 22, borderTopLeftRadius: 6,
+                          background: '#fff',
+                          border: '1px solid var(--color-border-soft)',
+                          boxShadow: 'var(--shadow-xs)',
+                        }}
+                      >
+                        <TypingDots />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  position: 'sticky', bottom: 0,
+                  width: '100%', padding: '18px 28px 22px',
+                  display: 'flex', justifyContent: 'center',
+                  background: 'linear-gradient(to top, var(--signil-cream) 60%, rgba(250,247,242,0))',
+                  backdropFilter: 'blur(6px)',
+                  zIndex: 2,
+                }}
+              >
+                <div style={{ width: '100%', maxWidth: COMPOSER_MAX }}>
+                  <Composer value={convoValue} setValue={setConvoValue} onSend={() => sendMessage(convoValue)} disabled={typing} />
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </DashboardLayout>
+  )
+}
+
+export default ScoutPage

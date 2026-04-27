@@ -718,7 +718,7 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
 
   const getActiveNav = () => {
     const active = navItems.find((item) => location.pathname === item.path)
-    return active ? active.id : 'dashboard'
+    return active ? active.id : null
   }
 
   const activeNav = getActiveNav()
@@ -1060,24 +1060,26 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
           <p style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,49,70,.32)', padding: '0 14px', margin: '20px 0 6px' }}>General</p>
 
           <nav style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            {/* Scout toggle */}
-            <motion.button
-              onClick={() => setIsScoutSidebarOpen(prev => !prev)}
-              style={{
-                display: 'flex', alignItems: 'center',
-                gap: 12,
-                justifyContent: 'flex-start',
-                padding: '11px 14px',
-                borderRadius: 12,
-                background: isScoutSidebarOpen ? 'rgba(22,49,70,.06)' : 'transparent',
-                color: '#163146', fontSize: 13, fontWeight: 500,
-                width: '100%', border: 'none', cursor: 'pointer',
-              }}
-              whileHover={{ backgroundColor: 'rgba(22,49,70,.05)' }}
-            >
-              <img src='/scout.png' alt='Scout' style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }} />
-              <span>Scout</span>
-            </motion.button>
+            {/* Scout — navigate to /scout */}
+            <Link to='/scout' style={{ textDecoration: 'none' }}>
+              <motion.button
+                style={{
+                  display: 'flex', alignItems: 'center',
+                  gap: 12,
+                  justifyContent: 'flex-start',
+                  padding: '11px 14px',
+                  borderRadius: 12,
+                  background: location.pathname === '/scout' ? '#163146' : 'transparent',
+                  color: location.pathname === '/scout' ? '#fff' : '#163146',
+                  fontSize: 13, fontWeight: location.pathname === '/scout' ? 700 : 500,
+                  width: '100%', border: 'none', cursor: 'pointer',
+                }}
+                whileHover={{ backgroundColor: location.pathname === '/scout' ? '#163146' : 'rgba(22,49,70,.05)' }}
+              >
+                <img src='/scout.png' alt='Scout' style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }} />
+                <span>Scout</span>
+              </motion.button>
+            </Link>
 
             {/* Notifications */}
             <motion.button

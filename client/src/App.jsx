@@ -16,6 +16,7 @@ import ExplorePage from './pages/Explore/ExplorePage'
 import HomePage from './pages/Home/HomePage'
 import MessagePage from './pages/Message/MessagePage'
 import NewsPage from './pages/News/NewsPage'
+import ScoutPage from './pages/Scout/ScoutPage'
 import AdvisorProfilePage from './pages/Profile/AdvisorProfilePage'
 import ProfilePage from './pages/Profile/ProfilePage'
 import PublicProfilePage from './pages/Profile/PublicProfilePage'
@@ -138,6 +139,14 @@ const AppContent = () => {
                 element={
                   <PrivateRoute>
                     <NewsPage />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path='/scout'
+                element={
+                  <PrivateRoute>
+                    <ScoutPage />
                   </PrivateRoute>
                 }
               />

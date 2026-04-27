@@ -3,6 +3,35 @@
 
 @custom-variant dark (&:is(.dark *));
 
+:root {
+  --signil-navy:        #163146;
+  --signil-navy-deep:   #0a1824;
+  --signil-navy-mid:    #1c3e5a;
+  --signil-bronze:      #986a41;
+  --signil-bronze-deep: #855c3a;
+  --signil-cream:       #faf7f2;
+  --signil-cream-warm:  #fffbf2;
+  --signil-cream-panel: #f4f1ea;
+  --signil-offwhite:    #fdfdfd;
+
+  --color-fg-muted:      rgba(22, 49, 70, 0.60);
+  --color-fg-subtle:     rgba(22, 49, 70, 0.30);
+  --color-border-soft:   rgba(22, 49, 70, 0.05);
+  --color-border-strong: rgba(22, 49, 70, 0.10);
+  --color-accent-soft:   rgba(152, 106, 65, 0.10);
+  --color-accent-border: rgba(152, 106, 65, 0.20);
+
+  --font-display: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
+  --font-sans:    'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  --ease-signature: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-fast: 200ms;
+  --dur-med:  500ms;
+
+  --shadow-xs: 0 1px 2px 0 rgba(22, 49, 70, 0.04);
+  --shadow-sm: 0 2px 8px -2px rgba(22, 49, 70, 0.06);
+}
+
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
