@@ -136,16 +136,22 @@ const ProfileSchema = new mongoose.Schema(
         default: 'medium',
       },
       focusAreas: {
-        type: [String],
-        enum: [
-          'Brand Partnerships',
-          'Content Creation',
-          'Event Appearances',
-          'Social Media Growth',
-          'Endorsements',
-          'Sponsorships',
+        type: [
+          {
+            title: { type: String, required: true, trim: true, maxlength: 120 },
+            description: { type: String, default: '', trim: true, maxlength: 600 },
+            _id: false,
+          },
         ],
-        default: ['Brand Partnerships', 'Content Creation'],
+        default: [],
+        set: (val) =>
+          (Array.isArray(val) ? val : []).map((v) =>
+            typeof v === 'string' ? { title: v, description: '' } : v
+          ),
+        get: (val) =>
+          (Array.isArray(val) ? val : [])
+            .map((v) => (typeof v === 'string' ? { title: v, description: '' } : v))
+            .filter((v) => v && v.title),
       },
     },
 
@@ -233,8 +239,8 @@ const ProfileSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true },
+    toJSON: { virtuals: true, getters: true },
+    toObject: { virtuals: true, getters: true },
   }
 )
 

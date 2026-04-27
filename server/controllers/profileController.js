@@ -465,10 +465,7 @@ export const updateNILPreferences = async (req, res, next) => {
     const updateData = {
       'nilPreferences.dealSize': dealSize || '250k-500k',
       'nilPreferences.timeline': timeline || 'medium',
-      'nilPreferences.focusAreas': focusAreas || [
-        'Brand Partnerships',
-        'Content Creation',
-      ],
+      'nilPreferences.focusAreas': focusAreas || [],
     }
 
     let profile = await Profile.findOne({ user: userId })
@@ -485,7 +482,7 @@ export const updateNILPreferences = async (req, res, next) => {
         nilPreferences: {
           dealSize: dealSize || '250k-500k',
           timeline: timeline || 'medium',
-          focusAreas: focusAreas || ['Brand Partnerships', 'Content Creation'],
+          focusAreas: focusAreas || [],
         },
       })
     } else {
@@ -1068,7 +1065,7 @@ export const getAthleteProfileBundle = async (req, res, next) => {
       nilPreferences: profile.nilPreferences || {
         dealSize: '250k-500k',
         timeline: 'medium',
-        focusAreas: ['Brand Partnerships', 'Content Creation'],
+        focusAreas: [],
       },
 
       // Profile completion

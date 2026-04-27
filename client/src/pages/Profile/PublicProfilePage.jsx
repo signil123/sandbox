@@ -46,7 +46,8 @@ import { profileService } from '../../services/profileService'
 import { getImageUrl } from '../../utils/imageUtils'
 import ConnectionsModal from '../../components/Connections/ConnectionsModal'
 import DashboardLayout from '../Layout/DashboardLayout'
-import AdvisorPublicView from './AdvisorPublicView'
+import AdvisorPublicView, { FocusAreaEntry } from './AdvisorPublicView'
+import AthletePublicView from './AthletePublicView'
 
 const PublicProfileSkeleton = () => (
   <div className='mx-auto px-4 py-8 max-w-8xl w-full animate-pulse'>
@@ -282,6 +283,10 @@ const PublicProfilePage = () => {
 
   const specialization = profileData.specialization || []
 
+  const focusAreas = (profileData.nilPreferences?.focusAreas || [])
+    .map((v) => (typeof v === 'string' ? { title: v, description: '' } : v))
+    .filter((v) => v && v.title)
+
   // Check if current user is viewing their own profile
   const isOwnProfile = currentUser && currentUser._id === user._id
   const canShowContactInfo = isOwnProfile || profileData.contactVisible !== false
@@ -299,7 +304,7 @@ const PublicProfilePage = () => {
     <DashboardLayout>
       <Toaster position='bottom-right' theme='dark' />
       
-      <div className={`md:fixed md:left-[260px] md:right-4 md:top-4 md:bottom-4 md:overflow-y-auto w-full h-full ${!isAthlete ? 'lg:w-auto lg:h-auto lg:overflow-hidden' : ''} max-w-8xl mx-auto flex flex-col min-h-screen md:min-h-0 pb-24 lg:pb-0 md:rounded-[18px] md:border md:border-[rgba(22,49,70,0.05)]`} style={{ background: '#faf7f2' }}>
+      <div className={`md:fixed md:left-[260px] md:right-4 md:top-4 md:bottom-4 md:overflow-y-auto w-full h-full lg:w-auto lg:h-auto lg:overflow-hidden max-w-8xl mx-auto flex flex-col min-h-screen md:min-h-0 pb-24 lg:pb-0 md:rounded-[18px] md:border md:border-[rgba(22,49,70,0.05)]`} style={{ background: '#faf7f2' }}>
         {!isAthlete && (
           <AdvisorPublicView
             profile={profileData}
@@ -317,8 +322,25 @@ const PublicProfilePage = () => {
             onMessage={() => navigate('/inbox', { state: { recipientId: user._id } })}
           />
         )}
+        {isAthlete && (
+          <AthletePublicView
+            profile={profileData}
+            user={user}
+            initials={getInitials(user.name)}
+            profileImg={profileImg}
+            email={publicEmail}
+            phone={publicPhone}
+            isOwnProfile={isOwnProfile}
+            connectionStatus={connectionStatus}
+            onConnect={handleConnect}
+            onAccept={handleAcceptRequest}
+            onDecline={handleDeclineRequest}
+            onCancel={handleCancelRequest}
+            onMessage={() => navigate('/inbox', { state: { recipientId: user._id } })}
+          />
+        )}
         <motion.div
-          className={`mx-auto px-4 py-6 max-w-8xl w-full ${!isAthlete ? 'lg:hidden' : ''}`}
+          className={`mx-auto px-4 py-6 max-w-8xl w-full lg:hidden`}
           variants={containerVariants}
           initial='hidden'
           animate='visible'
@@ -570,39 +592,66 @@ const PublicProfilePage = () => {
                 </div>
               </motion.div>
 
-              {/* Interests Section */}
-              {(activeInterests.length > 0 || specialization.length > 0) && (
+              {/* Focus Areas (athlete) / Core Expertise (advisor) */}
+              {isAthlete ? (
                 <motion.div variants={itemVariants}>
                   <div className='bg-white rounded-2xl border border-slate-200 p-6 shadow-sm'>
-                    <div className='mb-6 flex items-center justify-between'>
+                    <div className='mb-4 flex items-center justify-between'>
                       <div className='flex items-center gap-3'>
-                          <div className='p-2 rounded-xl bg-slate-100 text-slate-600'>
-                              <Briefcase size={18} />
-                          </div>
-                          <div>
-                              <h3 className='text-base font-bold text-slate-900'>
-                              {isAthlete ? 'Focus Areas' : 'Core Expertise'}
-                              </h3>
-                              <p className='text-[10px] text-slate-500 font-bold uppercase tracking-wider'>
-                                  Professional Specializations
-                              </p>
-                          </div>
+                        <div className='p-2 rounded-xl bg-slate-100 text-slate-600'>
+                          <Briefcase size={18} />
+                        </div>
+                        <div>
+                          <h3 className='text-base font-bold text-slate-900'>Focus Areas</h3>
+                          <p className='text-[10px] text-slate-500 font-bold uppercase tracking-wider'>
+                            What this athlete is looking for
+                          </p>
+                        </div>
                       </div>
                     </div>
- 
-                    <div className='flex flex-wrap gap-2'>
-                       {[...activeInterests, ...specialization].map((interest, idx) => (
-                            <span
-                                key={`${interest}-${idx}`}
-                                className='px-3 py-1.5 rounded-full bg-slate-50 border border-slate-100 text-xs font-semibold text-slate-700 flex items-center gap-2 hover:bg-white hover:border-slate-200 transition-all cursor-default group'
-                            >
-                                <Check size={12} className="text-emerald-500" />
-                                {interest.replace(/([A-Z])/g, ' $1').trim()}
-                            </span>
-                       ))}
-                    </div>
+                    {focusAreas.length === 0 ? (
+                      <p className='text-sm text-slate-500'>No focus areas listed yet.</p>
+                    ) : (
+                      <div>
+                        {focusAreas.map((f, i) => (
+                          <FocusAreaEntry key={i} f={f} isLast={i === focusAreas.length - 1} />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </motion.div>
+              ) : (
+                (activeInterests.length > 0 || specialization.length > 0) && (
+                  <motion.div variants={itemVariants}>
+                    <div className='bg-white rounded-2xl border border-slate-200 p-6 shadow-sm'>
+                      <div className='mb-6 flex items-center justify-between'>
+                        <div className='flex items-center gap-3'>
+                            <div className='p-2 rounded-xl bg-slate-100 text-slate-600'>
+                                <Briefcase size={18} />
+                            </div>
+                            <div>
+                                <h3 className='text-base font-bold text-slate-900'>Core Expertise</h3>
+                                <p className='text-[10px] text-slate-500 font-bold uppercase tracking-wider'>
+                                    Professional Specializations
+                                </p>
+                            </div>
+                        </div>
+                      </div>
+
+                      <div className='flex flex-wrap gap-2'>
+                         {[...activeInterests, ...specialization].map((interest, idx) => (
+                              <span
+                                  key={`${interest}-${idx}`}
+                                  className='px-3 py-1.5 rounded-full bg-slate-50 border border-slate-100 text-xs font-semibold text-slate-700 flex items-center gap-2 hover:bg-white hover:border-slate-200 transition-all cursor-default group'
+                              >
+                                  <Check size={12} className="text-emerald-500" />
+                                  {interest.replace(/([A-Z])/g, ' $1').trim()}
+                              </span>
+                         ))}
+                      </div>
+                    </div>
+                  </motion.div>
+                )
               )}
             </div>
 

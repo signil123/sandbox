@@ -166,6 +166,40 @@ const normalizeCertifications = (certs) => {
   })
 }
 
+const CompactFocusAreaEntry = ({ f, isLast }) => {
+  const logoText = f.logoText || (f.title || '?').slice(0, 3).toUpperCase()
+  const logoBg = f.logoBg || '#163146'
+  return (
+    <div
+      className={`flex gap-2.5 items-start py-2 ${
+        isLast ? '' : 'border-b border-[rgba(22,49,70,0.06)]'
+      }`}
+    >
+      <div
+        className='w-[34px] h-[34px] rounded-[9px] flex items-center justify-center text-white text-[9px] font-black shrink-0'
+        style={{ background: logoBg }}
+      >
+        {logoText}
+      </div>
+      <div className='flex-1 min-w-0 pt-0.5'>
+        <div className='text-[11.5px] font-extrabold text-[#163146] tracking-[-0.005em] leading-[1.25]'>
+          {f.title}
+        </div>
+        {f.description && (
+          <p className='m-0 mt-1 text-[11px] leading-[1.45] text-[rgba(22,49,70,0.78)] font-normal'>
+            {f.description}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+const normalizeFocusAreas = (arr) =>
+  (Array.isArray(arr) ? arr : [])
+    .map((v) => (typeof v === 'string' ? { title: v, description: '' } : v))
+    .filter((v) => v && v.title)
+
 
 
 const ReviewModal = ({ isOpen, onClose, profileName, userType }) => {
@@ -336,6 +370,11 @@ const ProfilePopup = ({
   const certificationsList = normalizeCertifications(
     Array.isArray(fullProfile?.certifications) ? fullProfile.certifications : profile.certifications
   )
+  const isAthleteTarget =
+    (profile?.userType || profile?.type || fullProfile?.profileType) === 'athlete'
+  const focusAreasList = isAthleteTarget
+    ? normalizeFocusAreas(fullProfile?.nilPreferences?.focusAreas)
+    : []
   const aboutText =
     fullProfile?.aboutMe || fullProfile?.bio || profile.aboutMe || profile.about || ''
   const company = fullProfile?.company || profile.company
@@ -533,25 +572,47 @@ const ProfilePopup = ({
                         </div>
                       )}
                     </Card>
-                    <Card
-                      title='Licenses & Certifications'
-                      count={certificationsList.length || undefined}
-                      className='min-h-0'
-                      titleClassName={COMPACT_TITLE}
-                      headerPaddingClassName={COMPACT_HEADER_PADDING}
-                    >
-                      {loadingFull && certificationsList.length === 0 ? (
-                        <SectionSkeleton />
-                      ) : certificationsList.length === 0 ? (
-                        <CenteredEmpty message='No certifications listed yet.' />
-                      ) : (
-                        <div className='flex-1 min-h-0 overflow-y-auto no-scrollbar px-[16px] pb-[10px]'>
-                          {certificationsList.map((c, i) => (
-                            <CompactCertEntry key={i} c={c} isLast={i === certificationsList.length - 1} />
-                          ))}
-                        </div>
-                      )}
-                    </Card>
+                    {isAthleteTarget ? (
+                      <Card
+                        title='Focus Areas'
+                        count={focusAreasList.length || undefined}
+                        className='min-h-0'
+                        titleClassName={COMPACT_TITLE}
+                        headerPaddingClassName={COMPACT_HEADER_PADDING}
+                      >
+                        {loadingFull && focusAreasList.length === 0 ? (
+                          <SectionSkeleton />
+                        ) : focusAreasList.length === 0 ? (
+                          <CenteredEmpty message='No focus areas listed yet.' />
+                        ) : (
+                          <div className='flex-1 min-h-0 overflow-y-auto no-scrollbar px-[16px] pb-[10px]'>
+                            {focusAreasList.map((f, i) => (
+                              <CompactFocusAreaEntry key={i} f={f} isLast={i === focusAreasList.length - 1} />
+                            ))}
+                          </div>
+                        )}
+                      </Card>
+                    ) : (
+                      <Card
+                        title='Licenses & Certifications'
+                        count={certificationsList.length || undefined}
+                        className='min-h-0'
+                        titleClassName={COMPACT_TITLE}
+                        headerPaddingClassName={COMPACT_HEADER_PADDING}
+                      >
+                        {loadingFull && certificationsList.length === 0 ? (
+                          <SectionSkeleton />
+                        ) : certificationsList.length === 0 ? (
+                          <CenteredEmpty message='No certifications listed yet.' />
+                        ) : (
+                          <div className='flex-1 min-h-0 overflow-y-auto no-scrollbar px-[16px] pb-[10px]'>
+                            {certificationsList.map((c, i) => (
+                              <CompactCertEntry key={i} c={c} isLast={i === certificationsList.length - 1} />
+                            ))}
+                          </div>
+                        )}
+                      </Card>
+                    )}
                   </div>
                 </div>
               </div>

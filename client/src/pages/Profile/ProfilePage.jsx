@@ -54,14 +54,6 @@ const timelineOptions = [
   { value: 'long', label: 'Long-term (6+ months)' },
 ]
 
-const focusOptions = [
-  'Brand Partnerships',
-  'Content Creation',
-  'Event Appearances',
-  'Social Media Growth',
-  'Endorsements',
-  'Sponsorships',
-]
 
 // Interest options with keys matching the backend
 const interestOptions = [
@@ -228,7 +220,7 @@ const ProfileSkeleton = () => (
   const [preferences, setPreferences] = useState({
     dealSize: '250k-500k',
     timeline: 'medium',
-    focus: ['Brand Partnerships', 'Content Creation'],
+    focus: [],
   })
 
   // Interests (toggleable)
@@ -419,10 +411,9 @@ const ProfileSkeleton = () => (
           setPreferences({
             dealSize: nilPreferences.dealSize || '250k-500k',
             timeline: nilPreferences.timeline || 'medium',
-            focus: nilPreferences.focusAreas || [
-              'Brand Partnerships',
-              'Content Creation',
-            ],
+            focus: (nilPreferences.focusAreas || [])
+              .map((v) => (typeof v === 'string' ? { title: v, description: '' } : v))
+              .filter((v) => v && v.title),
           })
         }
 
@@ -549,10 +540,17 @@ const ProfileSkeleton = () => (
     try {
       setSavingPreferences(true)
 
+      const cleanedFocus = preferences.focus
+        .filter((f) => f && f.title && f.title.trim())
+        .map((f) => ({
+          title: f.title.trim(),
+          description: (f.description || '').trim(),
+        }))
+
       const response = await profileService.updateNILPreferences({
         dealSize: preferences.dealSize,
         timeline: preferences.timeline,
-        focusAreas: preferences.focus,
+        focusAreas: cleanedFocus,
       })
 
       if (response.status === 'success') {
@@ -1209,16 +1207,20 @@ const ProfileSkeleton = () => (
                     <p className='text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2'>
                       Focus Areas
                     </p>
-                    <div className='flex flex-wrap gap-1.5'>
-                      {preferences.focus.map((item) => (
-                        <span
-                          key={item}
-                          className='px-2 py-1 rounded-lg bg-slate-200 text-xs font-medium text-slate-700'
-                        >
-                          {item}
-                        </span>
-                      ))}
-                    </div>
+                    {preferences.focus.length === 0 ? (
+                      <p className='text-xs text-slate-500'>None added yet.</p>
+                    ) : (
+                      <div className='space-y-1.5'>
+                        {preferences.focus.map((item, idx) => (
+                          <div key={idx} className='text-xs text-slate-700 truncate'>
+                            <span className='font-bold'>{item.title}</span>
+                            {item.description && (
+                              <span className='text-slate-500'> — {item.description}</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               </motion.div>
@@ -1698,41 +1700,69 @@ const ProfileSkeleton = () => (
                 </div>
 
                 <div>
-                  <label className='block text-xs font-semibold text-slate-900 mb-3'>
+                  <label className='block text-xs font-semibold text-slate-900 mb-1'>
                     Focus Areas
                   </label>
-                  <div className='space-y-2'>
-                    {focusOptions.map((option) => (
-                      <div key={option} className='flex items-center'>
-                        <input
-                          type='checkbox'
-                          id={option}
-                          checked={preferences.focus.includes(option)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setPreferences({
-                                ...preferences,
-                                focus: [...preferences.focus, option],
-                              })
-                            } else {
-                              setPreferences({
-                                ...preferences,
-                                focus: preferences.focus.filter(
-                                  (f) => f !== option
-                                ),
-                              })
-                            }
-                          }}
-                          className='w-4 h-4 rounded border-slate-300 text-slate-900 focus:ring-slate-400 cursor-pointer'
-                        />
-                        <label
-                          htmlFor={option}
-                          className='ml-2.5 text-sm text-slate-700 cursor-pointer'
+                  <p className='text-[11px] text-slate-500 mb-3'>
+                    State what you're looking for and explain it. Each entry shows up like an experience or education item on your profile.
+                  </p>
+                  <div className='space-y-3'>
+                    {preferences.focus.map((item, idx) => (
+                      <div
+                        key={idx}
+                        className='relative p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-2'
+                      >
+                        <button
+                          type='button'
+                          onClick={() =>
+                            setPreferences({
+                              ...preferences,
+                              focus: preferences.focus.filter((_, i) => i !== idx),
+                            })
+                          }
+                          className='absolute top-2 right-2 p-1 rounded-md hover:bg-slate-200 transition-colors'
+                          aria-label='Remove focus area'
                         >
-                          {option}
-                        </label>
+                          <X size={14} className='text-slate-500' />
+                        </button>
+                        <input
+                          type='text'
+                          placeholder='What you’re looking for (e.g., Brand Partnerships)'
+                          value={item.title}
+                          onChange={(e) => {
+                            const next = [...preferences.focus]
+                            next[idx] = { ...next[idx], title: e.target.value }
+                            setPreferences({ ...preferences, focus: next })
+                          }}
+                          className='w-full pr-7 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-400 transition bg-white'
+                          maxLength={120}
+                        />
+                        <textarea
+                          placeholder='Describe the kind of opportunity or partnership you want.'
+                          value={item.description}
+                          onChange={(e) => {
+                            const next = [...preferences.focus]
+                            next[idx] = { ...next[idx], description: e.target.value }
+                            setPreferences({ ...preferences, focus: next })
+                          }}
+                          rows={3}
+                          className='w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-400 transition bg-white resize-none'
+                          maxLength={600}
+                        />
                       </div>
                     ))}
+                    <button
+                      type='button'
+                      onClick={() =>
+                        setPreferences({
+                          ...preferences,
+                          focus: [...preferences.focus, { title: '', description: '' }],
+                        })
+                      }
+                      className='w-full py-2.5 rounded-lg border border-dashed border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition'
+                    >
+                      + Add Focus Area
+                    </button>
                   </div>
                 </div>
               </div>

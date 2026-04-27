@@ -487,6 +487,29 @@ const CertEntry = ({ c, isLast }) => {
   )
 }
 
+const FocusAreaEntry = ({ f, isLast }) => {
+  const logoText = f.logoText || (f.title || '?').slice(0, 3).toUpperCase()
+  const logoBg = f.logoBg || '#163146'
+  return (
+    <div className={`flex gap-3 items-start py-3 ${isLast ? '' : 'border-b border-[rgba(22,49,70,0.06)]'}`}>
+      <div
+        className='w-[48px] h-[48px] rounded-xl flex items-center justify-center text-white text-[12px] font-black shrink-0'
+        style={{ background: logoBg, boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.08)' }}
+      >
+        {logoText}
+      </div>
+      <div className='flex-1 min-w-0'>
+        <div className='text-[14px] font-extrabold text-[#163146]'>{f.title}</div>
+        {f.description && (
+          <p className='m-0 mt-2 text-[12.5px] leading-[1.5] text-[rgba(22,49,70,0.78)] font-normal'>
+            {f.description}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // Chip rail uses the same horizontal FadeScroll for consistent affordance
 // (replaces the old "+N" badge; matches Experience/Education behavior the user liked)
 const ChipRail = ({ title, items, accent = 'navy', icon: I, emptyLabel = 'None added' }) => (
@@ -632,5 +655,16 @@ const AdvisorPublicView = ({
   )
 }
 
-export { Card, ExperienceEntry, EducationEntry, CertEntry, VerifiedPill, EmptyState }
+export {
+  Card,
+  ExperienceEntry,
+  EducationEntry,
+  CertEntry,
+  FocusAreaEntry,
+  VerifiedPill,
+  EmptyState,
+  HeaderCard,
+  FadeScroll,
+  ChipRail,
+}
 export default AdvisorPublicView
