@@ -74,6 +74,15 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [isNotificationOpen, setIsNotificationOpen] = useState(false)
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false)
+  const [isMobileViewport, setIsMobileViewport] = useState(
+    typeof window !== 'undefined' ? window.innerWidth < 768 : false
+  )
+
+  useEffect(() => {
+    const onResize = () => setIsMobileViewport(window.innerWidth < 768)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
   const [notificationsSupported, setNotificationsSupported] = useState(false)
   const [notificationPermission, setNotificationPermission] = useState('default')
   const [notificationsEnabled, setNotificationsEnabled] = useState(false)
@@ -1638,10 +1647,11 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
       <motion.div
         className='flex-1 flex flex-col pt-14 md:pt-0'
         style={{ marginLeft: 0 }}
-        drag='x'
+        drag={isMobileViewport ? 'x' : false}
         dragConstraints={{ left: 0, right: 0 }}
         dragElastic={0.1}
         onDragEnd={(e, { offset, velocity }) => {
+          if (!isMobileViewport) return
           const swipe = Math.abs(offset.x) > 50 && Math.abs(velocity.x) > 500
           if (swipe) {
             if (offset.x > 0) {
