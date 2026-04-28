@@ -90,11 +90,11 @@ const Composer = ({ value, setValue, onSend, autofocus, disabled, file, setFile 
               maxWidth: '100%',
             }}
           >
-            <Paperclip size={12} strokeWidth={1.8} color='var(--signil-bronze)' />
+            <Paperclip size={12} strokeWidth={1.8} color='var(--signil-bronze)' style={{ flexShrink: 0 }} />
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 280 }}>
               {file.name}
             </span>
-            <span style={{ color: 'var(--color-fg-muted)', fontWeight: 500 }}>{formatFileSize(file.size)}</span>
+            <span style={{ color: 'var(--color-fg-muted)', fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatFileSize(file.size)}</span>
             <button
               type='button'
               onClick={() => setFile(null)}
@@ -399,8 +399,8 @@ const UserBubble = ({ children }) => (
 const Avatar = ({ role, initials }) => {
   if (role === 'scout') {
     return (
-      <div style={{ flex: '0 0 auto', width: 34, height: 34, borderRadius: 12, display: 'grid', placeItems: 'center', background: 'var(--signil-navy)', padding: 5 }}>
-        <img src='/signil-icon.png' alt='' style={{ width: '100%', height: '100%', objectFit: 'contain', filter: 'brightness(1.1)' }} />
+      <div style={{ flex: '0 0 auto', width: 44, height: 44, display: 'grid', placeItems: 'center' }}>
+        <img src='/signil-icon.png' alt='' style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
       </div>
     )
   }
@@ -569,7 +569,7 @@ const ScoutPage = () => {
                       style={{
                         display: 'flex', gap: 14, alignItems: 'flex-start',
                         flexDirection: m.role === 'user' ? 'row-reverse' : 'row',
-                        justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start',
+                        justifyContent: 'flex-start',
                       }}
                     >
                       <Avatar role={m.role} initials={userInitials} />
@@ -605,9 +605,9 @@ const ScoutPage = () => {
                                   marginBottom: m.text ? 8 : 0,
                                 }}
                               >
-                                <Paperclip size={12} strokeWidth={1.8} />
+                                <Paperclip size={12} strokeWidth={1.8} style={{ flexShrink: 0 }} />
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 240 }}>{m.attachment.name}</span>
-                                <span style={{ opacity: 0.7, fontWeight: 500 }}>{formatFileSize(m.attachment.size)}</span>
+                                <span style={{ opacity: 0.7, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatFileSize(m.attachment.size)}</span>
                               </div>
                             )}
                             {m.text && <div>{m.text}</div>}
