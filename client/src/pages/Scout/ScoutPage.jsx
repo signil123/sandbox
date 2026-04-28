@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import {
   ArrowUp,
   ArrowUpRight,
-  Bookmark,
   Calculator,
   Compass,
   Copy,
@@ -10,16 +9,13 @@ import {
   Megaphone,
   Paperclip,
   Plus,
-  Share2,
-  ThumbsDown,
-  ThumbsUp,
   X,
 } from 'lucide-react'
 import DashboardLayout from '../Layout/DashboardLayout'
 import { scoutService } from '../../services/scoutService'
 
 const COMPOSER_MAX = 680
-const CONVO_MAX = 760
+const CONVO_MAX = 960
 const GREET_SIZE = 57
 const SIDEBAR_OFFSET = 260
 
@@ -272,41 +268,36 @@ const TypingDots = () => (
   </div>
 )
 
-const MsgActions = () => {
-  const actions = [
-    { icon: Copy, label: 'Copy' },
-    { icon: ThumbsUp, label: 'Helpful' },
-    { icon: ThumbsDown, label: 'Not helpful' },
-    { icon: Bookmark, label: 'Save' },
-    { icon: Share2, label: 'Share' },
-  ]
+const MsgActions = ({ text }) => {
+  const handleCopy = () => {
+    if (!text) return
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text)
+  }
   return (
     <div style={{ display: 'flex', gap: 4, marginTop: 10 }}>
-      {actions.map(({ icon: IconCmp, label }) => (
-        <button
-          key={label}
-          title={label}
-          style={{
-            width: 28, height: 28, borderRadius: 8,
-            background: 'transparent', border: '1px solid transparent',
-            color: 'var(--color-fg-subtle)',
-            display: 'grid', placeItems: 'center', cursor: 'pointer',
-            transition: 'all var(--dur-fast) var(--ease-signature)',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'rgba(22,49,70,0.05)'
-            e.currentTarget.style.color = 'var(--signil-navy)'
-            e.currentTarget.style.borderColor = 'var(--color-border-strong)'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'transparent'
-            e.currentTarget.style.color = 'var(--color-fg-subtle)'
-            e.currentTarget.style.borderColor = 'transparent'
-          }}
-        >
-          <IconCmp size={13} strokeWidth={1.5} />
-        </button>
-      ))}
+      <button
+        title='Copy'
+        onClick={handleCopy}
+        style={{
+          width: 28, height: 28, borderRadius: 8,
+          background: 'transparent', border: '1px solid transparent',
+          color: 'var(--color-fg-subtle)',
+          display: 'grid', placeItems: 'center', cursor: 'pointer',
+          transition: 'all var(--dur-fast) var(--ease-signature)',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = 'rgba(22,49,70,0.05)'
+          e.currentTarget.style.color = 'var(--signil-navy)'
+          e.currentTarget.style.borderColor = 'var(--color-border-strong)'
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = 'transparent'
+          e.currentTarget.style.color = 'var(--color-fg-subtle)'
+          e.currentTarget.style.borderColor = 'transparent'
+        }}
+      >
+        <Copy size={13} strokeWidth={1.5} />
+      </button>
     </div>
   )
 }
@@ -377,9 +368,9 @@ const UserBubble = ({ children }) => (
   <div
     style={{
       padding: '12px 20px',
-      borderRadius: 999,
-      background: 'var(--signil-navy)',
-      color: '#fff',
+      borderRadius: 24,
+      background: 'rgba(22, 49, 70, 0.06)',
+      color: 'var(--signil-navy)',
       maxWidth: '80%',
       fontSize: 15, lineHeight: 1.5, fontWeight: 400,
       fontFamily: 'var(--font-sans)',
@@ -565,22 +556,23 @@ const ScoutPage = () => {
                                 style={{
                                   display: 'inline-flex', alignItems: 'center', gap: 8,
                                   padding: '6px 10px',
-                                  background: 'rgba(255,255,255,0.12)',
-                                  border: '1px solid rgba(255,255,255,0.18)',
+                                  background: 'rgba(22,49,70,0.06)',
+                                  border: '1px solid rgba(22,49,70,0.10)',
                                   borderRadius: 999,
                                   fontSize: 12, fontWeight: 600,
                                   marginBottom: m.text ? 8 : 0,
+                                  color: 'var(--signil-navy)',
                                 }}
                               >
-                                <Paperclip size={12} strokeWidth={1.8} style={{ flexShrink: 0 }} />
+                                <Paperclip size={12} strokeWidth={1.8} style={{ flexShrink: 0, color: 'var(--signil-bronze)' }} />
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 240 }}>{m.attachment.name}</span>
-                                <span style={{ opacity: 0.7, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatFileSize(m.attachment.size)}</span>
+                                <span style={{ color: 'var(--color-fg-muted)', fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatFileSize(m.attachment.size)}</span>
                               </div>
                             )}
                             {m.text && <div>{m.text}</div>}
                           </UserBubble>
                         )}
-                        {m.role === 'scout' && <MsgActions />}
+                        {m.role === 'scout' && <MsgActions text={m.text} />}
                       </div>
                     </div>
                   ))}
