@@ -15,7 +15,7 @@ import DashboardLayout from '../Layout/DashboardLayout'
 import { scoutService } from '../../services/scoutService'
 
 const COMPOSER_MAX = 680
-const CONVO_MAX = 960
+const CONVO_MAX = 680
 const GREET_SIZE = 57
 const SIDEBAR_OFFSET = 260
 
@@ -531,8 +531,8 @@ const ScoutPage = () => {
                         justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start',
                       }}
                     >
-                      <div style={{ flex: m.role === 'user' ? '0 1 auto' : 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                        {m.role === 'scout' ? (
+                      {m.role === 'scout' ? (
+                        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
                           <ScoutBubble>
                             <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{m.text}</p>
                             {m.matches && m.matches.length > 0 && (
@@ -549,31 +549,31 @@ const ScoutPage = () => {
                               </div>
                             )}
                           </ScoutBubble>
-                        ) : (
-                          <UserBubble>
-                            {m.attachment && (
-                              <div
-                                style={{
-                                  display: 'inline-flex', alignItems: 'center', gap: 8,
-                                  padding: '6px 10px',
-                                  background: 'rgba(22,49,70,0.06)',
-                                  border: '1px solid rgba(22,49,70,0.10)',
-                                  borderRadius: 999,
-                                  fontSize: 12, fontWeight: 600,
-                                  marginBottom: m.text ? 8 : 0,
-                                  color: 'var(--signil-navy)',
-                                }}
-                              >
-                                <Paperclip size={12} strokeWidth={1.8} style={{ flexShrink: 0, color: 'var(--signil-bronze)' }} />
-                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 240 }}>{m.attachment.name}</span>
-                                <span style={{ color: 'var(--color-fg-muted)', fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatFileSize(m.attachment.size)}</span>
-                              </div>
-                            )}
-                            {m.text && <div>{m.text}</div>}
-                          </UserBubble>
-                        )}
-                        {m.role === 'scout' && <MsgActions text={m.text} />}
-                      </div>
+                          <MsgActions text={m.text} />
+                        </div>
+                      ) : (
+                        <UserBubble>
+                          {m.attachment && (
+                            <div
+                              style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 8,
+                                padding: '6px 10px',
+                                background: 'rgba(22,49,70,0.06)',
+                                border: '1px solid rgba(22,49,70,0.10)',
+                                borderRadius: 999,
+                                fontSize: 12, fontWeight: 600,
+                                marginBottom: m.text ? 8 : 0,
+                                color: 'var(--signil-navy)',
+                              }}
+                            >
+                              <Paperclip size={12} strokeWidth={1.8} style={{ flexShrink: 0, color: 'var(--signil-bronze)' }} />
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 240 }}>{m.attachment.name}</span>
+                              <span style={{ color: 'var(--color-fg-muted)', fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatFileSize(m.attachment.size)}</span>
+                            </div>
+                          )}
+                          {m.text && <div>{m.text}</div>}
+                        </UserBubble>
+                      )}
                     </div>
                   ))}
                   {typing && (
