@@ -1322,7 +1322,12 @@ function MessagePage() {
     if (forceScrollRef.current) {
       requestAnimationFrame(() => {
         scrollToBottomImmediate()
-        forceScrollRef.current = false
+        // Re-pin to bottom on the next frame in case images / late layout
+        // shifted scrollHeight after the first jump.
+        requestAnimationFrame(() => {
+          scrollToBottomImmediate()
+          forceScrollRef.current = false
+        })
       })
       return
     }
@@ -1330,7 +1335,19 @@ function MessagePage() {
     if (shouldAutoScrollRef.current) {
       messageEndRef.current?.scrollIntoView({ behavior: 'auto' })
     }
-  }, [messages])
+  }, [messages, selectedConversationId])
+
+  // When a conversation is opened, always pin to the most recent message,
+  // even if the cached messages array is identical to the previous one.
+  useEffect(() => {
+    if (!selectedConversationId) return
+    forceScrollRef.current = true
+    shouldAutoScrollRef.current = true
+    const id = requestAnimationFrame(() => {
+      scrollToBottomImmediate()
+    })
+    return () => cancelAnimationFrame(id)
+  }, [selectedConversationId])
 
   // Handle swipe gestures for mobile
   const handleDragStart = (e) => {
