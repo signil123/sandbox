@@ -565,7 +565,7 @@ const CalendarPage = () => {
   if (loading) {
     return (
       <DashboardLayout>
-        <CalendarSkeleton />
+        <div className='w-full h-full' />
       </DashboardLayout>
     )
   }

@@ -386,32 +386,19 @@ const AdvisorProfilePage = ({ type = 'advisor' }) => {
   }
 
   const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: { staggerChildren: 0.08, delayChildren: 0.15 },
-    },
+    hidden: { opacity: 1 },
+    visible: { opacity: 1 },
   }
 
   const itemVariants = {
-    hidden: { opacity: 0, y: 16 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.4 } },
+    hidden: { opacity: 1, y: 0 },
+    visible: { opacity: 1, y: 0 },
   }
-
-  const ProfileSkeleton = () => (
-    <div className='mx-auto px-4 py-6 max-w-8xl w-full animate-pulse'>
-      <div className='h-8 w-40 bg-slate-200 rounded-lg mb-6' />
-      <div className='grid grid-cols-1 lg:grid-cols-3 gap-4'>
-        <div className='lg:col-span-2 bg-white rounded-2xl border border-slate-200 h-96' />
-        <div className='bg-white rounded-2xl border border-slate-200 h-96' />
-      </div>
-    </div>
-  )
 
   if (loading) {
     return (
       <DashboardLayout>
-        <ProfileSkeleton />
+        <div className='mx-auto px-4 py-6 max-w-8xl w-full' />
       </DashboardLayout>
     )
   }
