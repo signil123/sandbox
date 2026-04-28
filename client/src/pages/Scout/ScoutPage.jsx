@@ -192,7 +192,7 @@ const Composer = ({ value, setValue, onSend, autofocus, disabled, file, setFile 
           </div>
         </div>
       )}
-      <div style={{ padding: '28px 28px 12px' }}>
+      <div style={{ padding: '18px 24px 6px' }}>
         <textarea
           ref={ref}
           rows={1}
@@ -203,21 +203,21 @@ const Composer = ({ value, setValue, onSend, autofocus, disabled, file, setFile 
           style={{
             width: '100%', border: 0, outline: 0, resize: 'none',
             fontFamily: 'var(--font-sans)', fontWeight: 400,
-            fontSize: 17, lineHeight: 1.5,
+            fontSize: 16, lineHeight: 1.5,
             color: 'var(--signil-navy)',
             background: 'transparent',
-            minHeight: 56, maxHeight: 220,
+            minHeight: 24, maxHeight: 220,
           }}
         />
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 14px 14px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 12px 10px' }}>
         <button
           type='button'
           onClick={() => fileRef.current?.click()}
           aria-label='Attach file'
           disabled={disabled}
           style={{
-            width: 40, height: 40, borderRadius: 999,
+            width: 34, height: 34, borderRadius: 999,
             background: 'transparent', color: 'var(--color-fg-muted)',
             display: 'grid', placeItems: 'center', border: 'none',
             cursor: disabled ? 'default' : 'pointer',
@@ -233,7 +233,7 @@ const Composer = ({ value, setValue, onSend, autofocus, disabled, file, setFile 
             e.currentTarget.style.color = 'var(--color-fg-muted)'
           }}
         >
-          <Paperclip size={20} strokeWidth={1.7} />
+          <Paperclip size={17} strokeWidth={1.7} />
         </button>
         <input
           ref={fileRef}
@@ -246,7 +246,7 @@ const Composer = ({ value, setValue, onSend, autofocus, disabled, file, setFile 
           onClick={() => canSend && onSend()}
           disabled={!canSend}
           style={{
-            width: 40, height: 40, borderRadius: 999,
+            width: 34, height: 34, borderRadius: 999,
             background: canSend ? 'var(--signil-navy)' : 'rgba(22,49,70,0.12)',
             color: '#fff',
             display: 'grid', placeItems: 'center', border: 'none',
@@ -255,7 +255,7 @@ const Composer = ({ value, setValue, onSend, autofocus, disabled, file, setFile 
           }}
           aria-label='Send'
         >
-          <ArrowUp size={20} strokeWidth={2} />
+          <ArrowUp size={17} strokeWidth={2} />
         </button>
       </div>
     </div>
