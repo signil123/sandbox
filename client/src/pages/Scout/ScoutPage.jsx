@@ -23,21 +23,21 @@ const CONVO_MAX = 680
 const SIDEBAR_OFFSET = 260
 
 const WELCOME_TEMPLATES = [
-  'Welcome {name}, ready to tackle some problems?',
-  'Hey {name}, what are we working on today?',
-  'Good to see you, {name} — let’s make moves.',
-  'Welcome back, {name}. Where do we start?',
+  'Welcome {name}, what’s first?',
+  'Hey {name}, what’s the move?',
+  'Good to see you, {name}. Let’s roll.',
+  'Welcome back, {name}. Let’s go.',
   'Hi {name}, let’s make today count.',
-  '{name}, ready to get something done?',
-  'Hello {name}, what can I help you with?',
-  'Welcome {name}, let’s tackle the day.',
-  'Hey {name}, what should we figure out?',
-  '{name}, glad you’re here — what’s first?',
-  'Welcome back {name}, ready when you are.',
-  'Hi {name}, what’s on the docket today?',
-  'Hey {name}, let’s sort something out.',
+  '{name}, ready to get going?',
+  'Hello {name}, how can I help?',
+  'Welcome {name}, let’s get to it.',
+  'Hey {name}, what are we tackling?',
+  '{name}, glad you’re here today.',
+  'Welcome back {name}, let’s roll.',
+  'Hi {name}, what’s on tap today?',
+  'Hey {name}, let’s sort it out.',
   'Welcome {name}, time to get to work.',
-  '{name}, what would you like to dig into?',
+  '{name}, what’s the plan today?',
 ]
 
 const dailySeed = (firstName) => {
@@ -298,6 +298,19 @@ const Chip = ({ icon: IconCmp, text, onClick }) => (
 const EmptyState = ({ onSend, value, setValue, disabled, file, setFile, firstName }) => {
   const template = pickDailyWelcome(firstName || 'there')
   const [before, after] = template.split('{name}')
+  const displayName = firstName || 'there'
+  const [typed, setTyped] = useState(0)
+
+  useEffect(() => {
+    setTyped(0)
+  }, [displayName])
+
+  useEffect(() => {
+    if (typed >= displayName.length) return
+    const t = setTimeout(() => setTyped((n) => n + 1), 110)
+    return () => clearTimeout(t)
+  }, [typed, displayName])
+
   return (
   <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 32px 56px', position: 'relative' }}>
     <div style={{ width: '100%', maxWidth: COMPOSER_MAX, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 28 }}>
@@ -314,8 +327,19 @@ const EmptyState = ({ onSend, value, setValue, disabled, file, setFile, firstNam
         }}
       >
         {before}
-        <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontWeight: 500, color: 'var(--signil-bronze)', letterSpacing: '-0.005em' }}>
-          {firstName || 'there'}
+        <span style={{ color: 'var(--signil-bronze)' }}>
+          {displayName.split('').map((ch, i) => (
+            <span
+              key={i}
+              style={{
+                visibility: i < typed ? 'visible' : 'hidden',
+                transition: 'opacity 120ms var(--ease-signature)',
+                opacity: i < typed ? 1 : 0,
+              }}
+            >
+              {ch}
+            </span>
+          ))}
         </span>
         {after}
       </h1>
