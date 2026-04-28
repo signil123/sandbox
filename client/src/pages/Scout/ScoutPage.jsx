@@ -19,6 +19,7 @@ import { scoutService } from '../../services/scoutService'
 const COMPOSER_MAX = 680
 const CONVO_MAX = 760
 const GREET_SIZE = 57
+const SIDEBAR_OFFSET = 260
 
 const SUGGESTIONS = [
   { icon: FileText, text: 'Review my apparel deal' },
@@ -397,16 +398,27 @@ const ScoutPage = () => {
   return (
     <DashboardLayout>
       <div
+        className='scout-page-root'
         style={{
           position: 'relative',
-          minHeight: 'calc(100vh - 64px)',
+          flex: 1,
+          minHeight: '100vh',
+          height: '100%',
           background: 'var(--signil-cream)',
           isolation: 'isolate',
           overflow: 'hidden',
           fontFamily: 'var(--font-sans)',
           color: 'var(--signil-navy)',
+          display: 'flex',
+          flexDirection: 'column',
         }}
       >
+        <style>{`
+          @media (min-width: 768px) {
+            .scout-page-root { padding-left: ${SIDEBAR_OFFSET}px; }
+            .scout-brand-mark { left: ${SIDEBAR_OFFSET + 28}px !important; }
+          }
+        `}</style>
         <div
           aria-hidden
           style={{
@@ -426,43 +438,41 @@ const ScoutPage = () => {
           }}
         />
 
-        <div style={{ position: 'absolute', top: 24, left: 28, zIndex: 4, display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+        <div className='scout-brand-mark' style={{ position: 'absolute', top: 24, left: 28, zIndex: 4, display: 'inline-flex', alignItems: 'center', gap: 10 }}>
           <img src='/signil-icon.png' alt='' style={{ width: 26, height: 26 }} />
           <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontWeight: 500, fontSize: 22, color: 'var(--signil-navy)', letterSpacing: '-0.005em' }}>
             Scout
           </span>
         </div>
 
-        {view === 'convo' && (
-          <button
-            onClick={newChat}
-            style={{
-              position: 'absolute', top: 24, right: 28, zIndex: 5,
-              display: 'inline-flex', alignItems: 'center', gap: 9,
-              padding: '11px 18px',
-              border: 'none',
-              background: 'var(--signil-navy)', color: '#fff',
-              borderRadius: 999,
-              fontSize: 11, fontWeight: 900, letterSpacing: '0.22em', textTransform: 'uppercase',
-              boxShadow: '0 12px 30px -10px rgba(22,49,70,0.35)',
-              cursor: 'pointer',
-              transition: 'all var(--dur-fast) var(--ease-signature)',
-              fontFamily: 'var(--font-sans)',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'var(--signil-bronze)'
-              e.currentTarget.style.transform = 'translateY(-1px)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'var(--signil-navy)'
-              e.currentTarget.style.transform = 'none'
-            }}
-          >
-            <Plus size={14} strokeWidth={2.2} /> <span>New Chat</span>
-          </button>
-        )}
+        <button
+          onClick={newChat}
+          style={{
+            position: 'absolute', top: 24, right: 28, zIndex: 5,
+            display: 'inline-flex', alignItems: 'center', gap: 9,
+            padding: '11px 18px',
+            border: 'none',
+            background: 'var(--signil-navy)', color: '#fff',
+            borderRadius: 999,
+            fontSize: 11, fontWeight: 900, letterSpacing: '0.22em', textTransform: 'uppercase',
+            boxShadow: '0 12px 30px -10px rgba(22,49,70,0.35)',
+            cursor: 'pointer',
+            transition: 'all var(--dur-fast) var(--ease-signature)',
+            fontFamily: 'var(--font-sans)',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'var(--signil-bronze)'
+            e.currentTarget.style.transform = 'translateY(-1px)'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'var(--signil-navy)'
+            e.currentTarget.style.transform = 'none'
+          }}
+        >
+          <Plus size={14} strokeWidth={2.2} /> <span>New Chat</span>
+        </button>
 
-        <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', minHeight: 'calc(100vh - 64px)' }}>
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           {view === 'empty' ? (
             <EmptyState onSend={sendMessage} value={emptyValue} setValue={setEmptyValue} disabled={typing} />
           ) : (
