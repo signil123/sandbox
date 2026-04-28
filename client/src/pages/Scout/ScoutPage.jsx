@@ -364,13 +364,7 @@ const ScoutBubble = ({ children }) => (
   <div
     style={{
       flex: 1, minWidth: 0,
-      padding: '16px 20px',
-      borderRadius: 22,
-      borderTopLeftRadius: 6,
-      background: '#fff',
       color: 'var(--signil-navy)',
-      border: '1px solid var(--color-border-soft)',
-      boxShadow: 'var(--shadow-xs)',
       fontSize: 15, lineHeight: 1.62, fontWeight: 400,
       fontFamily: 'var(--font-sans)',
     }}
@@ -382,41 +376,18 @@ const ScoutBubble = ({ children }) => (
 const UserBubble = ({ children }) => (
   <div
     style={{
-      padding: '16px 20px',
-      borderRadius: 22,
-      borderTopRightRadius: 6,
+      padding: '12px 20px',
+      borderRadius: 999,
       background: 'var(--signil-navy)',
       color: '#fff',
       maxWidth: '80%',
-      fontSize: 15, lineHeight: 1.62, fontWeight: 400,
+      fontSize: 15, lineHeight: 1.5, fontWeight: 400,
       fontFamily: 'var(--font-sans)',
     }}
   >
     {children}
   </div>
 )
-
-const Avatar = ({ role, initials }) => {
-  if (role === 'scout') {
-    return (
-      <div style={{ flex: '0 0 auto', width: 44, height: 44, display: 'grid', placeItems: 'center' }}>
-        <img src='/signil-icon.png' alt='' style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-      </div>
-    )
-  }
-  return (
-    <div
-      style={{
-        flex: '0 0 auto', width: 34, height: 34, borderRadius: 12,
-        display: 'grid', placeItems: 'center',
-        background: 'linear-gradient(135deg, var(--signil-bronze), var(--signil-bronze-deep))',
-        color: '#fff', fontWeight: 900, fontSize: 11, letterSpacing: '.04em',
-      }}
-    >
-      {initials}
-    </div>
-  )
-}
 
 const ScoutPage = () => {
   const [view, setView] = useState('empty')
@@ -426,8 +397,6 @@ const ScoutPage = () => {
   const [messages, setMessages] = useState([])
   const [typing, setTyping] = useState(false)
   const convoRef = useRef(null)
-
-  const userInitials = 'JM'
 
   useEffect(() => {
     if (convoRef.current) convoRef.current.scrollTop = convoRef.current.scrollHeight
@@ -567,12 +536,10 @@ const ScoutPage = () => {
                     <div
                       key={m.id}
                       style={{
-                        display: 'flex', gap: 14, alignItems: 'flex-start',
-                        flexDirection: m.role === 'user' ? 'row-reverse' : 'row',
-                        justifyContent: 'flex-start',
+                        display: 'flex',
+                        justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start',
                       }}
                     >
-                      <Avatar role={m.role} initials={userInitials} />
                       <div style={{ flex: m.role === 'user' ? '0 1 auto' : 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
                         {m.role === 'scout' ? (
                           <ScoutBubble>
@@ -618,19 +585,8 @@ const ScoutPage = () => {
                     </div>
                   ))}
                   {typing && (
-                    <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-                      <Avatar role='scout' />
-                      <div
-                        style={{
-                          padding: '12px 18px',
-                          borderRadius: 22, borderTopLeftRadius: 6,
-                          background: '#fff',
-                          border: '1px solid var(--color-border-soft)',
-                          boxShadow: 'var(--shadow-xs)',
-                        }}
-                      >
-                        <TypingDots />
-                      </div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                      <TypingDots />
                     </div>
                   )}
                 </div>
