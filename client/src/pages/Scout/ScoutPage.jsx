@@ -7,6 +7,7 @@ import {
   Compass,
   Copy,
   FileText,
+  HelpCircle,
   Megaphone,
   Paperclip,
   Plus,
@@ -26,6 +27,57 @@ const SUGGESTIONS = [
   { icon: Calculator, text: 'Plan NIL taxes' },
   { icon: Megaphone, text: 'Build my personal brand' },
 ]
+
+const HelpButton = () => {
+  const [hover, setHover] = useState(false)
+  return (
+    <div
+      className='scout-help-anchor'
+      style={{ position: 'absolute', top: 24, left: 28, zIndex: 5 }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+    >
+      <button
+        aria-label='What is Scout?'
+        style={{
+          width: 36, height: 36, borderRadius: 999,
+          background: 'rgba(255,255,255,0.85)',
+          border: '1px solid var(--color-border-strong)',
+          color: 'var(--signil-navy)',
+          display: 'grid', placeItems: 'center', cursor: 'help',
+          backdropFilter: 'blur(10px)',
+          transition: 'all var(--dur-fast) var(--ease-signature)',
+          boxShadow: hover ? 'var(--shadow-sm)' : 'none',
+          borderColor: hover ? 'var(--color-accent-border)' : 'var(--color-border-strong)',
+        }}
+      >
+        <HelpCircle size={17} strokeWidth={1.7} color={hover ? 'var(--signil-bronze)' : 'currentColor'} />
+      </button>
+      {hover && (
+        <div
+          role='tooltip'
+          style={{
+            position: 'absolute', top: 'calc(100% + 10px)', left: 0,
+            width: 360, padding: '14px 16px',
+            background: 'var(--signil-navy)', color: 'var(--signil-cream)',
+            borderRadius: 14,
+            fontSize: 13, lineHeight: 1.55, fontWeight: 400,
+            fontFamily: 'var(--font-sans)',
+            boxShadow: '0 20px 40px -10px rgba(22,49,70,0.30)',
+            zIndex: 10,
+          }}
+        >
+          <div style={{ fontSize: 10, fontWeight: 900, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--signil-bronze)', marginBottom: 8 }}>
+            About Scout
+          </div>
+          Scout is your NIL guide. It helps student-athletes, advisors, and families figure out
+          what to do next, whether that means reviewing a deal, understanding a contract, finding
+          trusted help, or getting connected to the right people.
+        </div>
+      )}
+    </div>
+  )
+}
 
 const formatFileSize = (bytes) => {
   if (bytes < 1024) return `${bytes} B`
@@ -227,19 +279,6 @@ const EmptyState = ({ onSend, value, setValue, disabled, file, setFile }) => (
         Where would you like to{' '}
         <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontWeight: 500, color: 'var(--signil-bronze)', letterSpacing: '-0.01em' }}>go</span>{' '}
         today?
-        <span
-          style={{
-            display: 'block',
-            fontFamily: 'var(--font-sans)', fontWeight: 300,
-            fontSize: 16, letterSpacing: 0,
-            color: 'var(--color-fg-muted)',
-            marginTop: 18, lineHeight: 1.5, maxWidth: '52ch',
-          }}
-        >
-          Scout is your NIL guide. It helps student-athletes, advisors, and families figure out
-          what to do next, whether that means reviewing a deal, understanding a contract, finding
-          trusted help, or getting connected to the right people.
-        </span>
       </h1>
 
       <Composer value={value} setValue={setValue} onSend={() => onSend(value)} autofocus disabled={disabled} file={file} setFile={setFile} />
@@ -503,6 +542,7 @@ const ScoutPage = () => {
         <style>{`
           @media (min-width: 768px) {
             .scout-page-root { padding-left: ${SIDEBAR_OFFSET}px; }
+            .scout-help-anchor { left: ${SIDEBAR_OFFSET + 28}px !important; }
           }
         `}</style>
         <div
@@ -523,6 +563,8 @@ const ScoutPage = () => {
             pointerEvents: 'none', zIndex: 0, filter: 'blur(40px)',
           }}
         />
+
+        <HelpButton />
 
         <button
           onClick={newChat}
