@@ -1312,22 +1312,22 @@ function MessagePage() {
     container.scrollTop = container.scrollHeight
   }
 
-  // Auto scroll to bottom (no animation), but don't fight user scrolling
+  // Auto scroll to bottom (no animation), but don't fight user scrolling.
+  // Waits until isMessagesLoading is false so the container is rendering
+  // real messages (not the skeleton) before measuring scrollHeight.
   useEffect(() => {
+    if (isMessagesLoading) return
+
     if (skipAutoScrollRef.current) {
       skipAutoScrollRef.current = false
       return
     }
 
     if (forceScrollRef.current) {
+      forceScrollRef.current = false
       requestAnimationFrame(() => {
         scrollToBottomImmediate()
-        // Re-pin to bottom on the next frame in case images / late layout
-        // shifted scrollHeight after the first jump.
-        requestAnimationFrame(() => {
-          scrollToBottomImmediate()
-          forceScrollRef.current = false
-        })
+        requestAnimationFrame(scrollToBottomImmediate)
       })
       return
     }
@@ -1335,18 +1335,14 @@ function MessagePage() {
     if (shouldAutoScrollRef.current) {
       messageEndRef.current?.scrollIntoView({ behavior: 'auto' })
     }
-  }, [messages, selectedConversationId])
+  }, [messages, selectedConversationId, isMessagesLoading])
 
-  // When a conversation is opened, always pin to the most recent message,
-  // even if the cached messages array is identical to the previous one.
+  // When a conversation is opened, queue a force-scroll to the most
+  // recent message — handled by the effect above once messages render.
   useEffect(() => {
     if (!selectedConversationId) return
     forceScrollRef.current = true
     shouldAutoScrollRef.current = true
-    const id = requestAnimationFrame(() => {
-      scrollToBottomImmediate()
-    })
-    return () => cancelAnimationFrame(id)
   }, [selectedConversationId])
 
   // Handle swipe gestures for mobile
