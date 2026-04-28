@@ -1010,9 +1010,9 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
           }}
         >
           {/* Logo */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', paddingBottom: 20, marginBottom: 4 }}>
+          <Link to='/dashboard' style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', paddingBottom: 20, marginBottom: 4, textDecoration: 'none' }}>
             <img src='/logo.png' alt='Signil' style={{ height: 30, width: 'auto', objectFit: 'contain' }} />
-          </div>
+          </Link>
 
           {/* MENU section */}
           <p style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,49,70,.32)', padding: '0 14px', marginBottom: 6 }}>Menu</p>

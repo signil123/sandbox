@@ -236,8 +236,9 @@ const EmptyState = ({ onSend, value, setValue, disabled, file, setFile }) => (
             marginTop: 18, lineHeight: 1.5, maxWidth: '52ch',
           }}
         >
-          I'm Scout. I help student-athletes, advisors, and families navigate every corner of NIL,
-          from contract review to vetted introductions. What are you working on?
+          Scout is your NIL guide. It helps student-athletes, advisors, and families figure out
+          what to do next, whether that means reviewing a deal, understanding a contract, finding
+          trusted help, or getting connected to the right people.
         </span>
       </h1>
 
