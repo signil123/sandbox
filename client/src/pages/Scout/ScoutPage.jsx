@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useSelector } from 'react-redux'
 import {
   ArrowUp,
   ArrowUpRight,
@@ -15,11 +16,45 @@ import {
 } from 'lucide-react'
 import DashboardLayout from '../Layout/DashboardLayout'
 import { scoutService } from '../../services/scoutService'
+import { selectCurrentUser } from '../../redux/userSlice'
 
 const COMPOSER_MAX = 680
 const CONVO_MAX = 680
-const GREET_SIZE = 57
 const SIDEBAR_OFFSET = 260
+
+const WELCOME_TEMPLATES = [
+  'Welcome {name}, ready to tackle some problems?',
+  'Hey {name}, what are we working on today?',
+  'Good to see you, {name} — let’s make moves.',
+  'Welcome back, {name}. Where do we start?',
+  'Hi {name}, let’s make today count.',
+  '{name}, ready to get something done?',
+  'Hello {name}, what can I help you with?',
+  'Welcome {name}, let’s tackle the day.',
+  'Hey {name}, what should we figure out?',
+  '{name}, glad you’re here — what’s first?',
+  'Welcome back {name}, ready when you are.',
+  'Hi {name}, what’s on the docket today?',
+  'Hey {name}, let’s sort something out.',
+  'Welcome {name}, time to get to work.',
+  '{name}, what would you like to dig into?',
+]
+
+const dailySeed = (firstName) => {
+  const now = new Date()
+  const dateKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`
+  const source = `${dateKey}|${firstName}`
+  let h = 0
+  for (let i = 0; i < source.length; i++) {
+    h = ((h << 5) - h + source.charCodeAt(i)) | 0
+  }
+  return Math.abs(h)
+}
+
+const pickDailyWelcome = (firstName) => {
+  const idx = dailySeed(firstName) % WELCOME_TEMPLATES.length
+  return WELCOME_TEMPLATES[idx]
+}
 
 const SUGGESTIONS = [
   { icon: FileText, text: 'Review my apparel deal' },
@@ -260,25 +295,29 @@ const Chip = ({ icon: IconCmp, text, onClick }) => (
   </button>
 )
 
-const EmptyState = ({ onSend, value, setValue, disabled, file, setFile }) => (
+const EmptyState = ({ onSend, value, setValue, disabled, file, setFile, firstName }) => {
+  const template = pickDailyWelcome(firstName || 'there')
+  const [before, after] = template.split('{name}')
+  return (
   <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 32px 56px', position: 'relative' }}>
     <div style={{ width: '100%', maxWidth: COMPOSER_MAX, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 28 }}>
       <h1
         style={{
           textAlign: 'center',
           fontFamily: 'var(--font-sans)', fontWeight: 900,
-          fontSize: GREET_SIZE,
-          letterSpacing: '-0.025em',
-          lineHeight: 1.02,
+          fontSize: 'clamp(22px, 3.2vw, 40px)',
+          letterSpacing: '-0.02em',
+          lineHeight: 1.1,
           color: 'var(--signil-navy)',
-          maxWidth: '14ch',
-          textWrap: 'balance',
           margin: 0,
+          whiteSpace: 'nowrap',
         }}
       >
-        Where would you like to{' '}
-        <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontWeight: 500, color: 'var(--signil-bronze)', letterSpacing: '-0.01em' }}>go</span>{' '}
-        today?
+        {before}
+        <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontWeight: 500, color: 'var(--signil-bronze)', letterSpacing: '-0.005em' }}>
+          {firstName || 'there'}
+        </span>
+        {after}
       </h1>
 
       <Composer value={value} setValue={setValue} onSend={() => onSend(value)} autofocus disabled={disabled} file={file} setFile={setFile} />
@@ -290,7 +329,8 @@ const EmptyState = ({ onSend, value, setValue, disabled, file, setFile }) => (
       </div>
     </div>
   </div>
-)
+  )
+}
 
 const TypingDots = () => (
   <div style={{ display: 'inline-flex', gap: 4, alignItems: 'center', padding: '8px 0' }}>
@@ -458,6 +498,9 @@ const UserBubble = ({ children }) => (
 )
 
 const ScoutPage = () => {
+  const currentUser = useSelector(selectCurrentUser)
+  const firstName = currentUser?.firstName || ''
+
   const [view, setView] = useState('empty')
   const [emptyValue, setEmptyValue] = useState('')
   const [convoValue, setConvoValue] = useState('')
@@ -595,7 +638,7 @@ const ScoutPage = () => {
 
         <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           {view === 'empty' ? (
-            <EmptyState onSend={sendMessage} value={emptyValue} setValue={setEmptyValue} disabled={typing} file={pendingFile} setFile={setPendingFile} />
+            <EmptyState onSend={sendMessage} value={emptyValue} setValue={setEmptyValue} disabled={typing} file={pendingFile} setFile={setPendingFile} firstName={firstName} />
           ) : (
             <>
               <div
