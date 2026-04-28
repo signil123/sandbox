@@ -3,6 +3,7 @@ import {
   ArrowUp,
   ArrowUpRight,
   Calculator,
+  Check,
   Compass,
   Copy,
   FileText,
@@ -269,35 +270,71 @@ const TypingDots = () => (
 )
 
 const MsgActions = ({ text }) => {
+  const [justCopied, setJustCopied] = useState(false)
+  const [everCopied, setEverCopied] = useState(false)
+  const [hover, setHover] = useState(false)
+  const timerRef = useRef(null)
+
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current) }, [])
+
   const handleCopy = () => {
     if (!text) return
     if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text)
+    setJustCopied(true)
+    setEverCopied(true)
+    if (timerRef.current) clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => setJustCopied(false), 3000)
   }
+
+  const tooltipText = everCopied ? 'Response Copied' : 'Copy Response'
+  const IconCmp = justCopied ? Check : Copy
+
   return (
     <div style={{ display: 'flex', gap: 4, marginTop: 10 }}>
-      <button
-        title='Copy'
-        onClick={handleCopy}
-        style={{
-          width: 28, height: 28, borderRadius: 8,
-          background: 'transparent', border: '1px solid transparent',
-          color: 'var(--color-fg-subtle)',
-          display: 'grid', placeItems: 'center', cursor: 'pointer',
-          transition: 'all var(--dur-fast) var(--ease-signature)',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'rgba(22,49,70,0.05)'
-          e.currentTarget.style.color = 'var(--signil-navy)'
-          e.currentTarget.style.borderColor = 'var(--color-border-strong)'
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = 'transparent'
-          e.currentTarget.style.color = 'var(--color-fg-subtle)'
-          e.currentTarget.style.borderColor = 'transparent'
-        }}
-      >
-        <Copy size={13} strokeWidth={1.5} />
-      </button>
+      <div style={{ position: 'relative' }}>
+        <button
+          onClick={handleCopy}
+          onMouseEnter={(e) => {
+            setHover(true)
+            e.currentTarget.style.background = 'rgba(22,49,70,0.05)'
+            e.currentTarget.style.color = 'var(--signil-navy)'
+            e.currentTarget.style.borderColor = 'var(--color-border-strong)'
+          }}
+          onMouseLeave={(e) => {
+            setHover(false)
+            e.currentTarget.style.background = 'transparent'
+            e.currentTarget.style.color = justCopied ? 'var(--signil-navy)' : 'var(--color-fg-subtle)'
+            e.currentTarget.style.borderColor = 'transparent'
+          }}
+          style={{
+            width: 32, height: 32, borderRadius: 8,
+            background: 'transparent', border: '1px solid transparent',
+            color: justCopied ? 'var(--signil-navy)' : 'var(--color-fg-subtle)',
+            display: 'grid', placeItems: 'center', cursor: 'pointer',
+            transition: 'all var(--dur-fast) var(--ease-signature)',
+          }}
+        >
+          <IconCmp size={15} strokeWidth={1.7} />
+        </button>
+        {hover && (
+          <div
+            role='tooltip'
+            style={{
+              position: 'absolute', top: 'calc(100% + 6px)', left: '50%',
+              transform: 'translateX(-50%)',
+              background: 'var(--signil-navy)', color: '#fff',
+              padding: '5px 9px', borderRadius: 6,
+              fontSize: 11, fontWeight: 600, letterSpacing: '0.01em',
+              whiteSpace: 'nowrap',
+              boxShadow: '0 6px 18px -6px rgba(22,49,70,0.30)',
+              pointerEvents: 'none',
+              zIndex: 10,
+            }}
+          >
+            {tooltipText}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -356,7 +393,7 @@ const ScoutBubble = ({ children }) => (
     style={{
       flex: 1, minWidth: 0,
       color: 'var(--signil-navy)',
-      fontSize: 15, lineHeight: 1.62, fontWeight: 400,
+      fontSize: 17, lineHeight: 1.6, fontWeight: 400,
       fontFamily: 'var(--font-sans)',
     }}
   >
@@ -367,12 +404,12 @@ const ScoutBubble = ({ children }) => (
 const UserBubble = ({ children }) => (
   <div
     style={{
-      padding: '12px 20px',
-      borderRadius: 24,
+      padding: '14px 22px',
+      borderRadius: 26,
       background: 'rgba(22, 49, 70, 0.06)',
       color: 'var(--signil-navy)',
       maxWidth: '80%',
-      fontSize: 15, lineHeight: 1.5, fontWeight: 400,
+      fontSize: 17, lineHeight: 1.5, fontWeight: 400,
       fontFamily: 'var(--font-sans)',
     }}
   >
