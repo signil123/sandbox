@@ -9,7 +9,6 @@ import {
   Copy,
   FileText,
   HelpCircle,
-  Megaphone,
   Paperclip,
   Plus,
   X,
@@ -18,8 +17,8 @@ import DashboardLayout from '../Layout/DashboardLayout'
 import { scoutService } from '../../services/scoutService'
 import { selectCurrentUser } from '../../redux/userSlice'
 
-const COMPOSER_MAX = 780
-const CONVO_MAX = 780
+const COMPOSER_MAX = 1040
+const CONVO_MAX = 1040
 const SIDEBAR_OFFSET = 260
 
 const WELCOME_TEMPLATES = [
@@ -60,7 +59,6 @@ const SUGGESTIONS = [
   { icon: FileText, text: 'Review my apparel deal' },
   { icon: Compass, text: 'Match me with an advisor' },
   { icon: Calculator, text: 'Plan NIL taxes' },
-  { icon: Megaphone, text: 'Build my personal brand' },
 ]
 
 const HelpButton = () => {
