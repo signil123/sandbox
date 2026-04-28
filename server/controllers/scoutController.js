@@ -233,10 +233,23 @@ const parseJsonObject = (text) => {
   }
 }
 
-const normalizeHistory = (history) => {
-  if (!Array.isArray(history)) return []
+const parseHistoryInput = (raw) => {
+  if (Array.isArray(raw)) return raw
+  if (typeof raw === 'string' && raw.length > 0) {
+    try {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) return parsed
+    } catch (_) {
+      return []
+    }
+  }
+  return []
+}
 
-  return history
+const normalizeHistory = (history) => {
+  const arr = parseHistoryInput(history)
+
+  return arr
     .filter((item) => item && (item.role === 'user' || item.role === 'assistant'))
     .slice(-MAX_HISTORY_ITEMS)
     .map((item) => ({
@@ -244,6 +257,28 @@ const normalizeHistory = (history) => {
       content: clampString(item.content, 500),
     }))
     .filter((item) => item.content)
+}
+
+const TEXT_LIKE_MIMES = new Set([
+  'application/json',
+  'application/xml',
+  'application/x-yaml',
+  'application/javascript',
+  'application/x-sh',
+])
+
+const buildFileSummary = (file) => {
+  if (!file) return ''
+  const sizeKB = (file.size / 1024).toFixed(1)
+  const baseLabel = `${file.originalname} (${file.mimetype || 'unknown'}, ${sizeKB}KB)`
+  const isTexty =
+    (file.mimetype && file.mimetype.startsWith('text/')) ||
+    TEXT_LIKE_MIMES.has(file.mimetype)
+  if (isTexty && file.buffer) {
+    const text = file.buffer.toString('utf8').slice(0, 4000)
+    return `\n\n[User attached file ${baseLabel}. Contents below — use them as context for your reply.]\n${text}`
+  }
+  return `\n\n[User attached file ${baseLabel}. The contents are not extractable as text here — acknowledge the file by name and ask any clarifying questions you need.]`
 }
 
 const isOnPlatformTopic = (message) => {
@@ -436,9 +471,11 @@ const callGroq = async ({ apiKey, model, messages, withJsonFormat = true }) => {
 
 export const chatWithScout = async (req, res, next) => {
   try {
-    const message = clampString(req.body?.message, 900)
+    const rawMessage = clampString(req.body?.message, 900)
     const history = normalizeHistory(req.body?.history)
     const requester = req.user
+    const fileSummary = buildFileSummary(req.file)
+    const message = clampString(`${rawMessage}${fileSummary}`, 5000)
 
     if (!message) {
       return res.status(400).json({

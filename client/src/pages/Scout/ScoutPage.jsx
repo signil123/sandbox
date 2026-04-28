@@ -8,10 +8,12 @@ import {
   Copy,
   FileText,
   Megaphone,
+  Paperclip,
   Plus,
   Share2,
   ThumbsDown,
   ThumbsUp,
+  X,
 } from 'lucide-react'
 import DashboardLayout from '../Layout/DashboardLayout'
 import { scoutService } from '../../services/scoutService'
@@ -28,8 +30,15 @@ const SUGGESTIONS = [
   { icon: Megaphone, text: 'Build my personal brand' },
 ]
 
-const Composer = ({ value, setValue, onSend, autofocus, disabled }) => {
+const formatFileSize = (bytes) => {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+const Composer = ({ value, setValue, onSend, autofocus, disabled, file, setFile }) => {
   const ref = useRef(null)
+  const fileRef = useRef(null)
 
   useEffect(() => {
     if (autofocus && ref.current) ref.current.focus()
@@ -41,13 +50,20 @@ const Composer = ({ value, setValue, onSend, autofocus, disabled }) => {
     ref.current.style.height = Math.min(220, ref.current.scrollHeight) + 'px'
   }, [value])
 
+  const canSend = (value.trim() || file) && !disabled
+
   const handleKey = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      if (value.trim() && !disabled) onSend()
+      if (canSend) onSend()
     }
   }
-  const empty = !value.trim() || disabled
+
+  const handleFileChange = (e) => {
+    const f = e.target.files?.[0]
+    if (f) setFile(f)
+    e.target.value = ''
+  }
 
   return (
     <div
@@ -61,6 +77,39 @@ const Composer = ({ value, setValue, onSend, autofocus, disabled }) => {
         transition: 'border-color var(--dur-med) var(--ease-signature), box-shadow var(--dur-med) var(--ease-signature)',
       }}
     >
+      {file && (
+        <div style={{ padding: '12px 22px 0' }}>
+          <div
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              padding: '6px 10px 6px 12px',
+              background: 'var(--color-accent-soft)',
+              border: '1px solid var(--color-accent-border)',
+              borderRadius: 999,
+              fontSize: 12, fontWeight: 600, color: 'var(--signil-navy)',
+              maxWidth: '100%',
+            }}
+          >
+            <Paperclip size={12} strokeWidth={1.8} color='var(--signil-bronze)' />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 280 }}>
+              {file.name}
+            </span>
+            <span style={{ color: 'var(--color-fg-muted)', fontWeight: 500 }}>{formatFileSize(file.size)}</span>
+            <button
+              type='button'
+              onClick={() => setFile(null)}
+              aria-label='Remove file'
+              style={{
+                width: 18, height: 18, borderRadius: 999,
+                background: 'transparent', border: 'none', cursor: 'pointer',
+                display: 'grid', placeItems: 'center', color: 'var(--color-fg-muted)',
+              }}
+            >
+              <X size={12} strokeWidth={2} />
+            </button>
+          </div>
+        </div>
+      )}
       <div style={{ padding: '14px 22px 8px' }}>
         <textarea
           ref={ref}
@@ -79,16 +128,47 @@ const Composer = ({ value, setValue, onSend, autofocus, disabled }) => {
           }}
         />
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '4px 10px 10px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 10px 10px' }}>
         <button
-          onClick={() => !empty && onSend()}
-          disabled={empty}
+          type='button'
+          onClick={() => fileRef.current?.click()}
+          aria-label='Attach file'
+          disabled={disabled}
           style={{
             width: 32, height: 32, borderRadius: 999,
-            background: empty ? 'rgba(22,49,70,0.12)' : 'var(--signil-navy)',
+            background: 'transparent', color: 'var(--color-fg-muted)',
+            display: 'grid', placeItems: 'center', border: 'none',
+            cursor: disabled ? 'default' : 'pointer',
+            transition: 'all var(--dur-fast) var(--ease-signature)',
+          }}
+          onMouseEnter={(e) => {
+            if (disabled) return
+            e.currentTarget.style.background = 'rgba(22,49,70,0.05)'
+            e.currentTarget.style.color = 'var(--signil-navy)'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent'
+            e.currentTarget.style.color = 'var(--color-fg-muted)'
+          }}
+        >
+          <Paperclip size={18} strokeWidth={1.7} />
+        </button>
+        <input
+          ref={fileRef}
+          type='file'
+          onChange={handleFileChange}
+          style={{ display: 'none' }}
+          accept='image/*,.pdf,.txt,.csv,.json,.md,.doc,.docx'
+        />
+        <button
+          onClick={() => canSend && onSend()}
+          disabled={!canSend}
+          style={{
+            width: 32, height: 32, borderRadius: 999,
+            background: canSend ? 'var(--signil-navy)' : 'rgba(22,49,70,0.12)',
             color: '#fff',
             display: 'grid', placeItems: 'center', border: 'none',
-            cursor: empty ? 'default' : 'pointer',
+            cursor: canSend ? 'pointer' : 'default',
             transition: 'all var(--dur-fast) var(--ease-signature)',
           }}
           aria-label='Send'
@@ -131,7 +211,7 @@ const Chip = ({ icon: IconCmp, text, onClick }) => (
   </button>
 )
 
-const EmptyState = ({ onSend, value, setValue, disabled }) => (
+const EmptyState = ({ onSend, value, setValue, disabled, file, setFile }) => (
   <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 32px 56px', position: 'relative' }}>
     <div style={{ width: '100%', maxWidth: COMPOSER_MAX, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 28 }}>
       <h1
@@ -164,7 +244,7 @@ const EmptyState = ({ onSend, value, setValue, disabled }) => (
         </span>
       </h1>
 
-      <Composer value={value} setValue={setValue} onSend={() => onSend(value)} autofocus disabled={disabled} />
+      <Composer value={value} setValue={setValue} onSend={() => onSend(value)} autofocus disabled={disabled} file={file} setFile={setFile} />
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'center', marginTop: 4 }}>
         {SUGGESTIONS.map((s) => (
@@ -342,6 +422,7 @@ const ScoutPage = () => {
   const [view, setView] = useState('empty')
   const [emptyValue, setEmptyValue] = useState('')
   const [convoValue, setConvoValue] = useState('')
+  const [pendingFile, setPendingFile] = useState(null)
   const [messages, setMessages] = useState([])
   const [typing, setTyping] = useState(false)
   const convoRef = useRef(null)
@@ -354,22 +435,29 @@ const ScoutPage = () => {
 
   const sendMessage = async (text) => {
     const trimmed = (text || '').trim()
-    if (!trimmed || typing) return
+    const file = pendingFile
+    if ((!trimmed && !file) || typing) return
 
-    const userMsg = { id: Date.now(), role: 'user', text: trimmed }
+    const userMsg = {
+      id: Date.now(),
+      role: 'user',
+      text: trimmed,
+      attachment: file ? { name: file.name, size: file.size, type: file.type } : null,
+    }
     const nextMessages = [...messages, userMsg]
     setMessages(nextMessages)
     setEmptyValue('')
     setConvoValue('')
+    setPendingFile(null)
     setView('convo')
     setTyping(true)
 
     try {
       const history = nextMessages.map((m) => ({
         role: m.role === 'scout' ? 'assistant' : 'user',
-        content: m.text || '',
+        content: m.text || (m.attachment ? `[file: ${m.attachment.name}]` : ''),
       }))
-      const data = await scoutService.chat({ message: trimmed, history })
+      const data = await scoutService.chat({ message: trimmed, history, file })
       const replyText = data?.reply || data?.message || data?.content ||
         "Got it. Let me think on that and I'll come back with the right next step."
       setMessages((m) => [...m, { id: Date.now() + 1, role: 'scout', text: replyText, matches: data?.matches || null }])
@@ -392,6 +480,7 @@ const ScoutPage = () => {
     setTyping(false)
     setEmptyValue('')
     setConvoValue('')
+    setPendingFile(null)
     setView('empty')
   }
 
@@ -416,7 +505,6 @@ const ScoutPage = () => {
         <style>{`
           @media (min-width: 768px) {
             .scout-page-root { padding-left: ${SIDEBAR_OFFSET}px; }
-            .scout-brand-mark { left: ${SIDEBAR_OFFSET + 28}px !important; }
           }
         `}</style>
         <div
@@ -437,13 +525,6 @@ const ScoutPage = () => {
             pointerEvents: 'none', zIndex: 0, filter: 'blur(40px)',
           }}
         />
-
-        <div className='scout-brand-mark' style={{ position: 'absolute', top: 24, left: 28, zIndex: 4, display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-          <img src='/signil-icon.png' alt='' style={{ width: 26, height: 26 }} />
-          <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontWeight: 500, fontSize: 22, color: 'var(--signil-navy)', letterSpacing: '-0.005em' }}>
-            Scout
-          </span>
-        </div>
 
         <button
           onClick={newChat}
@@ -474,7 +555,7 @@ const ScoutPage = () => {
 
         <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           {view === 'empty' ? (
-            <EmptyState onSend={sendMessage} value={emptyValue} setValue={setEmptyValue} disabled={typing} />
+            <EmptyState onSend={sendMessage} value={emptyValue} setValue={setEmptyValue} disabled={typing} file={pendingFile} setFile={setPendingFile} />
           ) : (
             <>
               <div
@@ -511,7 +592,26 @@ const ScoutPage = () => {
                             )}
                           </ScoutBubble>
                         ) : (
-                          <UserBubble>{m.text}</UserBubble>
+                          <UserBubble>
+                            {m.attachment && (
+                              <div
+                                style={{
+                                  display: 'inline-flex', alignItems: 'center', gap: 8,
+                                  padding: '6px 10px',
+                                  background: 'rgba(255,255,255,0.12)',
+                                  border: '1px solid rgba(255,255,255,0.18)',
+                                  borderRadius: 999,
+                                  fontSize: 12, fontWeight: 600,
+                                  marginBottom: m.text ? 8 : 0,
+                                }}
+                              >
+                                <Paperclip size={12} strokeWidth={1.8} />
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 240 }}>{m.attachment.name}</span>
+                                <span style={{ opacity: 0.7, fontWeight: 500 }}>{formatFileSize(m.attachment.size)}</span>
+                              </div>
+                            )}
+                            {m.text && <div>{m.text}</div>}
+                          </UserBubble>
                         )}
                         {m.role === 'scout' && <MsgActions />}
                       </div>
@@ -547,7 +647,7 @@ const ScoutPage = () => {
                 }}
               >
                 <div style={{ width: '100%', maxWidth: COMPOSER_MAX }}>
-                  <Composer value={convoValue} setValue={setConvoValue} onSend={() => sendMessage(convoValue)} disabled={typing} />
+                  <Composer value={convoValue} setValue={setConvoValue} onSend={() => sendMessage(convoValue)} disabled={typing} file={pendingFile} setFile={setPendingFile} />
                 </div>
               </div>
             </>
