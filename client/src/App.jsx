@@ -1,5 +1,6 @@
 // File: client/src/App.jsx
 
+import { MotionConfig } from 'framer-motion'
 import { Provider } from 'react-redux'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { PersistGate } from 'redux-persist/integration/react'
@@ -46,11 +47,12 @@ const AppContent = () => {
   return (
     <BrowserRouter>
       <ScrollToTop />
-      <AuthPage 
-        isOpen={isAuthModalOpen} 
+      <AuthPage
+        isOpen={isAuthModalOpen}
         initialStep={authModalInitialStep}
         onClose={() => dispatch(closeAuthModal())}
       />
+      <MotionConfig transition={{ duration: 0 }}>
       <Routes>
             <Route path='/'>
               {/* ... existing routes ... */}
@@ -185,6 +187,7 @@ const AppContent = () => {
               <Route path='/reset-password' element={<ResetPasswordPage />} />
             </Route>
           </Routes>
+      </MotionConfig>
     </BrowserRouter>
   )
 }
