@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import {
     Bell,
     Calendar,
+    Check,
     CheckCircle2,
     ChevronDown,
     ChevronLeft,
@@ -113,6 +114,8 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
   const notificationsSupportedRef = useRef(false)
   const notificationsEnabledRef = useRef(false)
   const scoutEndRef = useRef(null)
+  const notifScrollRef = useRef(null)
+  const markedReadOnViewRef = useRef(new Set())
 
   useEffect(() => {
     // Prevent stale persisted conversation IDs from suppressing unread updates
@@ -183,6 +186,45 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
     return () => {
       document.body.style.overflow = 'unset'
     }
+  }, [isNotificationOpen])
+
+  // Track which unread notifications scrolled into view this session.
+  // (Re-runs on tab/data changes so the observer rebinds to any new cards.)
+  useEffect(() => {
+    if (!isNotificationOpen) return
+    const root = notifScrollRef.current
+    if (!root || typeof IntersectionObserver === 'undefined') return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return
+          const idAttr = entry.target.getAttribute('data-notif-id')
+          if (!idAttr) return
+          idAttr.split(',').filter(Boolean).forEach((id) => {
+            markedReadOnViewRef.current.add(id)
+          })
+          observer.unobserve(entry.target)
+        })
+      },
+      { root, threshold: 0.55 }
+    )
+
+    const cards = root.querySelectorAll('[data-notif-id][data-unread="true"]')
+    cards.forEach((c) => observer.observe(c))
+
+    return () => observer.disconnect()
+  }, [isNotificationOpen, notifications, activeTab])
+
+  // Flush "seen" notifications to mark-as-read when the panel actually closes.
+  // The gold ring stays during the session and is removed when the user reopens.
+  useEffect(() => {
+    if (isNotificationOpen) return
+    const seen = Array.from(markedReadOnViewRef.current)
+    if (seen.length === 0) return
+    markedReadOnViewRef.current = new Set()
+    handleMarkAsRead(seen)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isNotificationOpen])
 
   useEffect(() => {
@@ -555,6 +597,19 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
             navigate(`/profile/public/${notif.sender._id}`)
         }
         break
+      case 'event_invitation':
+        if (notif.sender?._id) {
+            navigate(`/profile/public/${notif.sender._id}`)
+        } else {
+            navigate('/calendar')
+        }
+        break
+      case 'document_approved':
+      case 'document_declined':
+      case 'document_expired':
+      case 'security_update':
+        navigate('/settings')
+        break
       default:
         break
     }
@@ -576,11 +631,14 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
     const text = cleanNotificationText(description)
     if (!text) return null
     const matches = text.match(/^Your\s+(.+?)\s+has\s+/i)
-    return matches?.[1] || null
+    const raw = matches?.[1] || null
+    return raw ? toSentenceCase(raw) : null
   }
 
   const getNotificationPresentation = (notif) => {
-    const senderName = notif?.sender?.name || 'A user'
+    const realSenderName = notif?.sender?.name ? cleanNotificationText(notif.sender.name) : ''
+    const senderName = realSenderName || 'A user'
+    const highlightedName = realSenderName || null
     const groupCount = Number(notif?._groupCount || 1)
     const isGrouped = groupCount > 1
     const originalTitle = cleanNotificationText(notif?.title)
@@ -599,6 +657,7 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
             ? 'Open the conversation to see the latest message.'
             : 'Open the conversation to read and reply.'),
           tag: 'Message',
+          highlightedName,
         }
       case 'connection_request':
         return {
@@ -607,12 +666,14 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
             ? safeDescription
             : 'Review their profile and respond when you are ready.',
           tag: 'Invitation',
+          highlightedName,
         }
       case 'connection_accepted':
         return {
           title: `${senderName} accepted your request`,
           description: `You are now connected with ${senderName}.`,
           tag: 'Network',
+          highlightedName,
         }
       case 'profile_view':
         return {
@@ -621,12 +682,14 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
             : `${senderName} viewed your profile`,
           description: 'Open their profile to learn more and start a conversation.',
           tag: 'Activity',
+          highlightedName,
         }
       case 'event_invitation':
         return {
           title: originalTitle || 'Event invitation',
           description: safeDescription || `${senderName} invited you to an event.`,
           tag: 'Invitation',
+          highlightedName,
         }
       case 'document_approved':
         return {
@@ -706,6 +769,42 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
         return { icon: Clock, bgColor: 'bg-amber-50', iconColor: 'text-amber-700' }
       default:
         return { icon: Bell, bgColor: 'bg-gray-50', iconColor: 'text-gray-400' }
+    }
+  }
+
+  const renderWithHighlight = (text, name, vivid = true) => {
+    if (!text) return null
+    if (!name) return text
+    const idx = text.indexOf(name)
+    if (idx === -1) return text
+    const accent = vivid ? '#986a41' : 'rgba(152,106,65,0.55)'
+    return (
+      <>
+        {text.slice(0, idx)}
+        <span style={{ color: accent, fontWeight: 700 }}>{name}</span>
+        {text.slice(idx + name.length)}
+      </>
+    )
+  }
+
+  const getNotificationAccent = (type) => {
+    switch (type) {
+      case 'message':
+      case 'connection_request':
+        return '#986a41'
+      case 'event_invitation':
+        return '#986a41'
+      case 'profile_view':
+      case 'security_update':
+        return '#163146'
+      case 'connection_accepted':
+      case 'document_approved':
+        return '#22885c'
+      case 'document_declined':
+      case 'document_expired':
+        return '#986a41'
+      default:
+        return '#163146'
     }
   }
 
@@ -1092,7 +1191,7 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
 
             {/* Notifications */}
             <motion.button
-              onClick={() => { const newOpen = !isNotificationOpen; setIsNotificationOpen(newOpen); if (newOpen) handleMarkAllAsRead() }}
+              onClick={() => setIsNotificationOpen((v) => !v)}
               style={{
                 display: 'flex', alignItems: 'center',
                 gap: 12,
@@ -1107,9 +1206,14 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
               whileHover={{ backgroundColor: 'rgba(22,49,70,.05)' }}
             >
               <div style={{ position: 'relative', flexShrink: 0 }}>
-                <Bell size={18} strokeWidth={1.7} />
+                <Bell
+                  size={18}
+                  strokeWidth={1.7}
+                  color={effectiveUnreadCount > 0 ? '#986a41' : '#163146'}
+                  fill={effectiveUnreadCount > 0 ? '#986a41' : 'none'}
+                />
                 {effectiveUnreadCount > 0 && (
-                  <div style={{ position: 'absolute', top: -4, right: -4, width: 14, height: 14, background: '#163146', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #fff' }}>
+                  <div style={{ position: 'absolute', top: -4, right: -4, width: 14, height: 14, background: '#986a41', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #fff' }}>
                     <span style={{ fontSize: 8, fontWeight: 700, color: '#fff' }}>{effectiveUnreadCount > 9 ? '9+' : effectiveUnreadCount}</span>
                   </div>
                 )}
@@ -1317,13 +1421,18 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
           <img src='/logo.png' alt='Signil' className='h-7 w-auto object-contain' />
           <div className='flex items-center gap-2'>
             <motion.button
-              onClick={() => { const newIsOpen = !isNotificationOpen; setIsNotificationOpen(newIsOpen); if (newIsOpen) handleMarkAllAsRead() }}
-              className='relative w-9 h-9 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 flex items-center justify-center'
+              onClick={() => setIsNotificationOpen((v) => !v)}
+              className='relative w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center'
+              style={{ color: effectiveUnreadCount > 0 ? '#986a41' : '#163146' }}
               whileTap={{ scale: 0.85 }}
             >
-              <Bell size={18} />
+              <Bell
+                size={18}
+                color={effectiveUnreadCount > 0 ? '#986a41' : '#163146'}
+                fill={effectiveUnreadCount > 0 ? '#986a41' : 'none'}
+              />
               {effectiveUnreadCount > 0 && (
-                <span className='absolute -top-1 -right-1 w-4 h-4 bg-[#163146] rounded-full text-white text-[9px] font-bold flex items-center justify-center'>
+                <span className='absolute -top-1 -right-1 w-4 h-4 bg-[#986a41] rounded-full text-white text-[9px] font-bold flex items-center justify-center'>
                   {effectiveUnreadCount > 9 ? '9+' : effectiveUnreadCount}
                 </span>
               )}
@@ -1331,80 +1440,162 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
           </div>
         </div>
       </motion.header>
-      <AnimatePresence mode='wait'>
+      <AnimatePresence>
                   {isNotificationOpen && (
                     <>
-                      {/* Backdrop */}
+                      {/* Dim layer with horizontal gradient (glass design) */}
                       <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className='fixed inset-0 z-40 bg-black/20 backdrop-blur-[2px]'
+                        transition={{ duration: 0.18, ease: 'easeOut' }}
+                        className='fixed inset-0 z-40'
+                        style={{
+                          background: 'linear-gradient(90deg, rgba(22,49,70,.06) 0%, rgba(22,49,70,.20) 55%, rgba(22,49,70,.55) 100%)',
+                          willChange: 'opacity',
+                        }}
                         onClick={() => setIsNotificationOpen(false)}
                       />
 
-                      {/* Drawer */}
+                      {/* Floating glass panel holder */}
                       <motion.div
-                        initial={{ x: '100%' }}
-                        animate={{ x: 0 }}
-                        exit={{ x: '100%' }}
-                        transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-                        className='fixed right-0 top-0 bottom-0 w-full md:w-[400px] bg-white z-50 shadow-2xl flex flex-col overflow-hidden'
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 8 }}
+                        transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                        className='fixed z-50'
+                        style={{
+                          top: 'clamp(12px, 2.5vh, 32px)',
+                          right: 'clamp(12px, 2.5vw, 32px)',
+                          bottom: 'clamp(12px, 2.5vh, 32px)',
+                          left: 'auto',
+                          width: 'min(420px, calc(100vw - 24px))',
+                          willChange: 'opacity, transform',
+                          transform: 'translateZ(0)',
+                        }}
                         onClick={(e) => e.stopPropagation()}
                       >
-                        {/* Header - Brand Color */}
-                        <div className='flex items-center justify-between px-6 py-5 bg-[#163146] text-white shrink-0 relative overflow-hidden'>
-                          {/* Background Accent Gradient */}
-                          <div className='absolute -top-10 -right-10 w-32 h-32 bg-[#986a41] rounded-full blur-[50px] opacity-20 pointer-events-none' />
+                        <div
+                          className='relative w-full h-full overflow-hidden'
+                          style={{
+                            borderRadius: 36,
+                            isolation: 'isolate',
+                            fontFamily: "'DM Sans', sans-serif",
+                          }}
+                        >
+                          {/* Color light leaks behind the glass */}
+                          <div
+                            aria-hidden
+                            style={{
+                              position: 'absolute', top: -80, left: -80,
+                              width: 320, height: 320, borderRadius: 999,
+                              background: 'radial-gradient(circle, rgba(152,106,65,.55), transparent 60%)',
+                              filter: 'blur(20px)',
+                            }}
+                          />
+                          <div
+                            aria-hidden
+                            style={{
+                              position: 'absolute', bottom: -100, right: -60,
+                              width: 360, height: 360, borderRadius: 999,
+                              background: 'radial-gradient(circle, rgba(22,49,70,.55), transparent 60%)',
+                              filter: 'blur(20px)',
+                            }}
+                          />
+                          <div
+                            aria-hidden
+                            style={{
+                              position: 'absolute', top: '40%', left: '30%',
+                              width: 220, height: 220, borderRadius: 999,
+                              background: 'radial-gradient(circle, rgba(216,181,145,.45), transparent 60%)',
+                              filter: 'blur(28px)',
+                            }}
+                          />
 
-                          <div className='flex items-center gap-3 relative z-10'>
-                            <div className='relative'>
-                              <Bell size={20} className='text-[#986a41]' />
-                              {unreadCount > 0 && (
-                                <span className='absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#986a41] rounded-full ring-2 ring-[#163146]' />
-                              )}
+                          {/* Solid panel surface */}
+                          <div
+                            className='relative h-full flex flex-col'
+                            style={{
+                              zIndex: 1,
+                              background: '#faf7f2',
+                              border: '1px solid rgba(22,49,70,0.08)',
+                              boxShadow: '0 50px 100px -20px rgba(22,49,70,0.40), inset 0 1px 0 rgba(255,255,255,0.6)',
+                              borderRadius: 36,
+                              padding: '20px 18px 0',
+                            }}
+                          >
+                        {/* Floating glass header */}
+                        <div className='flex items-start gap-2.5' style={{ padding: '4px 4px 0' }}>
+                          <div className='flex-1'>
+                            <div
+                              style={{
+                                fontSize: 10, fontWeight: 900,
+                                letterSpacing: '0.35em',
+                                color: 'rgba(22,49,70,0.5)',
+                                marginBottom: 4,
+                              }}
+                            >
+                              INBOX
                             </div>
-                            <div>
-                              <h3 className='text-lg font-bold leading-none tracking-tight'>
-                                Notifications
-                              </h3>
-                              <p className='text-[11px] text-gray-300 font-medium mt-1.5 opacity-80'>
-                                {effectiveUnreadCount === 0
-                                  ? "You're all caught up"
-                                  : `${effectiveUnreadCount} unread update${
-                                      effectiveUnreadCount === 1 ? '' : 's'
-                                    }`}
-                              </p>
+                            <div
+                              style={{
+                                fontSize: 28, fontWeight: 900,
+                                letterSpacing: '-0.025em',
+                                color: '#163146',
+                                lineHeight: 1,
+                              }}
+                            >
+                              Notifications<span style={{ color: '#986a41' }}>.</span>
                             </div>
                           </div>
                           <button
+                            type='button'
                             onClick={() => setIsNotificationOpen(false)}
-                            className='w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors text-white relative z-10'
+                            className='grid place-items-center cursor-pointer'
+                            style={{
+                              width: 32, height: 32, borderRadius: 999,
+                              background: 'rgba(22,49,70,0.08)',
+                              border: '1px solid rgba(22,49,70,0.10)',
+                              color: '#163146',
+                            }}
                           >
-                            <X size={18} />
+                            <X size={14} />
                           </button>
                         </div>
 
-                        <div className='px-6 pt-4'>
-                          {notificationsSupported && (
-                            <div className='rounded-2xl border border-amber-100 bg-amber-50/70 px-4 py-3'>
+                        {/* Browser permission banner — only when notifications are NOT yet enabled */}
+                        {notificationsSupported && !(notificationsEnabled && notificationPermission === 'granted') && (
+                          <div style={{ padding: '12px 4px 0' }}>
+                            <div
+                              style={{
+                                borderRadius: 18,
+                                padding: '12px 14px',
+                                background: 'rgba(255,255,255,0.55)',
+                                border: '1px solid rgba(152,106,65,0.18)',
+                                backdropFilter: 'blur(20px) saturate(140%)',
+                                WebkitBackdropFilter: 'blur(20px) saturate(140%)',
+                                boxShadow: '0 4px 14px -6px rgba(22,49,70,0.10), inset 0 1px 0 rgba(255,255,255,0.6)',
+                              }}
+                            >
                               <div className='flex items-center justify-between gap-3'>
                                 <div className='flex items-center gap-3 min-w-0'>
-                                  <div className='w-8 h-8 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center flex-shrink-0'>
-                                    <Bell size={16} />
+                                  <div
+                                    className='grid place-items-center flex-shrink-0'
+                                    style={{
+                                      width: 32, height: 32, borderRadius: 12,
+                                      color: '#986a41',
+                                      background: 'linear-gradient(180deg, rgba(152,106,65,0.18), rgba(152,106,65,0.04))',
+                                      border: '1px solid rgba(152,106,65,0.22)',
+                                    }}
+                                  >
+                                    <Bell size={14} />
                                   </div>
                                   <div className='min-w-0'>
-                                    <p className='text-xs font-bold text-amber-900 leading-tight'>Browser notifications</p>
-                                    <p className='text-[11px] text-amber-700 leading-tight'>
-                                      Get message alerts even when this tab is closed
+                                    <p style={{ fontSize: 12, fontWeight: 700, color: '#163146', lineHeight: 1.2, letterSpacing: '-0.01em' }}>Browser notifications</p>
+                                    <p style={{ fontSize: 11, color: 'rgba(22,49,70,0.6)', lineHeight: 1.35, marginTop: 2, fontWeight: 400 }}>
+                                      Alerts when this tab is closed · {notificationPermission}
+                                      {isUpdatingMessageNotifications ? ' · updating…' : ''}
                                     </p>
-                                    <p className='text-[11px] text-amber-700/90 leading-tight mt-0.5'>
-                                      Permission: {notificationPermission}
-                                    </p>
-                                    {isUpdatingMessageNotifications && (
-                                      <p className='text-[11px] text-amber-700/80 leading-tight mt-0.5'>Updating...</p>
-                                    )}
                                   </div>
                                 </div>
                                 <button
@@ -1414,14 +1605,14 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
                                   aria-label='Toggle message notifications'
                                   onClick={toggleMessageNotifications}
                                   disabled={notificationPermission === 'denied' || isUpdatingMessageNotifications}
-                                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
+                                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition flex-shrink-0 ${
                                     notificationsEnabled && notificationPermission === 'granted'
-                                      ? 'bg-emerald-500'
-                                      : 'bg-gray-300'
+                                      ? 'bg-[#22885c]'
+                                      : 'bg-[rgba(22,49,70,0.18)]'
                                   } ${notificationPermission === 'denied' || isUpdatingMessageNotifications ? 'cursor-not-allowed opacity-60' : ''}`}
                                 >
                                   <span
-                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                                    className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition ${
                                       notificationsEnabled && notificationPermission === 'granted'
                                         ? 'translate-x-6'
                                         : 'translate-x-1'
@@ -1434,84 +1625,131 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
                                   type='button'
                                   onClick={allowMessageNotifications}
                                   disabled={isUpdatingMessageNotifications}
-                                  className='mt-3 w-full rounded-lg bg-[#163146] px-3 py-2 text-xs font-semibold text-white hover:bg-[#0f2229] transition-colors disabled:opacity-60 disabled:cursor-not-allowed'
+                                  className='mt-2.5 w-full transition-colors disabled:opacity-60 disabled:cursor-not-allowed'
+                                  style={{
+                                    padding: '8px 12px',
+                                    borderRadius: 999,
+                                    background: '#163146',
+                                    color: '#faf7f2',
+                                    fontSize: 11, fontWeight: 700,
+                                    border: 'none',
+                                  }}
                                 >
-                                  {notificationPermission === 'denied' ? 'Enable In Browser Settings' : 'Allow Notifications'}
+                                  {notificationPermission === 'denied' ? 'Enable in browser settings' : 'Allow notifications'}
                                 </button>
                               )}
                             </div>
-                          )}
-                        </div>
+                          </div>
+                        )}
 
-                        {/* Tabs Header */}
-                        <div className='px-6 pt-4 pb-2 bg-white/80 backdrop-blur-md sticky top-0 z-20 border-b border-gray-50/50'>
-                            <div className='flex items-center gap-2'>
-                                {['all', 'invitations', 'updates'].map((tab) => {
-                                    const label = tab.charAt(0).toUpperCase() + tab.slice(1)
-                                    const isActive = activeTab === tab
-                                    
-                                    // Count logic
-                                    const invitationTypes = ['connection_request', 'event_invitation']
-                                    const count = tab === 'all' 
-                                        ? collapsedNotifications.length 
-                                        : tab === 'invitations' 
-                                            ? collapsedNotifications.filter(n => invitationTypes.includes(n.type)).length
-                                            : collapsedNotifications.filter(n => !invitationTypes.includes(n.type)).length
+                        {/* Segmented pill control */}
+                        <div style={{ padding: '14px 4px 4px' }}>
+                          <div
+                            className='relative flex'
+                            style={{
+                              gap: 4, padding: 4,
+                              background: 'rgba(22,49,70,0.06)',
+                              border: '1px solid rgba(255,255,255,0.4)',
+                              borderRadius: 999,
+                              backdropFilter: 'blur(8px)',
+                              WebkitBackdropFilter: 'blur(8px)',
+                            }}
+                          >
+                            {['all', 'connections', 'updates'].map((tab) => {
+                              const label = tab.charAt(0).toUpperCase() + tab.slice(1)
+                              const isActive = activeTab === tab
+                              const connectionTypes = ['connection_request', 'connection_accepted', 'event_invitation', 'message']
+                              const unreadOnly = collapsedNotifications.filter(n => !n.isRead)
+                              const count = tab === 'all'
+                                ? unreadOnly.length
+                                : tab === 'connections'
+                                  ? unreadOnly.filter(n => connectionTypes.includes(n.type)).length
+                                  : unreadOnly.filter(n => !connectionTypes.includes(n.type)).length
 
-                                    return (
-                                        <button
-                                            key={tab}
-                                            onClick={() => setActiveTab(tab)}
-                                            className={`relative flex-1 flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded-full transition-colors duration-200 ${
-                                                isActive ? 'text-white' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
-                                            }`}
-                                        >
-                                            {isActive && (
-                                                <motion.div
-                                                    layoutId='activeTab'
-                                                    className='absolute inset-0 bg-[#163146] shadow-md shadow-[#163146]/20 rounded-full'
-                                                    initial={false}
-                                                    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                                                />
-                                            )}
-                                            <span className="relative z-10">{label}</span>
-                                            {count > 0 && (
-                                                <span className={`relative z-10 text-[9px] px-1.5 py-0.5 rounded-full font-bold ${
-                                                    isActive 
-                                                    ? 'bg-white/20 text-white' 
-                                                    : 'bg-gray-100 text-gray-500'
-                                                }`}>
-                                                    {count}
-                                                </span>
-                                            )}
-                                        </button>
-                                    )
-                                })}
-                            </div>
+                              return (
+                                <button
+                                  key={tab}
+                                  onClick={() => setActiveTab(tab)}
+                                  className='relative flex-1 inline-flex items-center justify-center gap-1.5 cursor-pointer'
+                                  style={{
+                                    padding: '8px 4px',
+                                    border: 'none',
+                                    background: 'transparent',
+                                    fontSize: 11,
+                                    fontWeight: isActive ? 700 : 600,
+                                    color: isActive ? '#163146' : 'rgba(22,49,70,0.5)',
+                                    zIndex: 1,
+                                  }}
+                                >
+                                  {isActive && (
+                                    <motion.div
+                                      layoutId='activeTab'
+                                      className='absolute inset-0'
+                                      initial={false}
+                                      transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+                                      style={{
+                                        background: '#fff',
+                                        borderRadius: 999,
+                                        boxShadow: '0 4px 12px -4px rgba(22,49,70,0.18)',
+                                        zIndex: -1,
+                                      }}
+                                    />
+                                  )}
+                                  <span>{label}</span>
+                                  {count > 0 && (
+                                    <span
+                                      className='inline-flex items-center justify-center'
+                                      style={{
+                                        minWidth: 16, height: 14,
+                                        padding: '0 4px', borderRadius: 999,
+                                        background: isActive ? '#986a41' : 'rgba(22,49,70,0.12)',
+                                        color: isActive ? '#fff' : 'rgba(22,49,70,0.55)',
+                                        fontSize: 9, fontWeight: 700,
+                                      }}
+                                    >
+                                      {count}
+                                    </span>
+                                  )}
+                                </button>
+                              )
+                            })}
+                          </div>
                         </div>
 
                         {/* Notifications List */}
-                        <div className='flex-1 overflow-y-auto p-4 space-y-6 bg-gray-50/30'>
+                        <div ref={notifScrollRef} className='flex-1 overflow-y-auto' style={{ padding: '14px 4px 18px', marginTop: 4 }}>
                           {collapsedNotifications.length === 0 ? (
                             <div className='flex flex-col items-center justify-center h-full text-center p-8'>
-                              <div className='w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-4 text-gray-300'>
-                                <Bell size={32} />
+                              <div
+                                className='grid place-items-center mb-4'
+                                style={{
+                                  width: 64, height: 64, borderRadius: 999,
+                                  background: 'rgba(255,255,255,0.55)',
+                                  border: '1px solid rgba(255,255,255,0.7)',
+                                  color: 'rgba(22,49,70,0.35)',
+                                  backdropFilter: 'blur(20px)',
+                                  WebkitBackdropFilter: 'blur(20px)',
+                                  boxShadow: '0 4px 14px -6px rgba(22,49,70,0.10), inset 0 1px 0 rgba(255,255,255,0.6)',
+                                }}
+                              >
+                                <Bell size={26} strokeWidth={1.6} />
                               </div>
-                              <h4 className='text-gray-900 font-semibold'>
-                                No notifications
+                              <h4 style={{ fontSize: 14, fontWeight: 700, color: '#163146', letterSpacing: '-0.01em' }}>
+                                You're all caught up
                               </h4>
-                              <p className='text-sm text-gray-500 mt-1 max-w-[200px] leading-relaxed'>
+                              <p style={{ fontSize: 12, color: 'rgba(22,49,70,0.55)', marginTop: 4, maxWidth: 220, lineHeight: 1.45, fontWeight: 400 }}>
                                 We'll notify you when something important arrives.
                               </p>
                             </div>
                           ) : (
                             (() => {
+                                const connectionTypes = ['connection_request', 'connection_accepted', 'event_invitation', 'message']
                                 const invitationTypes = ['connection_request', 'event_invitation']
                                 let filtered = collapsedNotifications
-                                if (activeTab === 'invitations') {
-                                    filtered = collapsedNotifications.filter(n => invitationTypes.includes(n.type))
+                                if (activeTab === 'connections') {
+                                    filtered = collapsedNotifications.filter(n => connectionTypes.includes(n.type))
                                 } else if (activeTab === 'updates') {
-                                    filtered = collapsedNotifications.filter(n => !invitationTypes.includes(n.type))
+                                    filtered = collapsedNotifications.filter(n => !connectionTypes.includes(n.type))
                                 }
 
                                 if (filtered.length === 0) {
@@ -1539,92 +1777,185 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
                                 const order = ['Today', 'Yesterday', 'Older']
 
                                 return (
-                                    <div className="space-y-6">
+                                    <div>
                                         {order.map((group) => {
                                             const items = groups[group]
                                             if (!items || items.length === 0) return null
+                                            const groupLabel = group === 'Yesterday' ? 'Earlier' : group
 
                                             return (
-                                                <div key={group} className='animate-in fade-in slide-in-from-bottom-2 duration-500'>
-                                                     <div className='flex items-center gap-2 mb-3 px-2'>
-                                                        <div className='w-1 h-1 rounded-full bg-[#986a41]/50' />
-                                                        <span className='text-[10px] font-bold text-gray-400 uppercase tracking-widest'>
-                                                            {group}
-                                                        </span>
+                                                <div key={group} style={{ marginBottom: 18 }}>
+                                                    <div
+                                                        style={{
+                                                            fontFamily: "'DM Sans', sans-serif",
+                                                            fontSize: 10, fontWeight: 900,
+                                                            letterSpacing: '0.28em',
+                                                            textTransform: 'uppercase',
+                                                            color: 'rgba(22,49,70,0.5)',
+                                                            padding: '4px 8px 10px',
+                                                        }}
+                                                    >
+                                                        {groupLabel}
                                                     </div>
-                                                    
-                                                    <div className='grid gap-3'>
+
+                                                    <div className='flex flex-col' style={{ gap: 10 }}>
                                                         {items.map((notif) => {
                                                             const isInvitation = invitationTypes.includes(notif.type)
-                                                            const { icon: Icon, bgColor, iconColor } = getNotificationIcon(notif.type)
+                                                            const { icon: Icon } = getNotificationIcon(notif.type)
                                                             const presentation = getNotificationPresentation(notif)
-                                                            
+                                                            const accent = getNotificationAccent(notif.type)
+                                                            const isUnread = !notif.isRead
+
                                                             return (
                                                                 <motion.div
                                                                     key={notif._id}
+                                                                    data-notif-id={notif._groupIds ? notif._groupIds.join(',') : notif._id}
+                                                                    data-unread={isUnread ? 'true' : 'false'}
                                                                     initial={{ opacity: 0, y: 10 }}
                                                                     animate={{ opacity: 1, y: 0 }}
-                                                                    whileHover={{ scale: 1.01, y: -1 }}
-                                                                    whileTap={{ scale: 0.99 }}
+                                                                    whileHover={{ y: -1 }}
                                                                     onClick={() => handleNotificationClick(notif)}
-                                                                    className={`relative overflow-hidden rounded-xl transition-all cursor-pointer group ${
-                                                                        isInvitation 
-                                                                            ? 'bg-white border border-[#986a41]/20 shadow-sm' // Invitation Style
-                                                                            : notif.isRead 
-                                                                                ? 'bg-white/60 border border-gray-100' // Read Style
-                                                                                : 'bg-white border border-[#163146]/10 shadow-sm border-l-4 border-l-[#986a41]' // Unread General Style
-                                                                    }`}
+                                                                    className='relative cursor-pointer group'
+                                                                    style={{
+                                                                        display: 'flex',
+                                                                        gap: 12,
+                                                                        padding: '14px 14px 14px 16px',
+                                                                        background: '#ffffff',
+                                                                        border: isUnread
+                                                                            ? '1.5px solid #986a41'
+                                                                            : '1px solid rgba(22,49,70,0.08)',
+                                                                        borderRadius: 22,
+                                                                        boxShadow: isUnread
+                                                                            ? '0 0 0 3px rgba(152,106,65,0.12), 0 4px 14px -6px rgba(152,106,65,0.20)'
+                                                                            : '0 2px 8px -4px rgba(22,49,70,0.10)',
+                                                                    }}
                                                                 >
-                                                                    {/* Special Background for Invites */}
-                                                                    {isInvitation && (
-                                                                        <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-[#986a41]/5 to-transparent rounded-bl-full -mr-4 -mt-4 pointer-events-none" />
-                                                                    )}
-
-                                                                    <div className='flex gap-3 p-3.5'>
-                                                                        {/* Icon */}
-                                                                        <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 self-center ${bgColor} ${isInvitation ? 'ring-1 ring-white shadow-sm' : ''}`}>
-                                                                            <Icon size={16} className={iconColor} />
-                                                                        </div>
-                                                                        
-                                                                        {/* Content */}
-                                                                        <div className='flex-1 min-w-0 relative z-10'>
-                                                                            <span className='inline-block px-1.5 py-0.5 rounded text-[9px] font-semibold bg-gray-100 text-gray-600 mb-1 tracking-wide uppercase'>
-                                                                              {presentation.tag}
-                                                                            </span>
-
-                                                                            <div className='flex items-start justify-between gap-3'>
-                                                                                <h4 className={`text-[13px] font-semibold leading-[1.3] ${notif.isRead ? 'text-gray-700' : 'text-[#163146]'}`}>
-                                                                                    {presentation.title}
-                                                                                </h4>
-                                                                                <span className='text-[10px] text-gray-400 whitespace-nowrap font-medium pt-0.5'>
-                                                                                    {formatTimestamp(notif._eventAt || notif.updatedAt || notif.createdAt)}
-                                                                                </span>
-                                                                            </div>
-                                                                            
-                                                                            <p className='text-[12px] text-gray-500 mt-1 line-clamp-2 leading-[1.4]'>
-                                                                                {presentation.description}
-                                                                            </p>
-
-                                                                            {isInvitation && (
-                                                                                <div className='mt-2'>
-                                                                                  <span className='text-[11px] font-medium text-[#163146]'>
-                                                                                    Review invitation
-                                                                                  </span>
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
+                                                                    {/* Icon container — tinted by accent */}
+                                                                    <div
+                                                                        className='grid place-items-center flex-shrink-0'
+                                                                        style={{
+                                                                            width: 36, height: 36, borderRadius: 12,
+                                                                            color: accent,
+                                                                            background: `linear-gradient(180deg, ${accent}1a, ${accent}05)`,
+                                                                            border: `1px solid ${accent}33`,
+                                                                        }}
+                                                                    >
+                                                                        <Icon size={16} strokeWidth={1.7} />
                                                                     </div>
 
-                                                                    {/* Dismiss Action */}
-                                                                     <button
+                                                                    {/* Content */}
+                                                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                                                        <div className='flex items-baseline' style={{ gap: 8 }}>
+                                                                            <div
+                                                                                style={{
+                                                                                    fontSize: 13.5,
+                                                                                    fontWeight: 700,
+                                                                                    color: '#163146',
+                                                                                    letterSpacing: '-0.01em',
+                                                                                    lineHeight: 1.3,
+                                                                                    flex: '0 1 auto',
+                                                                                }}
+                                                                            >
+                                                                                {renderWithHighlight(presentation.title, presentation.highlightedName, true)}
+                                                                            </div>
+                                                                            <span style={{ flex: 1 }} />
+                                                                            <span
+                                                                                style={{
+                                                                                    fontSize: 11,
+                                                                                    color: 'rgba(22,49,70,0.45)',
+                                                                                    fontWeight: 500,
+                                                                                    flexShrink: 0,
+                                                                                }}
+                                                                            >
+                                                                                {formatTimestamp(notif._eventAt || notif.updatedAt || notif.createdAt)}
+                                                                            </span>
+                                                                        </div>
+                                                                        <div
+                                                                            className='line-clamp-2'
+                                                                            style={{
+                                                                                fontSize: 12.5,
+                                                                                color: 'rgba(22,49,70,0.62)',
+                                                                                lineHeight: 1.45,
+                                                                                marginTop: 4,
+                                                                                fontWeight: 300,
+                                                                            }}
+                                                                        >
+                                                                            {renderWithHighlight(presentation.description, presentation.highlightedName, true)}
+                                                                        </div>
+
+                                                                        {isUnread && (
+                                                                            <div className='flex' style={{ gap: 6, marginTop: 10 }}>
+                                                                                <button
+                                                                                    type='button'
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation()
+                                                                                        handleMarkAsRead(notif._groupIds || notif._id)
+                                                                                    }}
+                                                                                    className='cursor-pointer'
+                                                                                    style={{
+                                                                                        padding: '5px 10px', borderRadius: 999,
+                                                                                        background: 'rgba(22,49,70,0.05)',
+                                                                                        border: '1px solid rgba(22,49,70,0.08)',
+                                                                                        color: '#163146',
+                                                                                        fontSize: 11, fontWeight: 600,
+                                                                                    }}
+                                                                                >
+                                                                                    Mark read
+                                                                                </button>
+                                                                                <button
+                                                                                    type='button'
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation()
+                                                                                        handleNotificationClick(notif)
+                                                                                    }}
+                                                                                    className='cursor-pointer'
+                                                                                    style={{
+                                                                                        padding: '5px 10px', borderRadius: 999,
+                                                                                        background: '#163146',
+                                                                                        border: 'none',
+                                                                                        color: '#faf7f2',
+                                                                                        fontSize: 11, fontWeight: 600,
+                                                                                    }}
+                                                                                >
+                                                                                    {isInvitation ? 'Review' : (notif.type === 'message' ? 'Reply' : 'Open')}
+                                                                                </button>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+
+                                                                    {isUnread && (
+                                                                        <span
+                                                                            aria-hidden
+                                                                            style={{
+                                                                                position: 'absolute',
+                                                                                left: 0, top: 14, bottom: 14, width: 3,
+                                                                                borderRadius: 999,
+                                                                                background: accent,
+                                                                            }}
+                                                                        />
+                                                                    )}
+
+                                                                    {/* Dismiss / delete button — floats just outside the card corner */}
+                                                                    <button
+                                                                        type='button'
+                                                                        title='Dismiss notification'
+                                                                        aria-label='Dismiss notification'
                                                                         onClick={(e) => {
-                                                                          e.stopPropagation()
-                                                                          handleDeleteNotification(notif._groupIds || notif._id)
+                                                                            e.stopPropagation()
+                                                                            handleDeleteNotification(notif._groupIds || notif._id)
                                                                         }}
-                                                                        className='absolute top-2 right-2 opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all'
-                                                                        title='Dismiss'
+                                                                        className='absolute opacity-0 group-hover:opacity-100 transition-opacity grid place-items-center cursor-pointer'
+                                                                        style={{
+                                                                            top: -7, right: -7,
+                                                                            width: 20, height: 20, borderRadius: 999,
+                                                                            background: '#163146',
+                                                                            border: '2px solid rgba(250,247,242,0.96)',
+                                                                            color: '#faf7f2',
+                                                                            boxShadow: '0 2px 6px -1px rgba(22,49,70,0.30)',
+                                                                            zIndex: 5,
+                                                                        }}
                                                                     >
-                                                                        <X size={14} />
+                                                                        <X size={10} strokeWidth={2.4} />
                                                                     </button>
                                                                 </motion.div>
                                                             )
@@ -1637,6 +1968,8 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
                                 )
                             })()
                           )}
+                        </div>
+                          </div>
                         </div>
                       </motion.div>
                     </>
