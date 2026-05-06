@@ -91,10 +91,11 @@ const HelpButton = () => {
           role='tooltip'
           style={{
             position: 'absolute', top: 'calc(100% + 10px)', left: 0,
-            width: 360, padding: '14px 16px',
+            width: 'min(480px, calc(100vw - 32px))', padding: '14px 18px',
             background: 'var(--signil-navy)', color: 'var(--signil-cream)',
             borderRadius: 14,
-            fontSize: 13, lineHeight: 1.55, fontWeight: 400,
+            fontSize: 'clamp(10.5px, 0.4vw + 7px, 13px)',
+            lineHeight: 1.5, fontWeight: 400,
             fontFamily: 'var(--font-sans)',
             boxShadow: '0 20px 40px -10px rgba(22,49,70,0.30)',
             zIndex: 10,
@@ -103,9 +104,13 @@ const HelpButton = () => {
           <div style={{ fontSize: 10, fontWeight: 900, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--signil-bronze)', marginBottom: 8 }}>
             About Scout
           </div>
-          Scout is your NIL guide. It helps student-athletes, advisors, and families figure out
-          what to do next, whether that means reviewing a deal, understanding a contract, finding
-          trusted help, or getting connected to the right people.
+          <div style={{ textAlign: 'left', textWrap: 'pretty' }}>
+            Scout is your NIL guide. It helps student-athletes, advisors, and families understand
+            what to do next by connecting them with the right trusted support. Whether you need
+            help reviewing a deal, understanding a contract, planning for taxes, building your
+            personal brand, or finding the right advisor, Scout helps match you with the people
+            who can guide you. Scout does not replace professional support. It helps you find it.
+          </div>
         </div>
       )}
     </div>
