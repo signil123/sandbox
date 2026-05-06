@@ -1845,7 +1845,7 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
 
                                                                     {/* Content */}
                                                                     <div style={{ flex: 1, minWidth: 0 }}>
-                                                                        <div className='flex items-baseline' style={{ gap: 8 }}>
+                                                                        <div className='flex items-baseline' style={{ gap: 8, paddingRight: 22 }}>
                                                                             <div
                                                                                 style={{
                                                                                     fontSize: 13.5,
@@ -1935,7 +1935,7 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
                                                                         />
                                                                     )}
 
-                                                                    {/* Dismiss / delete button — floats just outside the card corner */}
+                                                                    {/* Dismiss / delete button — sits in reserved top-right slot inside the card */}
                                                                     <button
                                                                         type='button'
                                                                         title='Dismiss notification'
@@ -1946,12 +1946,11 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
                                                                         }}
                                                                         className='absolute opacity-0 group-hover:opacity-100 transition-opacity grid place-items-center cursor-pointer'
                                                                         style={{
-                                                                            top: -7, right: -7,
-                                                                            width: 20, height: 20, borderRadius: 999,
-                                                                            background: '#163146',
-                                                                            border: '2px solid rgba(250,247,242,0.96)',
-                                                                            color: '#faf7f2',
-                                                                            boxShadow: '0 2px 6px -1px rgba(22,49,70,0.30)',
+                                                                            top: 8, right: 8,
+                                                                            width: 18, height: 18, borderRadius: 999,
+                                                                            background: 'rgba(22,49,70,0.10)',
+                                                                            border: '1px solid rgba(22,49,70,0.12)',
+                                                                            color: '#163146',
                                                                             zIndex: 5,
                                                                         }}
                                                                     >
