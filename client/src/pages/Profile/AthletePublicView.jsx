@@ -68,7 +68,7 @@ const AthletePublicView = ({
       >
         <Card title='Experience' count={experience.length}>
           {experience.length === 0 ? (
-            <EmptyState message='No experience listed yet.' />
+            <EmptyState message='No experience added, yet.' />
           ) : (
             <FadeScroll>
               <div>
@@ -81,7 +81,7 @@ const AthletePublicView = ({
         </Card>
         <Card title='Education' count={education.length}>
           {education.length === 0 ? (
-            <EmptyState message='No education listed yet.' />
+            <EmptyState message='No education added, yet.' />
           ) : (
             <FadeScroll>
               <div>

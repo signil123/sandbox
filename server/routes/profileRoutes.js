@@ -4,6 +4,7 @@ import {
     deleteProfile,
     getAllAdvisors,
     getAthleteProfileBundle,
+    getInterestsCatalog,
     getOrCreateProfile,
     getProfileByUserId,
     getProfileCompletion,
@@ -33,6 +34,10 @@ router.get('/public/:userId', getProfileByUserId)
 
 // Get all advisors with filtering
 router.get('/advisors', getAllAdvisors)
+
+// Get athlete interests catalog (used by the private profile Interests picker
+// and by the matching algorithm). Public, cacheable, no auth required.
+router.get('/interests/catalog', getInterestsCatalog)
 
 // ============================================
 // PROTECTED ROUTES (Authentication required)

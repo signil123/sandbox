@@ -11,6 +11,81 @@ import {
   canViewAthleteSocials,
   isAdvisorOrAgent,
 } from '../utils/entitlements.js'
+import {
+  INTERESTS_VALUE_SET,
+  MIN_INTERESTS_FOR_COMPLETION,
+} from '../data/interestsCatalog.js'
+
+const SOCIAL_PLATFORMS = new Set([
+  'instagram',
+  'twitter',
+  'tiktok',
+  'youtube',
+  'linkedin',
+  'facebook',
+])
+
+const EXPERIENCE_TYPES = new Set(['Endorsement', 'Athletic', 'Community', 'Professional', '', null, undefined])
+
+// Coerce a string-or-null into a trimmed string, capped at maxLen.
+const cleanStr = (v, maxLen = 1000) => {
+  if (v === undefined || v === null) return ''
+  const s = String(v).trim()
+  return s.length > maxLen ? s.slice(0, maxLen) : s
+}
+
+const sanitizeExperienceEntry = (e) => {
+  if (!e || typeof e !== 'object') return null
+  const role = cleanStr(e.role, 120)
+  const company = cleanStr(e.company, 160)
+  if (!role && !company) return null
+  return {
+    role,
+    company,
+    type: EXPERIENCE_TYPES.has(e.type) ? (e.type || '') : '',
+    startDate: cleanStr(e.startDate, 40),
+    endDate: cleanStr(e.endDate, 40),
+    location: cleanStr(e.location, 160),
+    description: cleanStr(e.description, 1000),
+    logoText: cleanStr(e.logoText, 4),
+    logoBg: cleanStr(e.logoBg, 20) || '#163146',
+  }
+}
+
+const sanitizeEducationEntry = (e) => {
+  if (!e || typeof e !== 'object') return null
+  const school = cleanStr(e.school, 160)
+  if (!school) return null
+  return {
+    school,
+    degree: cleanStr(e.degree, 160),
+    fieldOfStudy: cleanStr(e.fieldOfStudy, 160),
+    startYear: cleanStr(e.startYear, 12),
+    endYear: cleanStr(e.endYear, 12),
+    description: cleanStr(e.description, 1000),
+    logoText: cleanStr(e.logoText, 4),
+    logoBg: cleanStr(e.logoBg, 20) || '#163146',
+  }
+}
+
+const sanitizeSocialEntry = (s) => {
+  if (!s || typeof s !== 'object') return null
+  const rawPlatform = cleanStr(s.platform, 60)
+  if (!rawPlatform) return null
+  // Builtin platforms are normalized to lowercase keys so the icon lookup
+  // and the legacy virtuals (socialMedia/socialLinks) keep working. Custom
+  // platforms preserve the user's original casing for display.
+  const lower = rawPlatform.toLowerCase()
+  const isBuiltin = SOCIAL_PLATFORMS.has(lower)
+  const explicitCustom = s.custom === true
+  return {
+    platform: isBuiltin && !explicitCustom ? lower : rawPlatform,
+    handle: cleanStr(s.handle, 60),
+    url: cleanStr(s.url, 300),
+    public: s.public === false ? false : true,
+    custom: explicitCustom || !isBuiltin,
+  }
+}
 
 const shouldLockAthleteSocials = (viewer, ownerProfile) => {
   if (!viewer || !ownerProfile) return false
@@ -201,9 +276,8 @@ export const updateProfile = async (req, res, next) => {
       bio,
       aboutMe,
       location,
-      website,
-      socialLinks,
-      socialMedia,
+      socials,
+      publicVisibility,
       profileImage,
       photo,
       bannerImage,
@@ -219,9 +293,18 @@ export const updateProfile = async (req, res, next) => {
     if (bio !== undefined) updateData.bio = bio
     if (aboutMe !== undefined) updateData.aboutMe = aboutMe
     if (location !== undefined) updateData.location = location
-    if (website !== undefined) updateData.website = website
-    if (socialLinks !== undefined) updateData.socialLinks = socialLinks
-    if (socialMedia !== undefined) updateData.socialMedia = socialMedia
+    if (socials !== undefined) {
+      if (!Array.isArray(socials)) {
+        return next(createError(400, 'socials must be an array'))
+      }
+      updateData.socials = socials.map(sanitizeSocialEntry).filter(Boolean)
+    }
+    if (publicVisibility !== undefined) {
+      updateData.publicVisibility = {
+        email: publicVisibility?.email !== false,
+        phone: publicVisibility?.phone !== false,
+      }
+    }
     if (profileImage !== undefined) updateData.profileImage = profileImage
     if (photo !== undefined) updateData.photo = photo
     if (bannerImage !== undefined) updateData.bannerImage = bannerImage
@@ -283,53 +366,138 @@ export const updateAthleteProfile = async (req, res, next) => {
   try {
     const userId = req.user._id
     const {
+      // Identity
+      name,
       sport,
       school,
       position,
       classYear,
-      jerseyNumber,
-      height,
-      weight,
-      yearsActive,
-      achievements,
-      stats,
-      name,
+      location,
+      locationPreference,
+      // Bio
       aboutMe,
+      // Contacts
       email,
       phone,
+      publicVisibility,
+      // Images
       profileImage,
       photo,
-      socialMedia,
+      bannerImage,
+      // Structured arrays (new)
+      experience,
+      education,
+      socials,
+      interests,
     } = req.body
 
     const updateData = {}
+    const userUpdate = {}
 
-    // Athletic fields
-    if (sport !== undefined) updateData.sport = sport
-    if (school !== undefined) updateData.school = school
-    if (position !== undefined) updateData.position = position
-    if (classYear !== undefined) updateData.classYear = classYear
-    if (jerseyNumber !== undefined) updateData.jerseyNumber = jerseyNumber
-    if (height !== undefined) updateData.height = height
-    if (weight !== undefined) updateData.weight = weight
-    if (yearsActive !== undefined) updateData.yearsActive = yearsActive
-    if (achievements !== undefined) updateData.achievements = achievements
-    if (stats !== undefined) updateData.stats = stats
-
-    // Profile fields
-    if (name !== undefined) {
-      await User.findByIdAndUpdate(userId, { name }, { new: true })
+    // ---- Required-field guards: reject empty values for required identity fields
+    const requireNonEmpty = (key, val) => {
+      if (val === undefined) return null
+      if (typeof val !== 'string' || val.trim().length === 0) {
+        return `${key} cannot be empty`
+      }
+      return null
     }
-    if (aboutMe !== undefined) updateData.aboutMe = aboutMe
+    for (const [k, v] of [
+      ['name', name],
+      ['sport', sport],
+      ['position', position],
+      ['school', school],
+      ['classYear', classYear],
+    ]) {
+      const err = requireNonEmpty(k, v)
+      if (err) return next(createError(400, err))
+    }
+
+    // ---- Identity (Profile)
+    if (sport !== undefined) updateData.sport = cleanStr(sport, 60)
+    if (school !== undefined) updateData.school = cleanStr(school, 160)
+    if (position !== undefined) updateData.position = cleanStr(position, 60)
+    if (classYear !== undefined) updateData.classYear = cleanStr(classYear, 12)
+    if (location !== undefined) updateData.location = cleanStr(location, 160)
+    if (locationPreference !== undefined) {
+      const allowed = new Set(['In-person', 'Remote', 'Hybrid', null, ''])
+      updateData.locationPreference = allowed.has(locationPreference) ? (locationPreference || null) : null
+    }
+
+    // ---- Identity (User document)
+    if (name !== undefined) userUpdate.name = cleanStr(name, 120)
+
+    // ---- Bio
+    if (aboutMe !== undefined) updateData.aboutMe = cleanStr(aboutMe, 500)
+
+    // ---- Contacts
     if (email !== undefined) {
-      await User.findByIdAndUpdate(userId, { email }, { new: true })
+      const e = cleanStr(email, 200)
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) {
+        return next(createError(400, 'Invalid email format'))
+      }
+      userUpdate.email = e
     }
-    if (phone !== undefined) {
-      await User.findByIdAndUpdate(userId, { phone }, { new: true })
+    if (phone !== undefined) userUpdate.phone = cleanStr(phone, 40)
+    if (publicVisibility !== undefined) {
+      updateData.publicVisibility = {
+        email: publicVisibility?.email !== false,
+        phone: publicVisibility?.phone !== false,
+      }
     }
-    if (profileImage !== undefined) updateData.profileImage = profileImage
-    if (photo !== undefined) updateData.photo = photo
-    if (socialMedia !== undefined) updateData.socialMedia = socialMedia
+
+    // ---- Images
+    if (profileImage !== undefined) updateData.profileImage = cleanStr(profileImage, 500)
+    if (photo !== undefined) updateData.photo = cleanStr(photo, 500)
+    if (bannerImage !== undefined) updateData.bannerImage = cleanStr(bannerImage, 500)
+
+    // ---- Experience (array)
+    if (experience !== undefined) {
+      if (!Array.isArray(experience)) return next(createError(400, 'experience must be an array'))
+      updateData.experience = experience.map(sanitizeExperienceEntry).filter(Boolean)
+    }
+
+    // ---- Education (array)
+    if (education !== undefined) {
+      if (!Array.isArray(education)) return next(createError(400, 'education must be an array'))
+      updateData.education = education.map(sanitizeEducationEntry).filter(Boolean)
+    }
+
+    // ---- Socials (array)
+    if (socials !== undefined) {
+      if (!Array.isArray(socials)) return next(createError(400, 'socials must be an array'))
+      updateData.socials = socials.map(sanitizeSocialEntry).filter(Boolean)
+    }
+
+    // ---- Interests (array against catalog; min 5 enforced)
+    if (interests !== undefined) {
+      if (!Array.isArray(interests)) return next(createError(400, 'interests must be an array'))
+      const cleaned = Array.from(
+        new Set(
+          interests
+            .map((s) => (typeof s === 'string' ? s.trim() : ''))
+            .filter(Boolean)
+        )
+      )
+      const invalid = cleaned.filter((v) => !INTERESTS_VALUE_SET.has(v))
+      if (invalid.length > 0) {
+        return next(createError(400, `Unknown interest values: ${invalid.join(', ')}`))
+      }
+      if (cleaned.length < MIN_INTERESTS_FOR_COMPLETION) {
+        return next(
+          createError(
+            400,
+            `Please select at least ${MIN_INTERESTS_FOR_COMPLETION} interests before saving.`
+          )
+        )
+      }
+      updateData.interests = cleaned
+    }
+
+    // ---- Apply User-document changes first (name/email/phone)
+    if (Object.keys(userUpdate).length > 0) {
+      await User.findByIdAndUpdate(userId, userUpdate, { new: true })
+    }
 
     let profile = await Profile.findOne({ user: userId })
 
@@ -350,6 +518,9 @@ export const updateAthleteProfile = async (req, res, next) => {
       }
       if (photo !== undefined && profile.photo && photo !== profile.photo) {
         await deleteCloudinaryAsset(profile.photo)
+      }
+      if (bannerImage !== undefined && profile.bannerImage && bannerImage !== profile.bannerImage) {
+        await deleteCloudinaryAsset(profile.bannerImage)
       }
       profile = await Profile.findOneAndUpdate({ user: userId }, updateData, {
         new: true,
@@ -387,56 +558,54 @@ export const updateAthleteProfile = async (req, res, next) => {
 }
 
 /**
- * Update athlete interests (toggleable)
+ * Update athlete interests.
+ * Body: { interests: string[] }
+ * Validates against the catalog (server/data/interestsCatalog.js) and
+ * enforces a minimum of MIN_INTERESTS_FOR_COMPLETION on save.
  */
 export const updateAthleteInterests = async (req, res, next) => {
   try {
     const userId = req.user._id
     const { interests } = req.body
 
-    if (!interests || typeof interests !== 'object') {
-      return next(createError(400, 'Interests object is required'))
+    if (!Array.isArray(interests)) {
+      return next(createError(400, 'Interests must be an array of catalog values'))
     }
 
-    // Validate interest keys
-    const validInterests = [
-      'brandPartnerships',
-      'contentCreation',
-      'eventAppearances',
-      'socialMediaGrowth',
-      'endorsements',
-      'sponsorships',
-      'merchandising',
-      'charitableWork',
-      'speakingEngagements',
-      'mediaTraining',
-    ]
+    const cleaned = Array.from(
+      new Set(interests.map((s) => (typeof s === 'string' ? s.trim() : '')).filter(Boolean))
+    )
 
-    const updateData = {}
-    for (const [key, value] of Object.entries(interests)) {
-      if (validInterests.includes(key) && typeof value === 'boolean') {
-        updateData[`interests.${key}`] = value
-      }
+    const invalid = cleaned.filter((v) => !INTERESTS_VALUE_SET.has(v))
+    if (invalid.length > 0) {
+      return next(createError(400, `Unknown interest values: ${invalid.join(', ')}`))
+    }
+    if (cleaned.length < MIN_INTERESTS_FOR_COMPLETION) {
+      return next(
+        createError(
+          400,
+          `Please select at least ${MIN_INTERESTS_FOR_COMPLETION} interests before saving.`
+        )
+      )
     }
 
     let profile = await Profile.findOne({ user: userId })
 
     if (!profile) {
       const user = await User.findById(userId)
-      if (!user) {
-        return next(createError(404, 'User not found'))
-      }
+      if (!user) return next(createError(404, 'User not found'))
 
       profile = await Profile.create({
         user: userId,
         profileType: 'athlete',
-        interests,
+        interests: cleaned,
       })
     } else {
-      profile = await Profile.findOneAndUpdate({ user: userId }, updateData, {
-        new: true,
-        runValidators: true,
-      })
+      profile = await Profile.findOneAndUpdate(
+        { user: userId },
+        { interests: cleaned },
+        { new: true, runValidators: true }
+      )
     }
 
     profile = await profile.populate('user', '-password')
@@ -450,6 +619,25 @@ export const updateAthleteInterests = async (req, res, next) => {
     })
   } catch (error) {
     console.error('Error in updateAthleteInterests:', error)
+    next(error)
+  }
+}
+
+/**
+ * GET the interests catalog (public, cacheable, no auth required).
+ */
+export const getInterestsCatalog = async (req, res, next) => {
+  try {
+    const { INTERESTS_CATALOG } = await import('../data/interestsCatalog.js')
+    res.set('Cache-Control', 'public, max-age=3600')
+    res.status(200).json({
+      status: 'success',
+      data: {
+        catalog: INTERESTS_CATALOG,
+        minForCompletion: MIN_INTERESTS_FOR_COMPLETION,
+      },
+    })
+  } catch (error) {
     next(error)
   }
 }
@@ -804,6 +992,9 @@ export const deleteProfile = async (req, res, next) => {
  */
 const hasActiveInterests = (interests) => {
   if (!interests) return false
+  // New shape: array of catalog values
+  if (Array.isArray(interests)) return interests.length >= MIN_INTERESTS_FOR_COMPLETION
+  // Legacy shape: boolean object (pre-migration)
   const interestsObj = interests.toObject ? interests.toObject() : interests
   return Object.values(interestsObj).some((v) => v === true)
 }
@@ -1044,12 +1235,15 @@ export const getAthleteProfileBundle = async (req, res, next) => {
         sport: profile.sport,
         position: profile.position,
         classYear: profile.classYear,
-        jerseyNumber: profile.jerseyNumber,
-        height: profile.height,
-        weight: profile.weight,
-        achievements: profile.achievements,
-        stats: profile.stats,
+        location: profile.location,
+        locationPreference: profile.locationPreference,
+        // Structured arrays (Phase A — new shape)
+        experience: Array.isArray(profile.experience) ? profile.experience : [],
+        education: Array.isArray(profile.education) ? profile.education : [],
+        socials: Array.isArray(profile.socials) ? profile.socials : [],
+        // Backwards-compat virtual — kept so any legacy reader continues to work
         socialMedia: profile.socialMedia,
+        publicVisibility: profile.publicVisibility || { email: true, phone: true },
         contactVisible: profile.contactVisible,
         isPublic: profile.isPublic,
         themeColor: profile.themeColor,
@@ -1057,8 +1251,9 @@ export const getAthleteProfileBundle = async (req, res, next) => {
         coverImage: profile.coverImage,
       },
 
-      // Interests (toggleable)
-      interests: profile.interests || {},
+      // Interests — array of catalog values (new shape).
+      // `activeInterests` virtual normalizes legacy boolean docs to the array form.
+      interests: Array.isArray(profile.interests) ? profile.interests : (profile.activeInterests || []),
       activeInterests: profile.activeInterests || [],
 
       // NIL Preferences

@@ -6,3 +6,9 @@ build
 .env
 .vercel
 .env*.local
+
+# Local-only artifacts
+.playwright-mcp/
+*.bak
+# Loose screenshots at the repo root only (assets under client/ stay tracked).
+/*.png

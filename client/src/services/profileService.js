@@ -11,7 +11,24 @@ const handleError = (error) => {
   throw message
 }
 
+let _interestsCatalogCache = null
+
 export const profileService = {
+  /**
+   * Get the athlete interests catalog. Memoized — fetched once per session.
+   * Returns: { catalog: [{category, value}], minForCompletion: number }
+   */
+  getInterestsCatalog: async () => {
+    if (_interestsCatalogCache) return _interestsCatalogCache
+    try {
+      const response = await axiosInstance.get('/profile/interests/catalog')
+      _interestsCatalogCache = response.data?.data || response.data
+      return _interestsCatalogCache
+    } catch (error) {
+      handleError(error)
+    }
+  },
+
   /**
    * Get or create user's profile
    */
@@ -89,9 +106,9 @@ export const profileService = {
   },
 
   /**
-   * Update athlete interests (toggleable)
-   * @param {Object} interests - Object with interest keys and boolean values
-   * Example: { brandPartnerships: true, contentCreation: false }
+   * Update athlete interests.
+   * @param {string[]} interests - array of catalog values (min 5 enforced server-side)
+   * Example: ['Brand Partnerships', 'Content Creation', 'Sports Nutrition', ...]
    */
   updateAthleteInterests: async (interests) => {
     try {

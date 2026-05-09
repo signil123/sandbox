@@ -38,19 +38,33 @@ const ProfileSchema = new mongoose.Schema(
       enum: ['In-person', 'Remote', 'Hybrid', null],
       default: null,
     },
-    website: {
-      type: String,
+    // Per-field public visibility for sensitive contact info.
+    // `false` = hide even from accepted connections.
+    // `true`  = blurred until connection accepted, then visible.
+    publicVisibility: {
+      email: { type: Boolean, default: true },
+      phone: { type: Boolean, default: true },
     },
-    socialLinks: {
-      twitter: String,
-      instagram: String,
-      linkedin: String,
-      facebook: String,
-    },
-    socialMedia: {
-      instagram: String,
-      twitter: String,
-      tiktok: String,
+    // Unified socials array — single source of truth.
+    // Backwards-compat virtuals `socialLinks` and `socialMedia` are derived
+    // from this field for any legacy reader (see virtuals below).
+    socials: {
+      type: [
+        {
+          // Free-form platform identifier. The 6 builtin platforms use the
+          // canonical lowercase keys (instagram/twitter/tiktok/youtube/
+          // linkedin/facebook). Custom rows store the user-entered app name
+          // verbatim (e.g. "Reddit", "Strava"). The `custom` flag tells
+          // consumers which render path to use.
+          platform: { type: String, required: true, trim: true, maxlength: 60 },
+          handle: { type: String, default: '', trim: true, maxlength: 60 },
+          url: { type: String, default: '', trim: true, maxlength: 300 },
+          public: { type: Boolean, default: true },
+          custom: { type: Boolean, default: false },
+          _id: false,
+        },
+      ],
+      default: [],
     },
 
     // ============================================
@@ -60,67 +74,17 @@ const ProfileSchema = new mongoose.Schema(
     school: String,
     position: String,
     classYear: String,
-    jerseyNumber: String,
-    height: String,
-    weight: String,
-    yearsActive: {
-      start: Number,
-      end: Number,
-    },
-    achievements: [
-      {
-        title: String,
-        description: String,
-        date: Date,
-      },
-    ],
-    stats: {
-      type: Map,
-      of: String,
-    },
 
-    // Athlete Interests (toggleable)
+    // Athlete Interests — free string array referencing the catalog at
+    // server/data/interestsCatalog.js. Validation enforced in the
+    // profile controller (min 5 to mark profile complete).
     interests: {
-      brandPartnerships: {
-        type: Boolean,
-        default: false,
-      },
-      contentCreation: {
-        type: Boolean,
-        default: false,
-      },
-      eventAppearances: {
-        type: Boolean,
-        default: false,
-      },
-      socialMediaGrowth: {
-        type: Boolean,
-        default: false,
-      },
-      endorsements: {
-        type: Boolean,
-        default: false,
-      },
-      sponsorships: {
-        type: Boolean,
-        default: false,
-      },
-      merchandising: {
-        type: Boolean,
-        default: false,
-      },
-      charitableWork: {
-        type: Boolean,
-        default: false,
-      },
-      speakingEngagements: {
-        type: Boolean,
-        default: false,
-      },
-      mediaTraining: {
-        type: Boolean,
-        default: false,
-      },
+      type: [String],
+      default: [],
+      set: (val) =>
+        Array.isArray(val)
+          ? Array.from(new Set(val.filter((s) => typeof s === 'string' && s.trim()).map((s) => s.trim())))
+          : [],
     },
 
     // NIL Preferences (Athlete)
@@ -156,11 +120,53 @@ const ProfileSchema = new mongoose.Schema(
     },
 
     // ============================================
+    // SHARED — Experience & Education (athlete + advisor)
+    // ============================================
+    // Read by both AthletePublicView and AdvisorPublicView via the
+    // ExperienceEntry / EducationEntry components. Field names below match
+    // the JSX accessors in client/src/pages/Profile/AdvisorPublicView.jsx.
+    experience: {
+      type: [
+        {
+          role: { type: String, default: '', trim: true, maxlength: 120 },
+          company: { type: String, default: '', trim: true, maxlength: 160 },
+          type: {
+            type: String,
+            enum: ['Endorsement', 'Athletic', 'Community', 'Professional', null, ''],
+            default: '',
+          },
+          startDate: { type: String, default: '' },
+          endDate: { type: String, default: '' },
+          location: { type: String, default: '', trim: true, maxlength: 160 },
+          description: { type: String, default: '', trim: true, maxlength: 1000 },
+          logoText: { type: String, default: '', trim: true, maxlength: 4 },
+          logoBg: { type: String, default: '#163146' },
+          _id: false,
+        },
+      ],
+      default: [],
+    },
+    education: {
+      type: [
+        {
+          school: { type: String, default: '', trim: true, maxlength: 160 },
+          degree: { type: String, default: '', trim: true, maxlength: 160 },
+          fieldOfStudy: { type: String, default: '', trim: true, maxlength: 160 },
+          startYear: { type: String, default: '' },
+          endYear: { type: String, default: '' },
+          description: { type: String, default: '', trim: true, maxlength: 1000 },
+          logoText: { type: String, default: '', trim: true, maxlength: 4 },
+          logoBg: { type: String, default: '#163146' },
+          _id: false,
+        },
+      ],
+      default: [],
+    },
+
+    // ============================================
     // ADVISOR SPECIFIC FIELDS
     // ============================================
     specialization: [String],
-    experience: String,
-    education: String,
     certifications: [String],
     clients: {
       type: Number,
@@ -258,30 +264,55 @@ ProfileSchema.virtual('displayName').get(function () {
     .toUpperCase()}${this.profileType.slice(1)}`
 })
 
-// Virtual to get active interests as array
+// Virtual to get active interests as array.
+// New shape: `interests` is `[String]` directly. Returned as-is.
+// Legacy fallback: if `interests` is still a boolean object (pre-migration),
+// translate keys to display labels for any reader that still calls this.
 ProfileSchema.virtual('activeInterests').get(function () {
   if (!this.interests) return []
+  if (Array.isArray(this.interests)) return [...this.interests]
 
-  const interestLabels = {
+  const legacyLabels = {
     brandPartnerships: 'Brand Partnerships',
     contentCreation: 'Content Creation',
     eventAppearances: 'Event Appearances',
     socialMediaGrowth: 'Social Media Growth',
-    endorsements: 'Endorsements',
+    endorsements: 'Endorsement Deals',
     sponsorships: 'Sponsorships',
     merchandising: 'Merchandising',
     charitableWork: 'Charitable Work',
     speakingEngagements: 'Speaking Engagements',
     mediaTraining: 'Media Training',
   }
+  const obj = this.interests.toObject ? this.interests.toObject() : this.interests
+  return Object.entries(obj)
+    .filter(([, enabled]) => enabled)
+    .map(([key]) => legacyLabels[key] || key)
+})
 
-  const interestsObj = this.interests.toObject
-    ? this.interests.toObject()
-    : this.interests
+// Backwards-compat virtual: legacy `socialMedia` shape derived from `socials`.
+// Public views read `profile.socialMedia.{instagram,twitter,tiktok}` today.
+// This keeps them working with no view changes.
+ProfileSchema.virtual('socialMedia').get(function () {
+  const out = { instagram: '', twitter: '', tiktok: '' }
+  if (!Array.isArray(this.socials)) return out
+  for (const s of this.socials) {
+    if (!s || !s.platform) continue
+    if (out[s.platform] !== undefined) out[s.platform] = s.handle || ''
+  }
+  return out
+})
 
-  return Object.entries(interestsObj)
-    .filter(([_, enabled]) => enabled)
-    .map(([key, _]) => interestLabels[key] || key)
+// Backwards-compat virtual: legacy `socialLinks` shape (the dead duplicate).
+// Kept in case any seed/explore/admin code still touches it.
+ProfileSchema.virtual('socialLinks').get(function () {
+  const out = { twitter: '', instagram: '', linkedin: '', facebook: '' }
+  if (!Array.isArray(this.socials)) return out
+  for (const s of this.socials) {
+    if (!s || !s.platform) continue
+    if (out[s.platform] !== undefined) out[s.platform] = s.url || s.handle || ''
+  }
+  return out
 })
 
 export default mongoose.model('Profile', ProfileSchema)
