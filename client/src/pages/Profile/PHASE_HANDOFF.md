@@ -2,7 +2,7 @@
 
 Canonical source of truth for the multi-phase rebuild of the athlete private profile page. Read this before resuming work; do not re-derive state from chat history.
 
-**Status as of 2026-05-03:** Phase A and Phase B complete and signed off. Phase C is next.
+**Status as of 2026-05-09:** Phases A, B and most of Phase C complete (modals 1–5 of 7 shipped). Modal #6 (NIL Preferences) is next.
 
 ---
 
@@ -121,26 +121,33 @@ The user populated their account with full sample athlete data via `mcp__playwri
 
 ---
 
-## Phase C — edit modals + backend writes (NEXT)
+## Phase C — edit modals + backend writes (IN PROGRESS)
 
-The big build. Wire each pencil to a focused edit modal with Save/Cancel + confirmation, hitting the existing `PUT /api/profile/me/athlete` (or `/interests`, `/nil-preferences`) endpoints with partial patches. Optimistic UI on save, revert on error.
+The big build. Each pencil opens a focused edit modal with Save/Cancel + confirmation, hitting the existing `PUT /api/profile/me/athlete` (or `/interests`, `/nil-preferences`) endpoints with partial patches. Optimistic UI on save, revert on error.
 
-### Modals to build (one PR per modal, or grouped — TBD with user)
-1. **Modal shell + form primitives** — `EditModal` (overlay, header, footer with Save/Cancel), confirmation dialog ("Apply changes?"), dirty-check confirmation on Cancel ("Discard changes?"). Form primitives: `TextField`, `Textarea`, `Select`, `DateField`, `Toggle`, `ChipPicker`, `EntryList` with reorder via ↑↓ buttons.
-2. **Identity + Bio + Contacts modal** (single modal per user spec) — name, sport, position, school, classYear, location, aboutMe, email, phone. Per-field public visibility toggles on email and phone. Required-field validation (name, sport, position, school, classYear). Banner image and profile photo edit affordances inline (or as small sub-modals) — file picker → `POST /api/upload` → store secure_url.
-3. **Socials modal** — 6 platforms listed, each row: handle + URL inputs + per-platform public toggle. Empty handle hides the platform from the header card.
-4. **Experience modal** — add/edit/delete/reorder entries. Per-entry fields: role, company, type (Endorsement/Athletic/Community), startDate, endDate, location, description, logoText (initials, ≤4 chars), logoBg (color or generator from organization name).
-5. **Education modal** — add/edit/delete/reorder. Fields: school, degree, fieldOfStudy (optional), startYear, endYear, description, logoText, logoBg.
-6. **NIL Preferences modal** — deal size dropdown (existing enum), timeline dropdown (existing enum), focus area chip picker (title + optional description per chip).
-7. **Interests modal** — search bar over the catalog (fetched once via `getInterestsCatalog`), click to add, hover-X to remove, "Selected (n/5)" counter, **Save button disabled until ≥5 selected**, server-side error toast as backstop.
+### Modals (5 of 7 done)
+1. ✅ **Modal shell + form primitives** — `EditModal` (overlay, header, footer with Save/Cancel), confirmation dialog ("Apply changes?"), dirty-check confirmation on Cancel ("Discard changes?"). Form primitives: `TextField`, `Textarea`, `Select`, `DateField`, `Toggle`, `ChipPicker`, `EntryList` (reorder via 3×3 bronze-dot drag handle, drag-and-drop). Supplementary primitives: `LocationField` (Photon US-cities typeahead with Remote pin + manual city + state-dropdown fallback), `SportField` (typeahead over 50 college sports + custom escape hatch).
+2. ✅ **Identity + Bio + Contacts modal** — name, sport, position, school, classYear (numeric grad year, displayed as "Class of YYYY"), location (LocationField), aboutMe (≤400), email, phone, per-field public visibility toggles, inline banner + avatar uploads (file picker → `POST /api/upload`, persisted with the rest of the patch on Save).
+3. ✅ **Socials modal** — 6 builtin platforms (Instagram, X/Twitter, TikTok, YouTube, LinkedIn, Facebook) with handle input + auto URL derivation + override link + per-platform public toggle. Plus an "Other platforms" section for unlimited custom rows (App name + Handle + Link). Render uses well-known glyphs (Reddit, Discord, GitHub, Twitch, Pinterest, Snapchat, Threads, Mastodon, Signal); anything else shows a single-letter initial tile. Server `socials.platform` enum dropped; `custom: bool` distinguishes builtin from user-added.
+4. ✅ **Experience modal** — add/edit/delete entries; reorder via drag handle. Default sort: newest end date first. Fields: role (req), company (req), location, startDate (req), endDate (req, with Present checkbox), description (≤400). Logo auto-derived from company name (1–2 letters + deterministic color from a 10-color palette). End-before-start blocked.
+5. ✅ **Education modal** — add/edit/delete/drag-reorder. Fields: school (req), degree (grouped dropdown over Pre-college / Associate / Bachelor's / Master's / Doctoral & Professional, with "Other (custom)" escape that flips to a free-text input), fieldOfStudy (free text), startYear (req, year-only), endYear (req, year-only with Present), description (≤400). Single-letter crest auto-derived from school name. Empty-state copy aligned to "No education added, yet." in both private and public views.
+6. ⏳ **NIL Preferences modal** (NEXT) — deal size dropdown (existing enum), timeline dropdown (existing enum), focus area chip picker (title + optional description per chip).
+7. ⏳ **Interests modal** — search bar over the catalog (fetched once via `getInterestsCatalog`), click to add, hover-X to remove, "Selected (n/5)" counter, **Save button disabled until ≥5 selected**, server-side error toast as backstop.
+
+### Bug fixes shipped during Phase C
+- **Login spinner-on-load**: `state.user.loading` was being persisted to `localStorage` via `redux-persist`. Any interrupted login/signup left `loading: true` in storage so the next mount rendered the Sign In button mid-spin before any user interaction. Fixed in `client/src/redux/store.js` with a redux-persist transform that strips `loading`/`error` (and `network.loading`/`error`) on write and resets them to safe defaults on rehydrate.
 
 ### Things to remember during Phase C
 - All save buttons go through `profileService.updateAthleteProfile()` for everything except interests (which uses `updateAthleteInterests`) and NIL prefs (which has its own endpoint). The `/me/athlete` controller already accepts every field listed in the API surface above as partial patches.
 - After save, refetch the bundle via `getAthleteProfileBundle` so the page reflects what's persisted.
 - Save UX: optimistic update → PATCH → on error, revert local state + show error banner with the server's message.
-- Pencils on Header have `disabled={false}` once Phase C ships. Currently disabled. The disabled state is rendered via `EditPencil`'s `disabled` prop in `shared/primitives.jsx`.
-- After Phase C ships, **delete** the Phase A review harness (`client/src/pages/Admin/PhaseAReviewPage.jsx` + the `/admin/phase-a-review` route in App.jsx) and the legacy backup (`client/src/pages/Profile/ProfilePage.legacy.jsx.bak`).
 - Mobile/responsive layout for the new private profile page is deferred — desktop-only for Phase C as well.
+
+### Phase C cleanup punchlist (run after modal #7 ships)
+1. **Rename `ProfilePage` → `AthleteProfilePage`**: rename file `client/src/pages/Profile/ProfilePage.jsx` → `AthleteProfilePage.jsx`, update the export, update the import in `client/src/App.jsx`. Mechanical, low-risk; do as a single isolated commit so the rename diff is reviewable.
+2. **Delete the Phase A review harness**: `client/src/pages/Admin/PhaseAReviewPage.jsx` + the `/admin/phase-a-review` route in `App.jsx`.
+3. **Delete the Phase C review harness**: `client/src/pages/Admin/PhaseCReviewPage.jsx` + the `/admin/phase-c-review` route in `App.jsx`.
+4. **Delete the legacy backup**: `client/src/pages/Profile/ProfilePage.legacy.jsx.bak` (already untracked in git — just removable from disk).
 
 ---
 
@@ -156,12 +163,12 @@ Replace the stub line charts with real timeseries.
 
 ## Phase E — polish + public-view passthrough (planned)
 
+- **Preview Your Public Profile**: a "Preview public" button on the HeaderCard (next to the contacts strip or top-right of the banner area) that opens an in-page modal mounting `<AthletePublicView profile={bundle.profile} viewer={null} />`. Renders exactly what an unconnected stranger would see (blurred contacts, no private fields). Esc/Close drops the user back into editing without navigation. Reuses the existing `EditModal` portal shell (no overlay's footer Save/Cancel — preview-only, single Close button).
 - "Blurred until connected" implementation on public views for email/phone/socials, gated by per-field `publicVisibility` and connection state.
 - Cross-check that public views correctly read the migrated schema (experience/education arrays, consolidated socials).
 - Mobile responsive pass for the private profile page.
 - Smoke test: full edit cycle for each section, schema migration replay on a staging clone.
 - Visual QA against the design's screenshots.
-- Delete the Phase A harness and legacy ProfilePage backup.
 
 ---
 

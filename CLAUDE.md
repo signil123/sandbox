@@ -1,5 +1,7 @@
 # Signil — repo notes for Claude
 
+> **Read [`PROGRESS.md`](PROGRESS.md) first.** It's the cursor for the active project (athlete profile rebuild) — what's done, what's next, last commit. This file holds the durable repo conventions; PROGRESS.md holds the moving target.
+
 Signil is an NIL (Name / Image / Likeness) marketplace connecting student-athletes with advisors and agents.
 
 ## Repo layout
