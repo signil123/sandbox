@@ -7,7 +7,7 @@ One-screen cursor for the **athlete private profile rebuild**. Updated alongside
 ## Cursor
 
 - **Active phase:** Phase D — real Activity & Strength data
-- **Last commit:** _pending — rename commit_ (will bump after `git commit` completes)
+- **Last commit:** `6203f6a` — Rename ProfilePage to AthleteProfilePage (2026-05-10)
 - **Last touched by Claude:** 2026-05-10 — Phase C complete. Modal #6 (NIL Preferences + Interests) shipped, review harnesses removed, ProfilePage renamed to AthleteProfilePage. Ready for Phase D.
 
 ## What's done
