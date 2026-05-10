@@ -2,7 +2,7 @@
 
 Canonical source of truth for the multi-phase rebuild of the athlete private profile page. Read this before resuming work; do not re-derive state from chat history.
 
-**Status as of 2026-05-09:** Phases A, B and most of Phase C complete (modals 1–5 of 7 shipped). Modal #6 (NIL Preferences) is next.
+**Status as of 2026-05-10:** Phases A, B and all of Phase C complete. Modal #7 (Interests) was folded into Modal #6 (NIL Preferences) at the user's request. Cleanup deletes have shipped (review harnesses + legacy backup removed); the only remaining Phase C work is the `ProfilePage` → `AthleteProfilePage` rename, which lands as a separate isolated commit. Phase D is next.
 
 ---
 
@@ -44,8 +44,8 @@ Schema migrated, controllers rewritten, catalog endpoint live.
 - **MODIFIED**: `server/routes/profileRoutes.js` — added `GET /interests/catalog`.
 - **NEW**: `server/scripts/migrateAthleteProfileShape.js` — one-time idempotent migration. Dry-run by default; pass `--apply` to write. Wipes legacy interests, drops `String` experience/education values (start fresh), consolidates legacy social fields into the new array, initializes `publicVisibility` defaults.
 - **MODIFIED**: `client/src/services/profileService.js` — added `getInterestsCatalog()` (memoized); `updateAthleteInterests` now sends array shape.
-- **NEW**: `client/src/pages/Admin/PhaseAReviewPage.jsx` — Playwright review harness mounted at `/admin/phase-a-review`. Verifies catalog endpoint (128 items, 12 categories), bundle shape (10 structural assertions), round-trip writes for each section, interests min-5 validation. Sidebar offset uses `paddingLeft: max(24px, 260px)`.
-- **MODIFIED**: `client/src/App.jsx` — added route `/admin/phase-a-review` under `PrivateRoute`.
+- ~~**NEW**: `client/src/pages/Admin/PhaseAReviewPage.jsx` — Playwright review harness mounted at `/admin/phase-a-review`.~~ **Deleted in Phase C cleanup (2026-05-10).**
+- ~~**MODIFIED**: `client/src/App.jsx` — added route `/admin/phase-a-review` under `PrivateRoute`.~~ Route removed in Phase C cleanup.
 
 ### API surface (canonical)
 - `GET /api/profile/me/bundle` — primary read for the private page
@@ -71,8 +71,8 @@ Profile {
   experience: [{ role, company, type, startDate, endDate, location, description, logoText, logoBg }],
   education:  [{ school, degree, fieldOfStudy, startYear, endYear, description, logoText, logoBg }],
   socials:    [{ platform, handle, url, public }],   // platforms: instagram|twitter|tiktok|youtube|linkedin|facebook
-  interests:  [String],   // catalog values, min 5
-  nilPreferences: { dealSize, timeline, focusAreas: [{title, description}] },
+  interests:  [String],   // catalog values, min 5 (edited from inside Modal #6)
+  nilPreferences: { dealSize, timeline, focusAreas: [String] },   // dealSize enum: 0-1k|1k-5k|5k-10k|10k-25k|25k-50k|50k-100k|100k+; focusAreas min 3
 }
 // email + phone live on User, not Profile.
 ```
@@ -107,7 +107,7 @@ Grid: `gridTemplateColumns: '1fr 360px'`, `gridTemplateRows: '340px 220px minmax
 - **NEW** `client/src/components/Profile/athletePrivate/ActivityStrengthCard.jsx` — inline tab nav (Profile Views / Connections / Received / Sent / Strength) with gold-underline active state. Range chips (1D/1W/1M/YTD/1Y) hidden on Strength tab. Metric tabs render a deterministic seeded sparkline (stub data per agreement). Strength tab renders real ProgressRing + missing-fields list computed from 15 weighted checks (totals 100): name, sport, position, school, classYear, location, bio length, photo, banner, ≥1 experience, ≥1 education, ≥2 socials, ≥5 interests, NIL focus areas, email. NIL data read from `bundle.nilPreferences` (top level), not `bundle.profile.nilPreferences`.
 - **NEW** `client/src/components/Profile/athletePrivate/ConnectionCenterCard.jsx` — top 3 most recently accepted connections + "See all" arrow that opens existing `ConnectionsModal`. Mini cards have Message-only button. Defensive response shape parsing for `connectionService.getNetwork`.
 - **REWRITTEN** `client/src/pages/Profile/ProfilePage.jsx` — composes the layout. Uses a `useIsDesktop()` matchMedia hook (not Tailwind `md:` classes — Tailwind v4 utilities weren't reliably applied during initial render and caused both desktop and mobile blocks to mount). Mobile fallback stacks vertically. Loading/error states.
-- **MOVED** `client/src/pages/Profile/ProfilePage.jsx` → `ProfilePage.legacy.jsx.bak` (backup of old 2054-line page; safe to delete once Phase C signs off).
+- ~~**MOVED** `client/src/pages/Profile/ProfilePage.jsx` → `ProfilePage.legacy.jsx.bak`~~ **Deleted in Phase C cleanup (2026-05-10).**
 
 ### Verified working
 The user populated their account with full sample athlete data via `mcp__playwright__browser_evaluate` (6 PUT calls, all 200) and visually confirmed every section renders correctly:
@@ -125,14 +125,21 @@ The user populated their account with full sample athlete data via `mcp__playwri
 
 The big build. Each pencil opens a focused edit modal with Save/Cancel + confirmation, hitting the existing `PUT /api/profile/me/athlete` (or `/interests`, `/nil-preferences`) endpoints with partial patches. Optimistic UI on save, revert on error.
 
-### Modals (5 of 7 done)
+### Modals (6 of 6 done — Interests merged into Modal #6)
 1. ✅ **Modal shell + form primitives** — `EditModal` (overlay, header, footer with Save/Cancel), confirmation dialog ("Apply changes?"), dirty-check confirmation on Cancel ("Discard changes?"). Form primitives: `TextField`, `Textarea`, `Select`, `DateField`, `Toggle`, `ChipPicker`, `EntryList` (reorder via 3×3 bronze-dot drag handle, drag-and-drop). Supplementary primitives: `LocationField` (Photon US-cities typeahead with Remote pin + manual city + state-dropdown fallback), `SportField` (typeahead over 50 college sports + custom escape hatch).
 2. ✅ **Identity + Bio + Contacts modal** — name, sport, position, school, classYear (numeric grad year, displayed as "Class of YYYY"), location (LocationField), aboutMe (≤400), email, phone, per-field public visibility toggles, inline banner + avatar uploads (file picker → `POST /api/upload`, persisted with the rest of the patch on Save).
 3. ✅ **Socials modal** — 6 builtin platforms (Instagram, X/Twitter, TikTok, YouTube, LinkedIn, Facebook) with handle input + auto URL derivation + override link + per-platform public toggle. Plus an "Other platforms" section for unlimited custom rows (App name + Handle + Link). Render uses well-known glyphs (Reddit, Discord, GitHub, Twitch, Pinterest, Snapchat, Threads, Mastodon, Signal); anything else shows a single-letter initial tile. Server `socials.platform` enum dropped; `custom: bool` distinguishes builtin from user-added.
 4. ✅ **Experience modal** — add/edit/delete entries; reorder via drag handle. Default sort: newest end date first. Fields: role (req), company (req), location, startDate (req), endDate (req, with Present checkbox), description (≤400). Logo auto-derived from company name (1–2 letters + deterministic color from a 10-color palette). End-before-start blocked.
 5. ✅ **Education modal** — add/edit/delete/drag-reorder. Fields: school (req), degree (grouped dropdown over Pre-college / Associate / Bachelor's / Master's / Doctoral & Professional, with "Other (custom)" escape that flips to a free-text input), fieldOfStudy (free text), startYear (req, year-only), endYear (req, year-only with Present), description (≤400). Single-letter crest auto-derived from school name. Empty-state copy aligned to "No education added, yet." in both private and public views.
-6. ⏳ **NIL Preferences modal** (NEXT) — deal size dropdown (existing enum), timeline dropdown (existing enum), focus area chip picker (title + optional description per chip).
-7. ⏳ **Interests modal** — search bar over the catalog (fetched once via `getInterestsCatalog`), click to add, hover-X to remove, "Selected (n/5)" counter, **Save button disabled until ≥5 selected**, server-side error toast as backstop.
+6. ✅ **NIL Preferences modal** (combined NIL + Interests) — `Select`s for deal size and timeline plus two `CatalogTypeahead` editors:
+   - **Focus Areas** — catalog-only (`server/data/focusAreasCatalog.js`, ~45 entries across 8 categories: Finance & Tax, Legal, Marketing & Social, Brand & Business, Deals & Representation, Career & Development, Wellness & Performance, Education & Compliance). One-to-one match against advisor/agent expertise — no custom entries. **Min 3** enforced client + server.
+   - **Interests** — catalog-only (existing `server/data/interestsCatalog.js`). **Min 5** enforced client + server.
+   - **Single Save** fires `/me/nil-preferences` and/or `/me/interests` per dirty slice (no extra writes for fields the user didn't touch).
+   - **Deal size enum replaced**: now `0-1k | 1k-5k | 5k-10k | 10k-25k | 25k-50k | 50k-100k | 100k+`. Legacy values (`100k-250k`, `250k-500k`, `500k-1m`, `1m-5m`, `5m+`) coalesced to `100k+` by the schema setter on next write; rendered as `$100K+` immediately via the read-side label map.
+   - **focusAreas schema** converted from `[{title, description}]` to `[String]`; legacy object-shape docs coerced to strings on the next save.
+   - **Card layout** — `NILPreferencesCard` rebuilt with two sub-sections (Focus Areas + Interests), each with a count badge next to its title and a horizontal-scroll `PillRail` clipped to ~2 pills with right/left edge-fade hints. Card height stays at the original 220px so the Activity & Strength card can expand into the freed right-rail space.
+   - **`InterestsCard.jsx` deleted**; `ProfilePage` right-rail simplified from a 2-row grid to a single Activity & Strength cell.
+   - New endpoint: `GET /api/profile/nil/focus-areas-catalog` (public, cacheable).
 
 ### Bug fixes shipped during Phase C
 - **Login spinner-on-load**: `state.user.loading` was being persisted to `localStorage` via `redux-persist`. Any interrupted login/signup left `loading: true` in storage so the next mount rendered the Sign In button mid-spin before any user interaction. Fixed in `client/src/redux/store.js` with a redux-persist transform that strips `loading`/`error` (and `network.loading`/`error`) on write and resets them to safe defaults on rehydrate.
@@ -143,11 +150,11 @@ The big build. Each pencil opens a focused edit modal with Save/Cancel + confirm
 - Save UX: optimistic update → PATCH → on error, revert local state + show error banner with the server's message.
 - Mobile/responsive layout for the new private profile page is deferred — desktop-only for Phase C as well.
 
-### Phase C cleanup punchlist (run after modal #7 ships)
-1. **Rename `ProfilePage` → `AthleteProfilePage`**: rename file `client/src/pages/Profile/ProfilePage.jsx` → `AthleteProfilePage.jsx`, update the export, update the import in `client/src/App.jsx`. Mechanical, low-risk; do as a single isolated commit so the rename diff is reviewable.
-2. **Delete the Phase A review harness**: `client/src/pages/Admin/PhaseAReviewPage.jsx` + the `/admin/phase-a-review` route in `App.jsx`.
-3. **Delete the Phase C review harness**: `client/src/pages/Admin/PhaseCReviewPage.jsx` + the `/admin/phase-c-review` route in `App.jsx`.
-4. **Delete the legacy backup**: `client/src/pages/Profile/ProfilePage.legacy.jsx.bak` (already untracked in git — just removable from disk).
+### Phase C cleanup punchlist — status
+1. ⏳ **Rename `ProfilePage` → `AthleteProfilePage`**: rename file `client/src/pages/Profile/ProfilePage.jsx` → `AthleteProfilePage.jsx`, update the export, update the import in `client/src/App.jsx`. Lands as a separate isolated commit so the rename diff is reviewable.
+2. ✅ **Phase A review harness deleted** (2026-05-10): `PhaseAReviewPage.jsx` + `/admin/phase-a-review` route removed.
+3. ✅ **Phase C review harness deleted** (2026-05-10): `PhaseCReviewPage.jsx` + `/admin/phase-c-review` route removed.
+4. ✅ **Legacy backup deleted** (2026-05-10): `ProfilePage.legacy.jsx.bak` removed.
 
 ---
 
@@ -198,4 +205,3 @@ cd server && node scripts/migrateAthleteProfileShape.js --apply --user <userId>
 ## Routes for the headed Playwright viewport
 
 - `http://localhost:5173/profile/athlete` — the new private profile (Phase B)
-- `http://localhost:5173/admin/phase-a-review` — the schema review harness (delete after Phase C)

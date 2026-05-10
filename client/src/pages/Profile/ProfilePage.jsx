@@ -38,11 +38,11 @@ import IdentityModal from '../../components/Profile/athletePrivate/IdentityModal
 import SocialsModal from '../../components/Profile/athletePrivate/SocialsModal'
 import ExperienceModal from '../../components/Profile/athletePrivate/ExperienceModal'
 import EducationModal from '../../components/Profile/athletePrivate/EducationModal'
+import NILPreferencesModal from '../../components/Profile/athletePrivate/NILPreferencesModal'
 import ExperienceCard from '../../components/Profile/athletePrivate/ExperienceCard'
 import EducationCard from '../../components/Profile/athletePrivate/EducationCard'
 import ConnectionCenterCard from '../../components/Profile/athletePrivate/ConnectionCenterCard'
 import NILPreferencesCard from '../../components/Profile/athletePrivate/NILPreferencesCard'
-import InterestsCard from '../../components/Profile/athletePrivate/InterestsCard'
 import ActivityStrengthCard from '../../components/Profile/athletePrivate/ActivityStrengthCard'
 import ConnectionsModal from '../../components/Connections/ConnectionsModal'
 
@@ -59,6 +59,7 @@ const ProfilePage = () => {
   const [socialsOpen, setSocialsOpen] = useState(false)
   const [experienceOpen, setExperienceOpen] = useState(false)
   const [educationOpen, setEducationOpen] = useState(false)
+  const [nilOpen, setNilOpen] = useState(false)
 
   const loadBundle = async () => {
     setLoading(true)
@@ -126,7 +127,7 @@ const ProfilePage = () => {
 
             {/* NIL Prefs (top of right column) */}
             <div style={{ gridArea: 'nil', minHeight: 0 }}>
-              <NILPreferencesCard bundle={bundle} />
+              <NILPreferencesCard bundle={bundle} onEdit={() => setNilOpen(true)} />
             </div>
 
             {/* Connection Center (bottom-left) */}
@@ -140,17 +141,10 @@ const ProfilePage = () => {
               />
             </div>
 
-            {/* Right rail bottom: Interests (compact) + Activity & Strength */}
-            <div
-              style={{
-                gridArea: 'rightrail',
-                display: 'grid',
-                gridTemplateRows: 'auto minmax(0, 1fr)',
-                gap: 14,
-                minHeight: 0,
-              }}
-            >
-              <InterestsCard bundle={bundle} />
+            {/* Right rail bottom: Activity & Strength expands to fill the
+                full height previously shared with the Interests card (now
+                merged into NIL Preferences). */}
+            <div style={{ gridArea: 'rightrail', minHeight: 0 }}>
               <ActivityStrengthCard bundle={bundle} />
             </div>
           </>
@@ -177,10 +171,7 @@ const ProfilePage = () => {
               <EducationCard bundle={bundle} onEdit={() => setEducationOpen(true)} />
             </div>
             <div style={{ height: 240 }}>
-              <NILPreferencesCard bundle={bundle} />
-            </div>
-            <div>
-              <InterestsCard bundle={bundle} />
+              <NILPreferencesCard bundle={bundle} onEdit={() => setNilOpen(true)} />
             </div>
             <div style={{ height: 320 }}>
               <ActivityStrengthCard bundle={bundle} />
@@ -231,6 +222,13 @@ const ProfilePage = () => {
         open={educationOpen}
         bundle={bundle}
         onClose={() => setEducationOpen(false)}
+        onSaved={loadBundle}
+      />
+
+      <NILPreferencesModal
+        open={nilOpen}
+        bundle={bundle}
+        onClose={() => setNilOpen(false)}
         onSaved={loadBundle}
       />
     </DashboardLayout>

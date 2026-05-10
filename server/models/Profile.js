@@ -91,31 +91,42 @@ const ProfileSchema = new mongoose.Schema(
     nilPreferences: {
       dealSize: {
         type: String,
-        enum: ['50k-100k', '100k-250k', '250k-500k', '500k-1m', '1m-5m', '5m+'],
-        default: '250k-500k',
+        // Buckets sized for student-athlete NIL deals. Older docs may carry
+        // pre-Phase-C values (50k-100k, 100k-250k, 250k-500k, 500k-1m, 1m-5m,
+        // 5m+) — those are coalesced to the new top bucket `100k+` by the
+        // setter so we don't need a write-time migration.
+        enum: ['0-1k', '1k-5k', '5k-10k', '10k-25k', '25k-50k', '50k-100k', '100k+'],
+        default: '0-1k',
+        set: (val) => {
+          if (typeof val !== 'string') return val
+          const legacyTopBuckets = new Set(['100k-250k', '250k-500k', '500k-1m', '1m-5m', '5m+'])
+          if (legacyTopBuckets.has(val)) return '100k+'
+          return val
+        },
       },
       timeline: {
         type: String,
         enum: ['short', 'medium', 'long'],
         default: 'medium',
       },
+      // Phase C — focusAreas stored as catalog string values. Legacy
+      // documents that persisted `{title, description}` objects are coerced
+      // back to strings on read via the setter so the API surface stays clean.
       focusAreas: {
-        type: [
-          {
-            title: { type: String, required: true, trim: true, maxlength: 120 },
-            description: { type: String, default: '', trim: true, maxlength: 600 },
-            _id: false,
-          },
-        ],
+        type: [String],
         default: [],
         set: (val) =>
-          (Array.isArray(val) ? val : []).map((v) =>
-            typeof v === 'string' ? { title: v, description: '' } : v
+          Array.from(
+            new Set(
+              (Array.isArray(val) ? val : [])
+                .map((v) => {
+                  if (typeof v === 'string') return v.trim()
+                  if (v && typeof v === 'object' && typeof v.title === 'string') return v.title.trim()
+                  return ''
+                })
+                .filter(Boolean)
+            )
           ),
-        get: (val) =>
-          (Array.isArray(val) ? val : [])
-            .map((v) => (typeof v === 'string' ? { title: v, description: '' } : v))
-            .filter((v) => v && v.title),
       },
     },
 

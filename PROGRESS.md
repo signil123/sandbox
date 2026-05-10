@@ -6,9 +6,9 @@ One-screen cursor for the **athlete private profile rebuild**. Updated alongside
 
 ## Cursor
 
-- **Active phase:** Phase C — edit modals + backend writes
-- **Last commit:** `9063431` — Athlete private profile rebuild — Phase A/B/C complete (2026-05-09)
-- **Last touched by Claude:** 2026-05-09
+- **Active phase:** Phase C wrap-up → Phase D
+- **Last commit:** `186d08c` — PROGRESS.md cursor + plan AthleteProfilePage rename + Preview Public (2026-05-09)
+- **Last touched by Claude:** 2026-05-10 — Modal #6 signed off; Phase C cleanup in progress (review harnesses + legacy backup deleted; rename pending).
 
 ## What's done
 
@@ -19,19 +19,15 @@ One-screen cursor for the **athlete private profile rebuild**. Updated alongside
 - ✅ **Phase C modal #3** — Socials modal (6 builtin + unlimited custom platforms with well-known glyphs / single-letter fallback)
 - ✅ **Phase C modal #4** — Experience modal (drag-handle reorder, newest-first sort, end-before-start guard, auto logo)
 - ✅ **Phase C modal #5** — Education modal (grouped degree dropdown with "Other" escape, free-text fieldOfStudy, year-only pickers, single-letter crest)
+- ✅ **Phase C modal #6** — NIL Preferences modal (deal size + timeline dropdowns, **Focus Areas** typeahead with min-3 against new `focusAreasCatalog`, **Interests** typeahead with min-5 against existing `interestsCatalog`). Single Save fires `/me/nil-preferences` and/or `/me/interests` per dirty slice. Card now hosts both sub-sections inside the original 220×360 footprint; each sub-section has a count badge and a horizontal-scroll pill rail (clipped at ~2 pills with edge-fade hint). `InterestsCard` deleted; Activity & Strength expanded to fill the freed right-rail space. Deal size enum replaced (`0-1k`, `1k-5k`, `5k-10k`, `10k-25k`, `25k-50k`, `50k-100k`, `100k+`); legacy values coalesced to `100k+` by schema setter and rendered as `$100K+`. Schema for `focusAreas` converted from `[{title, description}]` to `[String]`.
+- ✅ **Phase C cleanup (deletes)** — removed `PhaseAReviewPage.jsx` + `/admin/phase-a-review` route, `PhaseCReviewPage.jsx` + `/admin/phase-c-review` route, and the `ProfilePage.legacy.jsx.bak` backup. App.jsx imports stripped.
 - ✅ **Bug fix** — login spinner-on-load (redux-persist transform strips `loading`/`error` flags from persisted state)
 
 ## Next (in order)
 
-1. **Phase C modal #6** — NIL Preferences modal (deal size dropdown, timeline dropdown, focus area chip picker)
-2. **Phase C modal #7** — Interests modal (catalog search, min-5 enforcement)
-3. **Phase C cleanup punchlist** (after #7 ships):
-   - Rename `ProfilePage` → `AthleteProfilePage` (file + export + import in [App.jsx](client/src/App.jsx)) — single isolated commit
-   - Delete `client/src/pages/Admin/PhaseAReviewPage.jsx` + `/admin/phase-a-review` route
-   - Delete `client/src/pages/Admin/PhaseCReviewPage.jsx` + `/admin/phase-c-review` route
-   - Delete `client/src/pages/Profile/ProfilePage.legacy.jsx.bak`
-4. **Phase D** — real Activity & Strength data (replace stub timeseries with `GET /api/profile/me/stats/...` endpoints)
-5. **Phase E** — polish + public-view passthrough:
+1. **Phase C cleanup (rename)** — `ProfilePage` → `AthleteProfilePage` (file + export + import in [App.jsx](client/src/App.jsx)) — single isolated commit so the rename diff is reviewable.
+2. **Phase D** — real Activity & Strength data (replace stub timeseries with `GET /api/profile/me/stats/...` endpoints).
+3. **Phase E** — polish + public-view passthrough:
    - **Preview Your Public Profile** — HeaderCard "Preview public" button → in-page modal mounting `<AthletePublicView>`
    - Blurred-until-connected implementation on public views
    - Mobile responsive pass

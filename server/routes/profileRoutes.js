@@ -4,6 +4,7 @@ import {
     deleteProfile,
     getAllAdvisors,
     getAthleteProfileBundle,
+    getFocusAreasCatalog,
     getInterestsCatalog,
     getOrCreateProfile,
     getProfileByUserId,
@@ -38,6 +39,10 @@ router.get('/advisors', getAllAdvisors)
 // Get athlete interests catalog (used by the private profile Interests picker
 // and by the matching algorithm). Public, cacheable, no auth required.
 router.get('/interests/catalog', getInterestsCatalog)
+
+// Get NIL focus areas catalog (used by the NIL Preferences picker and the
+// athlete<->advisor matching algorithm). Public, cacheable, no auth required.
+router.get('/nil/focus-areas-catalog', getFocusAreasCatalog)
 
 // ============================================
 // PROTECTED ROUTES (Authentication required)

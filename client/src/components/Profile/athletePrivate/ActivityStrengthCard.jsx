@@ -86,7 +86,7 @@ const useStrength = (bundle) => {
       { ok: (profile.education || []).length >= 1, weight: 6, label: 'Add an education entry' },
       { ok: (profile.socials || []).filter((s) => s.handle || s.url).length >= 2, weight: 6, label: 'Connect 2+ social accounts' },
       { ok: interests.length >= 5, weight: 12, label: 'Pick at least 5 interests' },
-      { ok: (nil?.focusAreas || []).length >= 1, weight: 4, label: 'Set NIL focus areas' },
+      { ok: (nil?.focusAreas || []).length >= 3, weight: 4, label: 'Pick at least 3 NIL focus areas' },
       { ok: !!user.email, weight: 4, label: 'Add an email' },
     ]
     const earned = checks.filter((c) => c.ok).reduce((sum, c) => sum + c.weight, 0)

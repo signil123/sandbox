@@ -12,6 +12,7 @@ const handleError = (error) => {
 }
 
 let _interestsCatalogCache = null
+let _focusAreasCatalogCache = null
 
 export const profileService = {
   /**
@@ -24,6 +25,21 @@ export const profileService = {
       const response = await axiosInstance.get('/profile/interests/catalog')
       _interestsCatalogCache = response.data?.data || response.data
       return _interestsCatalogCache
+    } catch (error) {
+      handleError(error)
+    }
+  },
+
+  /**
+   * Get the NIL focus areas catalog. Memoized — fetched once per session.
+   * Returns: { catalog: [{category, value}], minForCompletion: number }
+   */
+  getFocusAreasCatalog: async () => {
+    if (_focusAreasCatalogCache) return _focusAreasCatalogCache
+    try {
+      const response = await axiosInstance.get('/profile/nil/focus-areas-catalog')
+      _focusAreasCatalogCache = response.data?.data || response.data
+      return _focusAreasCatalogCache
     } catch (error) {
       handleError(error)
     }

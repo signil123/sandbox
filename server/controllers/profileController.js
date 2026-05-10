@@ -15,6 +15,13 @@ import {
   INTERESTS_VALUE_SET,
   MIN_INTERESTS_FOR_COMPLETION,
 } from '../data/interestsCatalog.js'
+import {
+  FOCUS_AREAS_VALUE_SET,
+  MIN_FOCUS_AREAS_FOR_COMPLETION,
+} from '../data/focusAreasCatalog.js'
+
+const DEAL_SIZE_VALUES = new Set(['0-1k', '1k-5k', '5k-10k', '10k-25k', '25k-50k', '50k-100k', '100k+'])
+const TIMELINE_VALUES = new Set(['short', 'medium', 'long'])
 
 const SOCIAL_PLATFORMS = new Set([
   'instagram',
@@ -643,17 +650,59 @@ export const getInterestsCatalog = async (req, res, next) => {
 }
 
 /**
- * Update NIL preferences for athlete
+ * Update NIL preferences for athlete.
+ * Body: { dealSize, timeline, focusAreas: string[] }
+ * - dealSize / timeline validated against the schema enums
+ * - focusAreas validated against the catalog (server/data/focusAreasCatalog.js)
+ *   and required to contain at least MIN_FOCUS_AREAS_FOR_COMPLETION (3) entries
  */
 export const updateNILPreferences = async (req, res, next) => {
   try {
     const userId = req.user._id
     const { dealSize, timeline, focusAreas } = req.body
 
+    if (dealSize !== undefined && !DEAL_SIZE_VALUES.has(dealSize)) {
+      return next(createError(400, `Unknown deal size: ${dealSize}`))
+    }
+    if (timeline !== undefined && !TIMELINE_VALUES.has(timeline)) {
+      return next(createError(400, `Unknown timeline: ${timeline}`))
+    }
+
+    if (focusAreas !== undefined && !Array.isArray(focusAreas)) {
+      return next(createError(400, 'focusAreas must be an array of catalog values'))
+    }
+
+    const cleanedFocus = Array.from(
+      new Set(
+        (focusAreas || [])
+          .map((v) => {
+            if (typeof v === 'string') return v.trim()
+            if (v && typeof v === 'object' && typeof v.title === 'string') return v.title.trim()
+            return ''
+          })
+          .filter(Boolean)
+      )
+    )
+
+    if (focusAreas !== undefined) {
+      const invalid = cleanedFocus.filter((v) => !FOCUS_AREAS_VALUE_SET.has(v))
+      if (invalid.length > 0) {
+        return next(createError(400, `Unknown focus area values: ${invalid.join(', ')}`))
+      }
+      if (cleanedFocus.length < MIN_FOCUS_AREAS_FOR_COMPLETION) {
+        return next(
+          createError(
+            400,
+            `Please select at least ${MIN_FOCUS_AREAS_FOR_COMPLETION} focus areas before saving.`
+          )
+        )
+      }
+    }
+
     const updateData = {
-      'nilPreferences.dealSize': dealSize || '250k-500k',
+      'nilPreferences.dealSize': dealSize || '0-1k',
       'nilPreferences.timeline': timeline || 'medium',
-      'nilPreferences.focusAreas': focusAreas || [],
+      'nilPreferences.focusAreas': cleanedFocus,
     }
 
     let profile = await Profile.findOne({ user: userId })
@@ -668,9 +717,9 @@ export const updateNILPreferences = async (req, res, next) => {
         user: userId,
         profileType: 'athlete',
         nilPreferences: {
-          dealSize: dealSize || '250k-500k',
+          dealSize: dealSize || '0-1k',
           timeline: timeline || 'medium',
-          focusAreas: focusAreas || [],
+          focusAreas: cleanedFocus,
         },
       })
     } else {
@@ -688,6 +737,25 @@ export const updateNILPreferences = async (req, res, next) => {
     })
   } catch (error) {
     console.error('Error in updateNILPreferences:', error)
+    next(error)
+  }
+}
+
+/**
+ * GET the NIL focus areas catalog (public, cacheable, no auth required).
+ */
+export const getFocusAreasCatalog = async (req, res, next) => {
+  try {
+    const { FOCUS_AREAS_CATALOG } = await import('../data/focusAreasCatalog.js')
+    res.set('Cache-Control', 'public, max-age=3600')
+    res.status(200).json({
+      status: 'success',
+      data: {
+        catalog: FOCUS_AREAS_CATALOG,
+        minForCompletion: MIN_FOCUS_AREAS_FOR_COMPLETION,
+      },
+    })
+  } catch (error) {
     next(error)
   }
 }
@@ -1007,7 +1075,7 @@ const hasNILPreferences = (nilPreferences) => {
   return (
     nilPreferences.dealSize &&
     nilPreferences.timeline &&
-    nilPreferences.focusAreas?.length > 0
+    (nilPreferences.focusAreas?.length || 0) >= MIN_FOCUS_AREAS_FOR_COMPLETION
   )
 }
 
@@ -1258,7 +1326,7 @@ export const getAthleteProfileBundle = async (req, res, next) => {
 
       // NIL Preferences
       nilPreferences: profile.nilPreferences || {
-        dealSize: '250k-500k',
+        dealSize: '0-1k',
         timeline: 'medium',
         focusAreas: [],
       },

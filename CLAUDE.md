@@ -50,6 +50,5 @@ After Phase A, the canonical Profile shape for athletes:
 ## Migration
 `server/scripts/migrateAthleteProfileShape.js` — idempotent, dry-run by default. `node server/scripts/migrateAthleteProfileShape.js` to preview, append `--apply` to write. Drops legacy fields (`jerseyNumber`, `height`, `weight`, `achievements`, `stats`, `yearsActive`, `website`, `socialLinks` raw, `socialMedia` raw), wipes legacy interests booleans (start fresh), initializes `publicVisibility` defaults.
 
-## Test/review harnesses (delete when done)
-- `client/src/pages/Admin/PhaseAReviewPage.jsx` — mounted at `/admin/phase-a-review`. Verifies catalog endpoint, bundle shape, round-trip writes, interests validation. Delete before Phase C ships.
-- `client/src/pages/Profile/ProfilePage.legacy.jsx.bak` — pre-rebuild ProfilePage. Safe to delete once Phase C is signed off.
+<!-- Phase A/C review harnesses + the legacy ProfilePage backup were removed during Phase C cleanup (2026-05-10). -->
+

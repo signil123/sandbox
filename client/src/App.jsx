@@ -7,8 +7,6 @@ import { PersistGate } from 'redux-persist/integration/react'
 import { AdminRoute, PrivateRoute, PublicLandingRoute } from './components/Auth/ProtectedRoutes'
 import ScrollToTop from './components/Common/ScrollToTop'
 import AdminDashboard from './pages/Admin/AdminDashboard'
-import PhaseAReviewPage from './pages/Admin/PhaseAReviewPage'
-import PhaseCReviewPage from './pages/Admin/PhaseCReviewPage'
 import AdvisorsPage from './pages/Advisors/AdvisorsPage'
 import AthletesPage from './pages/Athletes/AthletesPage'
 import AuthPage from './pages/Auth/AuthPage'
@@ -112,22 +110,6 @@ const AppContent = () => {
                   <AdminRoute>
                     <AdminDashboard />
                   </AdminRoute>
-                }
-              />
-              <Route
-                path='/admin/phase-a-review'
-                element={
-                  <PrivateRoute>
-                    <PhaseAReviewPage />
-                  </PrivateRoute>
-                }
-              />
-              <Route
-                path='/admin/phase-c-review'
-                element={
-                  <PrivateRoute>
-                    <PhaseCReviewPage />
-                  </PrivateRoute>
                 }
               />
               <Route
