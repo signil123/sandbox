@@ -2,7 +2,7 @@
 
 Canonical source of truth for the multi-phase rebuild of the athlete private profile page. Read this before resuming work; do not re-derive state from chat history.
 
-**Status as of 2026-05-10:** Phases A, B and all of Phase C complete. Modal #7 (Interests) was folded into Modal #6 (NIL Preferences) at the user's request. Cleanup deletes have shipped (review harnesses + legacy backup removed); the only remaining Phase C work is the `ProfilePage` → `AthleteProfilePage` rename, which lands as a separate isolated commit. Phase D is next.
+**Status as of 2026-05-10:** Phases A, B, and Phase C **all complete**. Modal #7 (Interests) was folded into Modal #6 (NIL Preferences). Cleanup deletes shipped (Phase A/C review harnesses + legacy backup removed). `ProfilePage` renamed to `AthleteProfilePage` in a separate isolated commit. **Phase D is next** — replace stub charts in `ActivityStrengthCard` with real timeseries via new `GET /api/profile/me/stats/...` endpoints.
 
 ---
 
@@ -106,7 +106,7 @@ Grid: `gridTemplateColumns: '1fr 360px'`, `gridTemplateRows: '340px 220px minmax
 - **NEW** `client/src/components/Profile/athletePrivate/InterestsCard.jsx` — horizontal-scroll pills with edge fade mask.
 - **NEW** `client/src/components/Profile/athletePrivate/ActivityStrengthCard.jsx` — inline tab nav (Profile Views / Connections / Received / Sent / Strength) with gold-underline active state. Range chips (1D/1W/1M/YTD/1Y) hidden on Strength tab. Metric tabs render a deterministic seeded sparkline (stub data per agreement). Strength tab renders real ProgressRing + missing-fields list computed from 15 weighted checks (totals 100): name, sport, position, school, classYear, location, bio length, photo, banner, ≥1 experience, ≥1 education, ≥2 socials, ≥5 interests, NIL focus areas, email. NIL data read from `bundle.nilPreferences` (top level), not `bundle.profile.nilPreferences`.
 - **NEW** `client/src/components/Profile/athletePrivate/ConnectionCenterCard.jsx` — top 3 most recently accepted connections + "See all" arrow that opens existing `ConnectionsModal`. Mini cards have Message-only button. Defensive response shape parsing for `connectionService.getNetwork`.
-- **REWRITTEN** `client/src/pages/Profile/ProfilePage.jsx` — composes the layout. Uses a `useIsDesktop()` matchMedia hook (not Tailwind `md:` classes — Tailwind v4 utilities weren't reliably applied during initial render and caused both desktop and mobile blocks to mount). Mobile fallback stacks vertically. Loading/error states.
+- **REWRITTEN** `client/src/pages/Profile/AthleteProfilePage.jsx` (renamed from `ProfilePage.jsx` in Phase C cleanup) — composes the layout. Uses a `useIsDesktop()` matchMedia hook (not Tailwind `md:` classes — Tailwind v4 utilities weren't reliably applied during initial render and caused both desktop and mobile blocks to mount). Mobile fallback stacks vertically. Loading/error states.
 - ~~**MOVED** `client/src/pages/Profile/ProfilePage.jsx` → `ProfilePage.legacy.jsx.bak`~~ **Deleted in Phase C cleanup (2026-05-10).**
 
 ### Verified working
@@ -150,11 +150,11 @@ The big build. Each pencil opens a focused edit modal with Save/Cancel + confirm
 - Save UX: optimistic update → PATCH → on error, revert local state + show error banner with the server's message.
 - Mobile/responsive layout for the new private profile page is deferred — desktop-only for Phase C as well.
 
-### Phase C cleanup punchlist — status
-1. ⏳ **Rename `ProfilePage` → `AthleteProfilePage`**: rename file `client/src/pages/Profile/ProfilePage.jsx` → `AthleteProfilePage.jsx`, update the export, update the import in `client/src/App.jsx`. Lands as a separate isolated commit so the rename diff is reviewable.
-2. ✅ **Phase A review harness deleted** (2026-05-10): `PhaseAReviewPage.jsx` + `/admin/phase-a-review` route removed.
-3. ✅ **Phase C review harness deleted** (2026-05-10): `PhaseCReviewPage.jsx` + `/admin/phase-c-review` route removed.
-4. ✅ **Legacy backup deleted** (2026-05-10): `ProfilePage.legacy.jsx.bak` removed.
+### Phase C cleanup punchlist — DONE (2026-05-10)
+1. ✅ Renamed `ProfilePage` → `AthleteProfilePage` (isolated commit).
+2. ✅ `PhaseAReviewPage.jsx` + `/admin/phase-a-review` route removed.
+3. ✅ `PhaseCReviewPage.jsx` + `/admin/phase-c-review` route removed.
+4. ✅ `ProfilePage.legacy.jsx.bak` removed.
 
 ---
 

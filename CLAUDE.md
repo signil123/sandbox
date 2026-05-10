@@ -17,7 +17,7 @@ Signil is an NIL (Name / Image / Likeness) marketplace connecting student-athlet
 - **Don't touch public profile views unless intentional.** `PublicProfilePage.jsx`, `AthletePublicView.jsx`, `AdvisorPublicView.jsx`, `UserPreviewCard.jsx` read the same Profile document the private page edits — schema changes propagate to them automatically. Forking shapes will break those views.
 
 ## Active project
-**Athlete Private Profile rebuild** — replaces `client/src/pages/Profile/ProfilePage.jsx` (athlete role only) with a new design from a Claude Design handoff bundle. Phases A and B are complete and signed off; Phase C is next.
+**Athlete Private Profile rebuild** — replaced `client/src/pages/Profile/ProfilePage.jsx` (athlete role only) with `AthleteProfilePage.jsx`, a new design from a Claude Design handoff bundle. Phases A, B, and C are complete; Phase D (real Activity & Strength data) is next.
 
 Canonical state lives in `client/src/pages/Profile/PHASE_HANDOFF.md`. Read that before resuming work on this project.
 

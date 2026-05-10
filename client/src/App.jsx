@@ -19,7 +19,7 @@ import MessagePage from './pages/Message/MessagePage'
 import NewsPage from './pages/News/NewsPage'
 import ScoutPage from './pages/Scout/ScoutPage'
 import AdvisorProfilePage from './pages/Profile/AdvisorProfilePage'
-import ProfilePage from './pages/Profile/ProfilePage'
+import AthleteProfilePage from './pages/Profile/AthleteProfilePage'
 import PublicProfilePage from './pages/Profile/PublicProfilePage'
 import { persistor, store } from './redux/store'
 
@@ -156,7 +156,7 @@ const AppContent = () => {
                 path='/profile/athlete'
                 element={
                   <PrivateRoute>
-                    <ProfilePage />
+                    <AthleteProfilePage />
                   </PrivateRoute>
                 }
               />

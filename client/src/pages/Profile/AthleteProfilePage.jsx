@@ -1,4 +1,4 @@
-// ProfilePage — athlete private profile (Phase B, read-only).
+// AthleteProfilePage — athlete private profile.
 //
 // Layout (1440×900 desktop):
 //   ┌──────────────────────────────────────────────────────────┐
@@ -48,7 +48,7 @@ import ConnectionsModal from '../../components/Connections/ConnectionsModal'
 
 const SIDEBAR_W = 228 // matches DashboardLayout
 
-const ProfilePage = () => {
+const AthleteProfilePage = () => {
   const currentUser = useSelector(selectCurrentUser)
   const isDesktop = useIsDesktop()
   const [bundle, setBundle] = useState(null)
@@ -289,4 +289,4 @@ const ErrorState = ({ message, onRetry, compact }) => (
   </div>
 )
 
-export default ProfilePage
+export default AthleteProfilePage
