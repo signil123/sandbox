@@ -2,7 +2,33 @@
 
 Canonical source of truth for the multi-phase rebuild of the athlete private profile page. Read this before resuming work; do not re-derive state from chat history.
 
-**Status as of 2026-05-10:** Phases A, B, and Phase C **all complete**. Modal #7 (Interests) was folded into Modal #6 (NIL Preferences). Cleanup deletes shipped (Phase A/C review harnesses + legacy backup removed). `ProfilePage` renamed to `AthleteProfilePage` in a separate isolated commit. **Phase D is next** — replace stub charts in `ActivityStrengthCard` with real timeseries via new `GET /api/profile/me/stats/...` endpoints.
+---
+
+## ⚡ Resume here
+
+**You are picking this up after Phase C shipped. Phase D is next.**
+
+When the user says some variant of *"let's begin Phase D"*:
+
+1. **Do NOT start coding.** The user's standing rule: reach 90% confidence via clarifying questions before building any non-trivial deliverable. Phase D is non-trivial (4 new endpoints + bucketing + client refetch wiring), so the first response on resume must be questions, not code.
+2. **Re-confirm scope** with the user — read the [Phase D — real Activity & Strength data (planned)](#phase-d--real-activity--strength-data-planned) section below and ask anything that's underspecified, in particular:
+   - Which Mongo collections back each tab (the planned mapping is `ProfileView` for views, `Relationship.acceptedAt` for connections, `ConnectionRequest.createdAt` filtered by direction for received/sent — confirm before building).
+   - Bucket granularity per range (1D = hourly? 1W = daily? YTD = weekly? — propose, don't guess).
+   - `total` and `deltaPct` semantics (`deltaPct` vs. previous equivalent window? vs. start-of-range? Confirm.)
+   - Whether existing tracking is dense enough for meaningful charts on a fresh-ish account, or if seed data is needed.
+3. **Hard rules to keep applying** (carried over from CLAUDE.md):
+   - No emojis anywhere — code, UI, console, docs, commits.
+   - End each phase with a Playwright headed viewport so the user can sign off before moving on.
+   - Don't touch public profile views unless intentional (`PublicProfilePage`, `AthletePublicView`, `UserPreviewCard`, `AdvisorPublicView` read the same Profile doc and propagate automatically).
+4. **Last commit on `main`** at the time of this hand-off: `6b3ee7f` — Bump PROGRESS.md cursor to rename commit hash (2026-05-10). Run `git log --oneline -5` to confirm.
+5. **Dev servers** must be running before any Playwright pass. See [Useful commands](#useful-commands) at the bottom.
+
+### Phase status summary
+- ✅ **Phase A** — schema migration, controllers, sanitizers, interests catalog endpoint, idempotent migration script.
+- ✅ **Phase B** — read-only layout shipped and visually verified.
+- ✅ **Phase C** — all 6 modals shipped (Modal #7 was folded into #6 at user's request), cleanup deletes complete, `ProfilePage` → `AthleteProfilePage` rename complete.
+- ⏳ **Phase D** — *next.* Real Activity & Strength data via new `GET /api/profile/me/stats/...` endpoints. Stub `seededSeries` in `ActivityStrengthCard` is what gets replaced.
+- ⏳ **Phase E** — Preview Public modal, blurred-until-connected on public views, mobile responsive pass, visual QA.
 
 ---
 
@@ -121,7 +147,7 @@ The user populated their account with full sample athlete data via `mcp__playwri
 
 ---
 
-## Phase C — edit modals + backend writes (IN PROGRESS)
+## Phase C — edit modals + backend writes (DONE)
 
 The big build. Each pencil opens a focused edit modal with Save/Cancel + confirmation, hitting the existing `PUT /api/profile/me/athlete` (or `/interests`, `/nil-preferences`) endpoints with partial patches. Optimistic UI on save, revert on error.
 
@@ -204,4 +230,4 @@ cd server && node scripts/migrateAthleteProfileShape.js --apply --user <userId>
 
 ## Routes for the headed Playwright viewport
 
-- `http://localhost:5173/profile/athlete` — the new private profile (Phase B)
+- `http://localhost:5173/profile/athlete` — the athlete private profile (post-Phase-C). All edit modals are wired; `ActivityStrengthCard` still uses the seeded stub timeseries until Phase D ships.

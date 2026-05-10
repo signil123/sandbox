@@ -1,14 +1,18 @@
 # Progress
 
-One-screen cursor for the **athlete private profile rebuild**. Updated alongside every commit. For full context, decisions, schema, and rationale, read [`client/src/pages/Profile/PHASE_HANDOFF.md`](client/src/pages/Profile/PHASE_HANDOFF.md).
+One-screen cursor for the **athlete private profile rebuild**. Updated alongside every commit. For full context, decisions, schema, and rationale, read [`client/src/pages/Profile/PHASE_HANDOFF.md`](client/src/pages/Profile/PHASE_HANDOFF.md) — that file has a "Resume here" header at the top with everything a fresh session needs.
 
 ---
 
 ## Cursor
 
 - **Active phase:** Phase D — real Activity & Strength data
-- **Last commit:** `6203f6a` — Rename ProfilePage to AthleteProfilePage (2026-05-10)
-- **Last touched by Claude:** 2026-05-10 — Phase C complete. Modal #6 (NIL Preferences + Interests) shipped, review harnesses removed, ProfilePage renamed to AthleteProfilePage. Ready for Phase D.
+- **Last commit:** `6b3ee7f` — Bump PROGRESS.md cursor to rename commit hash (2026-05-10)
+- **Last touched by Claude:** 2026-05-10 — Phase C complete and committed. Modal #6 (NIL Preferences + Interests) shipped, review harnesses removed, `ProfilePage` renamed to `AthleteProfilePage`. Ready for Phase D.
+
+## On resume ("let's begin Phase D")
+
+Open [`PHASE_HANDOFF.md`](client/src/pages/Profile/PHASE_HANDOFF.md) → "Resume here" section. Do **not** start coding — Phase D is non-trivial, so the standing 90%-confidence rule applies. First response on resume is clarifying questions, not implementation.
 
 ## What's done
 
