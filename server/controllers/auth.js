@@ -409,7 +409,7 @@ export const getUserProfile = async (req, res, next) => {
 
 export const updateUser = async (req, res, next) => {
   try {
-    const { role, userType, firstName, lastName, email, phone } = req.body
+    const { role, userType, name, firstName, lastName, email, phone } = req.body
     const userId = req.params.id
 
     const existingUser = await User.findById(userId)
@@ -440,11 +440,11 @@ export const updateUser = async (req, res, next) => {
 
     const updateData = {}
     if (role) updateData.role = role
-    
+
     // Check if userType is changing
     if (userType !== undefined && userType !== existingUser.userType) {
         updateData.userType = userType
-        
+
         // Delete existing profile to force re-onboarding
         await Profile.findOneAndDelete({ user: userId })
 
@@ -455,34 +455,39 @@ export const updateUser = async (req, res, next) => {
     } else if (userType !== undefined) {
         updateData.userType = userType
     }
-    if (firstName) updateData.firstName = firstName.trim()
-    if (lastName) updateData.lastName = lastName.trim()
-    if (firstName || lastName) {
-      updateData.name = `${firstName || existingUser.firstName || ''} ${
-        lastName || existingUser.lastName || ''
-      }`.trim()
+
+    // Name handling — `name` (the combined field) is authoritative.
+    // We split it ourselves so a client that omits the trailing token
+    // (e.g. "John" instead of "John Admin") fully clears lastName instead
+    // of inheriting the previous value.
+    if (name !== undefined) {
+      const trimmed = String(name).trim()
+      const parts = trimmed ? trimmed.split(/\s+/) : []
+      updateData.name = trimmed
+      updateData.firstName = parts[0] || ''
+      updateData.lastName = parts.slice(1).join(' ')
+    } else if (firstName !== undefined || lastName !== undefined) {
+      const nextFirst = firstName !== undefined ? String(firstName).trim() : (existingUser.firstName || '')
+      const nextLast = lastName !== undefined ? String(lastName).trim() : (existingUser.lastName || '')
+      updateData.firstName = nextFirst
+      updateData.lastName = nextLast
+      updateData.name = `${nextFirst} ${nextLast}`.trim()
     }
     if (email) updateData.email = email.toLowerCase().trim()
-    if (phone) updateData.phone = phone.trim()
+    if (phone !== undefined) updateData.phone = String(phone).trim()
 
     const updatedUser = await User.findByIdAndUpdate(userId, updateData, {
       new: true,
       runValidators: true,
     }).select('-password')
 
-    // Notify user of security update
-    if (email || firstName || lastName) {
-      let changeDesc = []
-      if (email) changeDesc.push('email')
-      if (firstName || lastName) changeDesc.push('name')
-
+    // Notify user that their account profile was updated (generic, regardless of which field)
+    if (email !== undefined || name !== undefined || firstName !== undefined || lastName !== undefined || phone !== undefined) {
       await Notification.create({
         recipient: userId,
         type: 'security_update',
-        title: 'Security Update: Personal Information Changed',
-        description: `Your ${changeDesc.join(
-          ' and '
-        )} has been successfully updated. If you did not make this change, please contact support immediately.`,
+        title: 'Account profile updated',
+        description: 'Your account profile was updated. If you did not make this change, please contact support immediately.',
         priority: 'high',
       })
     }

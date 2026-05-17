@@ -447,13 +447,17 @@ const EXPERTISE_OPTIONS = [
   'Legal Compliance',
 ]
 
-const EDUCATION_OPTIONS = [
-  'Undergraduate-Level',
-  'Graduate-Level',
-  'Professional & Doctoral Degrees',
+const LICENSE_OPTIONS = [
+  'BAR',
+  'CPA',
+  'CFA',
+  'CFP',
+  'RIA',
+  'Series 7',
+  'Series 63',
+  'Series 65',
+  'Series 66',
 ]
-
-const EXPERIENCE_RANGES = ['1–5', '5–10', '10+']
 
 const SPORTS_OPTIONS = [
   'Football',
@@ -468,54 +472,6 @@ const SPORTS_OPTIONS = [
   'Swimming',
   'NIL Generalist',
 ]
-
-const AREAS_OF_EXPERTISE = {
-  Finance: [
-    'Financial Planning',
-    'Tax Planning',
-    'Bookkeeping & Budgeting',
-    'NIL Income Tracking',
-    'Cash Flow Management',
-    'Investment Basics',
-    'Retirement & Long-Term Planning',
-    'Debt & Credit Strategy',
-    'Entity Setup (LLC/S-Corp basics)',
-    'Payroll & Contractor Payments',
-    'Compliance-Friendly Deductions',
-    'Financial Literacy Coaching',
-  ],
-  Law: [
-    'Contract Review',
-    'Contract Negotiation',
-    'NIL Compliance',
-    'NCAA/Conference Policy Guidance',
-    'Brand Deal Agreements',
-    'Appearance & Event Agreements',
-    'Licensing & IP (name/likeness/merch)',
-    'Trademark Basics',
-    'Agent / Manager Agreements',
-    'Dispute Resolution',
-    'Cease & Desist / Takedowns',
-    'Privacy & Reputation Protection',
-  ],
-  Marketing: [
-    'Brand Strategy',
-    'Brand Building',
-    'Personal Branding',
-    'Social Media Strategy',
-    'Content Strategy',
-    'Posting & Growth Plan',
-    'Audience Development',
-    'Media Kit Creation',
-    'Rate Card & Pricing Strategy',
-    'Pitching & Outreach',
-    'Negotiation Support (non-legal)',
-    'Sponsorship Strategy',
-    'Campaign Planning',
-    'Analytics & Performance Tracking',
-    'Creator Partnerships',
-  ],
-}
 
 // Helper to construct full image URL for local uploads
 const getImageUrl = (path) => {
@@ -564,53 +520,46 @@ function CompactFilterDropdown({
   widthClass = 'sm:w-72',
   isLocked = false,
 }) {
+  const hasSelection = activeCount > 0
   return (
     <motion.div className='w-full relative'>
       <motion.button
         onClick={onToggle}
-        className='w-full flex items-center justify-between px-3 py-2.5 rounded-lg border transition-all'
+        className='w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-all'
         style={{
-          borderColor: isLocked
-            ? 'rgba(152,106,65,0.35)'
-            : activeCount > 0
-              ? COLORS.primary
-              : '#e5e7eb',
+          border: isLocked
+            ? '1px solid rgba(152,106,65,0.35)'
+            : hasSelection
+              ? '2px solid #986a41'
+              : '1px solid #e5e7eb',
           background: isLocked
             ? 'linear-gradient(135deg, rgba(248,244,238,1) 0%, rgba(255,251,247,1) 100%)'
-            : activeCount > 0
-              ? `${COLORS.lightAccent}`
+            : hasSelection
+              ? 'rgba(152,106,65,0.06)'
               : 'white',
+          boxShadow: hasSelection && !isLocked
+            ? '0 0 0 4px rgba(152,106,65,0.28), 0 6px 18px -6px rgba(152,106,65,0.40)'
+            : 'none',
         }}
-        whileHover={{ borderColor: isLocked ? COLORS.accent : COLORS.primary }}
+        whileHover={{ borderColor: isLocked ? COLORS.accent : (hasSelection ? '#986a41' : COLORS.primary) }}
       >
         <div className='flex items-center gap-2 min-w-0'>
           {Icon && (
             <Icon
               size={16}
-              style={{ color: isLocked ? COLORS.accent : COLORS.primary }}
+              style={{ color: isLocked ? COLORS.accent : (hasSelection ? '#986a41' : COLORS.primary) }}
               className='flex-shrink-0'
             />
           )}
           <span
             className='text-sm font-medium truncate'
-            style={{ color: isLocked ? '#163146' : activeCount > 0 ? COLORS.primary : '#6b7280' }}
+            style={{ color: isLocked ? '#163146' : hasSelection ? '#163146' : '#6b7280' }}
           >
             {title}
           </span>
           {isLocked && (
             <span className='inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#986a41] text-white shadow-[0_8px_16px_-10px_rgba(152,106,65,0.9)]'>
               <Crown size={10} strokeWidth={2.4} />
-            </span>
-          )}
-          {activeCount > 0 && (
-            <span
-              className='ml-1 text-xs font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0'
-              style={{
-                background: COLORS.primary,
-                color: 'white',
-              }}
-            >
-              {activeCount}
             </span>
           )}
         </div>
@@ -671,13 +620,10 @@ function ExplorePageContent() {
   const [filters, setFilters] = useState({
     expertise: [],
     sortBy: 'bestMatch',
-    education: [],
-    experienceRange: [],
-    areasOfExpertise: [],
+    licenses: [],
     sportSpecializations: [],
     locationPreference: '',
   })
-  const [activeExpertiseCategory, setActiveExpertiseCategory] = useState('Finance')
 
   // Dropdown states - now only one can be open at a time for cleaner UX
   const [openDropdown, setOpenDropdown] = useState(null)
@@ -714,9 +660,7 @@ function ExplorePageContent() {
         page: currentPage,
         limit: ITEMS_PER_PAGE,
         locationPreference: filters.locationPreference,
-        education: filters.education.join(','),
-        athleteNeeds: filters.areasOfExpertise.join(','),
-        experienceRange: filters.experienceRange.join(','),
+        licenses: filters.licenses.join(','),
         sportSpecializations: filters.sportSpecializations.join(','),
       }
       
@@ -798,37 +742,15 @@ function ExplorePageContent() {
     handleFilterChange({ ...filters, expertise: newExpertise })
   }
 
-  const toggleEducation = (edu) => {
+  const toggleLicense = (license) => {
     if (!canUsePremiumFilters) {
       openUpgradeModal('filters')
       return
     }
-    const newEducation = filters.education.includes(edu)
-      ? filters.education.filter((e) => e !== edu)
-      : [...filters.education, edu]
-    handleFilterChange({ ...filters, education: newEducation })
-  }
-
-  const toggleExperience = (exp) => {
-    if (!canUsePremiumFilters) {
-      openUpgradeModal('filters')
-      return
-    }
-    const newExperience = filters.experienceRange.includes(exp)
-      ? filters.experienceRange.filter((e) => e !== exp)
-      : [...filters.experienceRange, exp]
-    handleFilterChange({ ...filters, experienceRange: newExperience })
-  }
-
-  const toggleAreaOfExpertise = (area) => {
-    if (!canUsePremiumFilters) {
-      openUpgradeModal('filters')
-      return
-    }
-    const newAreas = filters.areasOfExpertise.includes(area)
-      ? filters.areasOfExpertise.filter((a) => a !== area)
-      : [...filters.areasOfExpertise, area]
-    handleFilterChange({ ...filters, areasOfExpertise: newAreas })
+    const newLicenses = filters.licenses.includes(license)
+      ? filters.licenses.filter((l) => l !== license)
+      : [...filters.licenses, license]
+    handleFilterChange({ ...filters, licenses: newLicenses })
   }
 
   const toggleSport = (sport) => {
@@ -846,10 +768,9 @@ function ExplorePageContent() {
     setFilters({
       expertise: [],
       sortBy: 'best-match',
-      education: [],
-      experienceRange: [],
-      areasOfExpertise: [],
+      licenses: [],
       sportSpecializations: [],
+      locationPreference: '',
     })
     setCurrentPage(1)
     setOpenDropdown(null)
@@ -891,9 +812,7 @@ function ExplorePageContent() {
 
   const hasActiveFilters =
     filters.expertise.length > 0 ||
-    filters.education.length > 0 ||
-    filters.experienceRange.length > 0 ||
-    filters.areasOfExpertise.length > 0 ||
+    filters.licenses.length > 0 ||
     filters.sportSpecializations.length > 0
 
   return (
@@ -941,8 +860,28 @@ function ExplorePageContent() {
               </div> */}
             </div>
 
+            {/* Clear all filters — above the search bar, right-aligned */}
+            {hasActiveFilters && (
+              <div className='hidden md:flex items-center justify-end mb-2'>
+                <motion.button
+                  onClick={clearFilters}
+                  whileHover={{ scale: 1.05, background: '#855c3a' }}
+                  whileTap={{ scale: 0.95 }}
+                  className='text-xs font-bold px-3 py-1.5 rounded-md transition-all flex items-center gap-1'
+                  style={{
+                    color: '#ffffff',
+                    background: '#986a41',
+                    boxShadow: '0 4px 12px -4px rgba(152,106,65,0.40)',
+                  }}
+                >
+                  <X size={14} />
+                  Clear all
+                </motion.button>
+              </div>
+            )}
+
             {/* Search Bar & Mobile Filter Button */}
-            <div className='flex gap-3 mb-1 md:mb-6 items-center'>
+            <div className='flex gap-3 mb-1 md:mb-4 items-center'>
               <div className='relative flex-1'>
                 <Search className='absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5' />
                 <Input
@@ -980,221 +919,78 @@ function ExplorePageContent() {
 
             {/* Desktop Filters Section - Hidden on Mobile */}
             <div className='hidden md:block space-y-3'>
-              {/* Expertise Horizontal Pills with Filter Header */}
-              <div className='space-y-2'>
-                <div className='flex items-center justify-between'>
-                  <div className='flex items-center gap-2'>
-                    <Sliders size={16} style={{ color: COLORS.primary }} />
-                    <p className='text-xs font-semibold text-gray-600'>
-                      Expertise
-                    </p>
-                  </div>
-                  {hasActiveFilters && (
-                    <motion.button
-                      onClick={clearFilters}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      className='text-xs font-semibold px-3 py-1.5 rounded-md transition-all flex items-center gap-1'
-                      style={{
-                        color: COLORS.primary,
-                        background: `${COLORS.lightAccent}`,
-                      }}
-                    >
-                      <X size={14} />
-                      Clear all
-                    </motion.button>
-                  )}
-                </div>
-                <div className='flex flex-wrap gap-2'>
-                  {EXPERTISE_OPTIONS.map((expertise) => (
-                    <motion.button
-                      key={expertise}
-                      onClick={() => toggleExpertise(expertise)}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      className='px-2.5 py-1.5 text-xs font-medium rounded-full transition-all border flex-shrink-0'
-                      style={{
-                        borderColor: filters.expertise.includes(expertise)
-                          ? COLORS.primary
-                          : '#e5e7eb',
-                        background: filters.expertise.includes(expertise)
-                          ? COLORS.primary
-                          : 'white',
-                        color: filters.expertise.includes(expertise)
-                          ? 'white'
-                          : '#6b7280',
-                      }}
-                    >
-                      {expertise}
-                    </motion.button>
-                  ))}
-                </div>
-              </div>
-
               {/* Horizontal Filter Dropdowns Row */}
               <div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-3 pt-2'>
-                {/* Areas of Expertise */}
+                {/* Expertise */}
                 <CompactFilterDropdown
-                  title='Athlete Needs'
-                  icon={Star}
-                  widthClass="sm:w-[520px]"
-                  isOpen={openDropdown === 'areasOfExpertise'}
-                  isLocked={!isPro}
+                  title='Expertise'
+                  icon={Sliders}
+                  isOpen={openDropdown === 'expertise'}
+                  isLocked={!canUsePremiumFilters}
                   onToggle={() => {
-                    if (!isPro) {
+                    if (!canUsePremiumFilters) {
                       openUpgradeModal('filters')
                       return
                     }
                     setOpenDropdown(
-                      openDropdown === 'areasOfExpertise'
-                        ? null
-                        : 'areasOfExpertise'
+                      openDropdown === 'expertise' ? null : 'expertise'
                     )
                   }}
-                  activeCount={filters.areasOfExpertise.length}
+                  activeCount={filters.expertise.length}
                 >
-                  <div className='w-full'>
-                      {/* Category Tabs */}
-                      <div className='flex gap-1.5 border-b border-gray-100 mb-4 px-1 pb-1'>
-                        {Object.keys(AREAS_OF_EXPERTISE).map((category) => {
-                          const count = AREAS_OF_EXPERTISE[category].filter(item => 
-                            filters.areasOfExpertise.includes(item)
-                          ).length
-                          
-                          const isActive = activeExpertiseCategory === category
-
-                          return (
-                            <button
-                              key={category}
-                              onClick={() => setActiveExpertiseCategory(category)}
-                              className='flex-1 py-2 text-[11px] font-bold uppercase tracking-widest transition-all relative rounded-lg'
-                              style={{
-                                color: isActive ? 'white' : '#6b7280',
-                                background: isActive ? COLORS.primary : 'transparent',
-                              }}
-                            >
-                              <span className="relative z-10 flex items-center justify-center gap-2">
-                                {category}
-                                {count > 0 && (
-                                  <span 
-                                    className='w-4 h-4 text-[9px] flex items-center justify-center rounded-full'
-                                    style={{ background: isActive ? 'white' : COLORS.primary, color: isActive ? COLORS.primary : 'white' }}
-                                  >
-                                    {count}
-                                  </span>
-                                )}
-                              </span>
-                            </button>
-                          )
-                        })}
-                      </div>
-
-                      {/* Category Items - Two Column Grid */}
-                      <div className='min-h-[220px] px-2 overflow-hidden'>
-                        <AnimatePresence mode='wait'>
-                          <motion.div
-                            key={activeExpertiseCategory}
-                            initial={{ opacity: 0, y: 5 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -5 }}
-                            transition={{ duration: 0.15 }}
-                            className='grid grid-cols-2 gap-x-8 gap-y-2'
-                          >
-                            {AREAS_OF_EXPERTISE[activeExpertiseCategory].map((item) => (
-                              <label
-                                key={item}
-                                className='flex items-center gap-3 cursor-pointer group py-1 border-b border-transparent hover:border-gray-50 transition-all'
-                              >
-                                <div className="relative flex items-center justify-center">
-                                  <input
-                                    type='checkbox'
-                                    checked={filters.areasOfExpertise.includes(item)}
-                                    onChange={() => toggleAreaOfExpertise(item)}
-                                    className='rounded w-4 h-4 transition-all'
-                                    style={{ accentColor: COLORS.primary }}
-                                  />
-                                </div>
-                                <span className='text-[11px] text-gray-600 group-hover:text-gray-900 transition-colors leading-tight font-medium'>
-                                  {item}
-                                </span>
-                              </label>
-                            ))}
-                          </motion.div>
-                        </AnimatePresence>
-                      </div>
-                    </div>
-
+                  <div className='space-y-2 max-h-72 overflow-y-auto pr-1'>
+                    {EXPERTISE_OPTIONS.map((expertise) => (
+                      <label
+                        key={expertise}
+                        className='flex items-center gap-2 cursor-pointer py-1'
+                      >
+                        <input
+                          type='checkbox'
+                          checked={filters.expertise.includes(expertise)}
+                          onChange={() => toggleExpertise(expertise)}
+                          className='rounded w-4 h-4'
+                          style={{ accentColor: COLORS.primary }}
+                        />
+                        <span className='text-xs text-gray-700'>{expertise}</span>
+                      </label>
+                    ))}
+                  </div>
                 </CompactFilterDropdown>
 
-                {/* Education & Experience */}
+                {/* Focus Areas */}
                 <CompactFilterDropdown
-                  title='Education & Experience'
+                  title='Focus Areas'
                   icon={Settings}
-                  isOpen={openDropdown === 'education'}
-                  isLocked={!isPro}
+                  isOpen={openDropdown === 'licenses'}
+                  isLocked={!canUsePremiumFilters}
                   onToggle={() => {
-                    if (!isPro) {
+                    if (!canUsePremiumFilters) {
                       openUpgradeModal('filters')
                       return
                     }
                     setOpenDropdown(
-                      openDropdown === 'education' ? null : 'education'
+                      openDropdown === 'licenses' ? null : 'licenses'
                     )
                   }}
-                  activeCount={
-                    filters.education.length + filters.experienceRange.length
-                  }
+                  activeCount={filters.licenses.length}
                 >
-                    <>
-                      <div>
-                        <p className='text-xs font-semibold text-gray-700 mb-2'>
-                          Education
-                        </p>
-                        <div className='space-y-2'>
-                          {EDUCATION_OPTIONS.map((edu) => (
-                            <label
-                              key={edu}
-                              className='flex items-center gap-2 cursor-pointer'
-                            >
-                              <input
-                                type='checkbox'
-                                checked={filters.education.includes(edu)}
-                                onChange={() => toggleEducation(edu)}
-                                className='rounded w-4 h-4'
-                                style={{ accentColor: COLORS.primary }}
-                              />
-                              <span className='text-xs text-gray-700'>{edu}</span>
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className='border-t border-gray-100 pt-3'>
-                        <p className='text-xs font-semibold text-gray-700 mb-2'>
-                          Experience
-                        </p>
-                        <div className='space-y-2'>
-                          {EXPERIENCE_RANGES.map((range) => (
-                            <label
-                              key={range}
-                              className='flex items-center gap-2 cursor-pointer'
-                            >
-                              <input
-                                type='checkbox'
-                                checked={filters.experienceRange.includes(range)}
-                                onChange={() => toggleExperience(range)}
-                                className='rounded w-4 h-4'
-                                style={{ accentColor: COLORS.primary }}
-                              />
-                              <span className='text-xs text-gray-700'>
-                                {range} years
-                              </span>
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                    </>
-
+                  <div className='space-y-2 max-h-72 overflow-y-auto pr-1'>
+                    {LICENSE_OPTIONS.map((license) => (
+                      <label
+                        key={license}
+                        className='flex items-center gap-2 cursor-pointer py-1'
+                      >
+                        <input
+                          type='checkbox'
+                          checked={filters.licenses.includes(license)}
+                          onChange={() => toggleLicense(license)}
+                          className='rounded w-4 h-4'
+                          style={{ accentColor: COLORS.primary }}
+                        />
+                        <span className='text-xs text-gray-700'>{license}</span>
+                      </label>
+                    ))}
+                  </div>
                 </CompactFilterDropdown>
 
                 {/* Sports Specialization */}
@@ -1282,96 +1078,6 @@ function ExplorePageContent() {
                 </CompactFilterDropdown>
               </div>
 
-              {/* Active Filters Display */}
-              {hasActiveFilters && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className='flex flex-wrap gap-2 pt-3'
-                >
-                  {filters.expertise.map((exp) => (
-                    <motion.button
-                      key={`exp-${exp}`}
-                      onClick={() => toggleExpertise(exp)}
-                      className='inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium'
-                      style={{
-                        background: `${COLORS.lightAccent}`,
-                        color: COLORS.primary,
-                      }}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                    >
-                      {exp}
-                      <X size={12} />
-                    </motion.button>
-                  ))}
-                  {filters.education.map((edu) => (
-                    <motion.button
-                      key={`edu-${edu}`}
-                      onClick={() => toggleEducation(edu)}
-                      className='inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium'
-                      style={{
-                        background: `${COLORS.lightAccent}`,
-                        color: COLORS.primary,
-                      }}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                    >
-                      {edu}
-                      <X size={12} />
-                    </motion.button>
-                  ))}
-                  {filters.experienceRange.map((exp) => (
-                    <motion.button
-                      key={`exp-${exp}`}
-                      onClick={() => toggleExperience(exp)}
-                      className='inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium'
-                      style={{
-                        background: `${COLORS.lightAccent}`,
-                        color: COLORS.primary,
-                      }}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                    >
-                      {exp} years
-                      <X size={12} />
-                    </motion.button>
-                  ))}
-                  {filters.areasOfExpertise.map((area) => (
-                    <motion.button
-                      key={`area-${area}`}
-                      onClick={() => toggleAreaOfExpertise(area)}
-                      className='inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium'
-                      style={{
-                        background: `${COLORS.lightAccent}`,
-                        color: COLORS.primary,
-                      }}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                    >
-                      {area}
-                      <X size={12} />
-                    </motion.button>
-                  ))}
-                  {filters.sportSpecializations.map((sport) => (
-                    <motion.button
-                      key={`sport-${sport}`}
-                      onClick={() => toggleSport(sport)}
-                      className='inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium'
-                      style={{
-                        background: `${COLORS.lightAccent}`,
-                        color: COLORS.primary,
-                      }}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                    >
-                      {sport}
-                      <X size={12} />
-                    </motion.button>
-                  ))}
-                </motion.div>
-              )}
             </div>
 
             {/* Mobile Filters Modal */}
@@ -1436,21 +1142,22 @@ function ExplorePageContent() {
                      </section>
 
                      {/* Expertise Section */}
-                     <section>
+                     <section className="relative">
                         <div className="flex items-center justify-between mb-3">
-                           <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Expertise</h3>
+                           <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
+                             Expertise
+                             {!canUsePremiumFilters && <Lock size={12} className="text-amber-500" />}
+                           </h3>
                            {filters.expertise.length > 0 && (
                               <button onClick={() => handleFilterChange({...filters, expertise: []})} className="text-xs font-medium text-red-500">Clear</button>
                            )}
                         </div>
-                        <div className='flex flex-wrap gap-2'>
+                        <div className={`flex flex-wrap gap-2 ${!canUsePremiumFilters ? 'opacity-50 pointer-events-none' : ''}`}>
                         {EXPERTISE_OPTIONS.map((expertise) => (
                            <button
                               key={expertise}
                               onClick={() => toggleExpertise(expertise)}
-                              className={`px-3 py-2 text-sm font-medium rounded-lg transition-all border flex-shrink-0 ${
-                                 filters.expertise.includes(expertise) ? '' : ''
-                              }`}
+                              className='px-3 py-2 text-sm font-medium rounded-lg transition-all border flex-shrink-0'
                               style={{
                                  borderColor: filters.expertise.includes(expertise)
                                  ? COLORS.primary
@@ -1467,154 +1174,52 @@ function ExplorePageContent() {
                            </button>
                         ))}
                         </div>
-                     </section>
-
-                     <div className="h-px bg-gray-100"></div>
-
-                     {/* Education Section */}
-                     <section className="relative">
-                        <h3 className="text-sm font-bold text-gray-900 mb-3 uppercase tracking-wider flex items-center gap-2">
-                          Education
-                          {!isPro && <Lock size={12} className="text-amber-500" />}
-                        </h3>
-                        <div className={`space-y-3 pl-1 ${!isPro ? 'opacity-50 pointer-events-none' : ''}`}>
-                        {EDUCATION_OPTIONS.map((edu) => (
-                           <label key={edu} className='flex items-center gap-3 cursor-pointer py-1'>
-                              <input
-                              type='checkbox'
-                              checked={filters.education.includes(edu)}
-                              onChange={() => toggleEducation(edu)}
-                              className='rounded w-5 h-5'
-                              style={{ accentColor: COLORS.primary }}
-                              />
-                              <span className='text-sm text-gray-700'>{edu}</span>
-                           </label>
-                        ))}
-                        </div>
-                        {!isPro && (
-                          <div 
-                            className="absolute inset-0 z-10" 
+                        {!canUsePremiumFilters && (
+                          <div
+                            className="absolute inset-0 z-10"
                             onClick={() => openUpgradeModal('filters')}
                           />
                         )}
                      </section>
 
-                     {/* Experience Section */}
-                     <section className="relative">
-                        <h3 className="text-sm font-bold text-gray-900 mb-3 uppercase tracking-wider flex items-center gap-2">
-                          Experience
-                          {!isPro && <Lock size={12} className="text-amber-500" />}
-                        </h3>
-                        <div className={`space-y-3 pl-1 ${!isPro ? 'opacity-50 pointer-events-none' : ''}`}>
-                        {EXPERIENCE_RANGES.map((range) => (
-                           <label key={range} className='flex items-center gap-3 cursor-pointer py-1'>
-                              <input
-                              type='checkbox'
-                              checked={filters.experienceRange.includes(range)}
-                              onChange={() => toggleExperience(range)}
-                              className='rounded w-5 h-5'
-                              style={{ accentColor: COLORS.primary }}
-                              />
-                              <span className='text-sm text-gray-700'>{range} years</span>
-                           </label>
-                        ))}
-                        </div>
-                        {!isPro && (
-                          <div 
-                            className="absolute inset-0 z-10" 
-                            onClick={() => openUpgradeModal('filters')}
-                          />
-                        )}
-                     </section>
-                     
                      <div className="h-px bg-gray-100"></div>
 
-                     {/* Areas of Expertise Section */}
+                     {/* Focus Areas Section */}
                      <section className="relative">
-                        <div className="flex items-center justify-between mb-4">
-                           <h3 className="text-[13px] font-bold text-gray-900 uppercase tracking-widest flex items-center gap-2">
-                             Areas of Expertise
-                             {!isPro && <Lock size={12} className="text-amber-500" />}
+                        <div className="flex items-center justify-between mb-3">
+                           <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
+                             Focus Areas
+                             {!canUsePremiumFilters && <Lock size={12} className="text-amber-500" />}
                            </h3>
-                           {filters.areasOfExpertise.length > 0 && (
-                              <button 
-                                 onClick={() => handleFilterChange({...filters, areasOfExpertise: []})} 
-                                 className="text-[11px] font-bold text-[#986a41] px-2 py-1 rounded-lg bg-[#f4e8d8]/50"
-                              >
-                                 Clear
-                              </button>
+                           {filters.licenses.length > 0 && (
+                              <button onClick={() => handleFilterChange({...filters, licenses: []})} className="text-xs font-medium text-red-500">Clear</button>
                            )}
                         </div>
-                        
-                        <div className={!isPro ? 'opacity-50 pointer-events-none' : ''}>
-                          {/* Mobile Category Tabs */}
-                          <div className='flex gap-2.5 mb-5 overflow-x-auto pb-2 no-scrollbar px-1'>
-                             {Object.keys(AREAS_OF_EXPERTISE).map((category) => {
-                                const count = AREAS_OF_EXPERTISE[category].filter(item => 
-                                   filters.areasOfExpertise.includes(item)
-                                ).length
-  
-                                return (
-                                   <button
-                                      key={category}
-                                      onClick={() => setActiveExpertiseCategory(category)}
-                                      className='px-5 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all shadow-sm'
-                                      style={{
-                                         background: activeExpertiseCategory === category ? COLORS.primary : 'white',
-                                         color: activeExpertiseCategory === category ? 'white' : '#6b7280',
-                                         border: `1px solid ${activeExpertiseCategory === category ? COLORS.primary : '#f3f4f6'}`
-                                      }}
-                                   >
-                                      <div className="flex items-center gap-2">
-                                         {category}
-                                         {count > 0 && (
-                                            <span 
-                                               className='w-4 h-4 flex items-center justify-center rounded-full text-[9px]'
-                                               style={{ 
-                                                  background: activeExpertiseCategory === category ? 'white' : COLORS.primary, 
-                                                  color: activeExpertiseCategory === category ? COLORS.primary : 'white' 
-                                               }}
-                                            >
-                                               {count}
-                                            </span>
-                                         )}
-                                      </div>
-                                   </button>
-                                )
-                             })}
-                          </div>
-  
-                          <div className='bg-gray-50/50 p-4 rounded-2xl border border-gray-100 min-h-[280px]'>
-                             <AnimatePresence mode='wait'>
-                                <motion.div
-                                   key={activeExpertiseCategory}
-                                   initial={{ opacity: 0, y: 5 }}
-                                   animate={{ opacity: 1, y: 0 }}
-                                   exit={{ opacity: 0, y: -5 }}
-                                   transition={{ duration: 0.2 }}
-                                   className='space-y-3'
-                                >
-                                   {AREAS_OF_EXPERTISE[activeExpertiseCategory].map((item) => (
-                                      <label key={item} className='flex items-center gap-3.5 cursor-pointer py-1.5 group'>
-                                         <div className="relative flex items-center justify-center">
-                                            <input
-                                               type='checkbox'
-                                               checked={filters.areasOfExpertise.includes(item)}
-                                               onChange={() => toggleAreaOfExpertise(item)}
-                                               className='rounded w-5 h-5 transition-all'
-                                               style={{ accentColor: COLORS.primary }}
-                                            />
-                                         </div>
-                                         <span className='text-sm text-gray-700 font-medium group-active:text-gray-900'>{item}</span>
-                                      </label>
-                                   ))}
-                                </motion.div>
-                             </AnimatePresence>
-                          </div>
+                        <div className={`flex flex-wrap gap-2 ${!canUsePremiumFilters ? 'opacity-50 pointer-events-none' : ''}`}>
+                        {LICENSE_OPTIONS.map((license) => (
+                           <button
+                              key={license}
+                              onClick={() => toggleLicense(license)}
+                              className='px-3 py-2 text-sm font-medium rounded-lg transition-all border flex-shrink-0'
+                              style={{
+                                 borderColor: filters.licenses.includes(license)
+                                 ? COLORS.primary
+                                 : '#e5e7eb',
+                                 background: filters.licenses.includes(license)
+                                 ? COLORS.primary
+                                 : 'white',
+                                 color: filters.licenses.includes(license)
+                                 ? 'white'
+                                 : '#6b7280',
+                              }}
+                           >
+                              {license}
+                           </button>
+                        ))}
                         </div>
-                        {!isPro && (
-                          <div 
-                            className="absolute inset-0 z-10" 
+                        {!canUsePremiumFilters && (
+                          <div
+                            className="absolute inset-0 z-10"
                             onClick={() => openUpgradeModal('filters')}
                           />
                         )}
@@ -1712,24 +1317,6 @@ function ExplorePageContent() {
                         className='h-32 relative'
                         style={user.banner}
                       >
-                        {/* Match Percentage Badge */}
-                        {user.matchPercentage > 0 && (
-                          <div className='absolute top-3 left-3 z-10'>
-                             <Badge className={`bg-white/90 backdrop-blur-sm border-none  flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 ${
-                                user.matchPercentage >= 80 ? 'text-emerald-700' :
-                                user.matchPercentage >= 50 ? 'text-amber-700' :
-                                'text-slate-700'
-                             }`}>
-                                <TrendingUp size={12} className={
-                                   user.matchPercentage >= 80 ? 'text-emerald-500' :
-                                   user.matchPercentage >= 50 ? 'text-amber-500' :
-                                   'text-slate-400'
-                                } />
-                                {user.matchPercentage >= 90 ? 'Best Match' : `${user.matchPercentage}% Match`}
-                             </Badge>
-                          </div>
-                        )}
-
                         {/* Pro Badge for Pro Advisors */}
                         {user.tier === TIERS.PRO && (user.type !== 'athlete' && user.userType !== 'athlete') && (
                           <div className="absolute top-3 right-3 z-10">

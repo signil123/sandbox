@@ -711,6 +711,13 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
         }
       case 'security_update': {
         const combined = `${originalTitle} ${originalDescription}`.toLowerCase()
+        if (combined.includes('account profile')) {
+          return {
+            title: 'Account profile updated',
+            description: safeDescription || 'Your account profile was updated. If you did not make this change, please contact support immediately.',
+            tag: 'Security',
+          }
+        }
         if (combined.includes('verified')) {
           return {
             title: `${documentName || 'Document'} verified`,
@@ -1259,33 +1266,7 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
                         style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, marginBottom: 8, background: '#fff', border: '1px solid rgba(22,49,70,.08)', borderRadius: 16, overflow: 'hidden', zIndex: 50, boxShadow: '0 20px 40px -10px rgba(22,49,70,.15)' }}
                         onClick={(e) => e.stopPropagation()}
                       >
-                        {/* Status selectors */}
-                        {currentUser?.role !== 'admin' && (
-                          <div style={{ padding: '12px 12px 8px' }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4 }}>
-                              {[
-                                { id: 'online', label: 'Online', icon: CheckCircle2 },
-                                { id: 'away', label: 'Away', icon: Clock },
-                                { id: 'idle', label: 'Idle', icon: Eye }
-                              ].map((s) => (
-                                <motion.button
-                                  key={s.id}
-                                  whileTap={{ scale: 0.98 }}
-                                  onClick={(e) => { e.stopPropagation(); isAutoAwayRef.current = false; dispatch(updateUserStatus(s.id)) }}
-                                  style={{
-                                    padding: '8px 4px', borderRadius: 10, fontSize: 10, fontWeight: 700,
-                                    background: currentUser?.status === s.id ? '#163146' : 'rgba(22,49,70,.04)',
-                                    color: currentUser?.status === s.id ? '#fff' : '#163146',
-                                    border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3,
-                                  }}
-                                >
-                                  <s.icon size={11} /> {s.label}
-                                </motion.button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        <div style={{ borderTop: '1px solid rgba(22,49,70,.06)' }}>
+                        <div>
                           {currentUser?.role !== 'admin' && ['advisor', 'agent'].includes(currentUser?.userType) && (
                             <Link to='/settings' style={{ textDecoration: 'none' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', fontSize: 12, fontWeight: 600, color: '#163146', cursor: 'pointer' }} onClick={() => setIsProfileOpen(false)}>
@@ -1922,18 +1903,6 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
                                                                             </div>
                                                                         )}
                                                                     </div>
-
-                                                                    {isUnread && (
-                                                                        <span
-                                                                            aria-hidden
-                                                                            style={{
-                                                                                position: 'absolute',
-                                                                                left: 0, top: 14, bottom: 14, width: 3,
-                                                                                borderRadius: 999,
-                                                                                background: accent,
-                                                                            }}
-                                                                        />
-                                                                    )}
 
                                                                     {/* Dismiss / delete button — sits in reserved top-right slot inside the card */}
                                                                     <button

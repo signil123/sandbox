@@ -277,8 +277,14 @@ const SettingsPage = () => {
     if (isSavingAccount) return
     setIsSavingAccount(true)
     try {
+      const fullName = (accountFormData.name || '').trim()
+      const [firstName, ...rest] = fullName.split(/\s+/)
+      const lastName = rest.join(' ')
+
       const response = await authService.updateAccount({
-        name: accountFormData.name,
+        name: fullName,
+        firstName: firstName || '',
+        lastName: lastName || '',
         email: accountFormData.email,
         phone: accountFormData.phone,
       })
@@ -286,9 +292,9 @@ const SettingsPage = () => {
       if (updatedUser) {
         dispatch(setUser(updatedUser))
       }
-      toast.success('Account details updated.')
+      toast.success('Account profile updated.')
     } catch (error) {
-      toast.error(error || 'Failed to update account details.')
+      toast.error(error || 'Failed to update account profile.')
     } finally {
       setIsSavingAccount(false)
     }
@@ -1076,91 +1082,9 @@ const SettingsPage = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Left Column: Preferences */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+        {/* Left Column: Account Profile (moved from right) */}
         <div className="space-y-8">
-          {/* Notifications Section */}
-          <div className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden transition-all hover:shadow-md">
-            <div className="p-6 border-b border-slate-50 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[#926435]/10 text-[#926435] flex items-center justify-center">
-                  <Bell size={20} />
-                </div>
-                <h4 className="text-lg font-black text-slate-800 tracking-tight">Communication</h4>
-              </div>
-            </div>
-            
-            <div className="p-6 space-y-4">
-              <SettingSwitchRow
-                title="Notification Drawer"
-                description="View all activity updates in your navigation panel."
-                checked={inAppNotificationsEnabled}
-                onClick={togglePanelNotifications}
-                disabled={isUpdatingPanelNotifications}
-                isUpdating={isUpdatingPanelNotifications}
-                ariaLabel="Toggle notification panel"
-                icon={Bell}
-              />
-
-              {!notificationsSupported ? (
-                <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 italic text-slate-400">
-                  <Info size={16} className="mt-0.5" />
-                  <p className="text-xs leading-relaxed">Browser push notifications are not supported on this device/browser.</p>
-                </div>
-              ) : (
-                <>
-                  <SettingSwitchRow
-                    title="Real-time Alerts"
-                    description="Get push notifications for new messages instantly."
-                    checked={notificationsEnabled && notificationPermission === 'granted'}
-                    onClick={toggleMessageNotifications}
-                    disabled={notificationPermission === 'denied' || isUpdatingMessageNotifications}
-                    isUpdating={isUpdatingMessageNotifications}
-                    tone="amber"
-                    ariaLabel="Toggle message notifications"
-                    icon={Zap}
-                  />
-
-                  {notificationPermission === 'denied' && (
-                    <div className="flex items-center gap-3 p-4 bg-red-50/50 rounded-2xl border border-red-100 text-red-600">
-                      <Shield size={14} className="shrink-0" />
-                      <p className="text-[10px] font-bold uppercase tracking-wider">Blocked in browser settings</p>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Privacy Section */}
-          <div className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden transition-all hover:shadow-md">
-            <div className="p-6 border-b border-slate-50 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                  <ShieldCheck size={20} />
-                </div>
-                <h4 className="text-lg font-black text-slate-800 tracking-tight">Privacy & Presence</h4>
-              </div>
-            </div>
-            
-            <div className="p-6">
-              <SettingSwitchRow
-                title="Active Status"
-                description="Allow others to see when you were last online."
-                checked={showLastSeen}
-                onClick={toggleLastSeen}
-                disabled={isUpdatingLastSeen}
-                isUpdating={isUpdatingLastSeen}
-                ariaLabel="Toggle last seen visibility"
-                icon={User}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column: Identity */}
-        <div className="space-y-8">
-          {/* Account Details */}
           <div className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden transition-all hover:shadow-md">
             <div className="p-6 border-b border-slate-50 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -1170,7 +1094,7 @@ const SettingsPage = () => {
                 <h4 className="text-lg font-black text-slate-800 tracking-tight">Account Profile</h4>
               </div>
             </div>
-            
+
             <div className="p-6 space-y-6">
               <div className="space-y-4">
                 <div className="relative group">
@@ -1223,13 +1147,72 @@ const SettingsPage = () => {
                   disabled={isSavingAccount}
                   className="rounded-2xl bg-[#163146] hover:bg-[#1f4461] text-white px-8 py-6 font-black uppercase tracking-widest text-[10px] shadow-lg shadow-blue-900/10 transition-all border-none"
                 >
-                  {isSavingAccount ? 'Saving...' : 'Save Account'}
+                  {isSavingAccount ? 'Saving...' : 'Save'}
                 </Button>
               </div>
             </div>
           </div>
+        </div>
 
-          {/* Password Section */}
+        {/* Right Column: Communication (moved from left) */}
+        <div className="space-y-8">
+          <div className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden transition-all hover:shadow-md">
+            <div className="p-6 border-b border-slate-50 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#926435]/10 text-[#926435] flex items-center justify-center">
+                  <Bell size={20} />
+                </div>
+                <h4 className="text-lg font-black text-slate-800 tracking-tight">Communication</h4>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <SettingSwitchRow
+                title="Notification Drawer"
+                description="View all activity updates in your navigation panel."
+                checked={inAppNotificationsEnabled}
+                onClick={togglePanelNotifications}
+                disabled={isUpdatingPanelNotifications}
+                isUpdating={isUpdatingPanelNotifications}
+                ariaLabel="Toggle notification panel"
+                icon={Bell}
+              />
+
+              {!notificationsSupported ? (
+                <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 italic text-slate-400">
+                  <Info size={16} className="mt-0.5" />
+                  <p className="text-xs leading-relaxed">Browser push notifications are not supported on this device/browser.</p>
+                </div>
+              ) : (
+                <>
+                  <SettingSwitchRow
+                    title="Real-time Alerts"
+                    description="Get push notifications for new messages instantly."
+                    checked={notificationsEnabled && notificationPermission === 'granted'}
+                    onClick={toggleMessageNotifications}
+                    disabled={notificationPermission === 'denied' || isUpdatingMessageNotifications}
+                    isUpdating={isUpdatingMessageNotifications}
+                    tone="amber"
+                    ariaLabel="Toggle message notifications"
+                    icon={Zap}
+                  />
+
+                  {notificationPermission === 'denied' && (
+                    <div className="flex items-center gap-3 p-4 bg-red-50/50 rounded-2xl border border-red-100 text-red-600">
+                      <Shield size={14} className="shrink-0" />
+                      <p className="text-[10px] font-bold uppercase tracking-wider">Blocked in browser settings</p>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom Row: Security Credentials (centered) */}
+      <div className="flex justify-center">
+        <div className="w-full lg:w-1/2">
           <div className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden transition-all hover:shadow-md">
             <div className="p-6 border-b border-slate-50 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -1239,7 +1222,7 @@ const SettingsPage = () => {
                 <h4 className="text-lg font-black text-slate-800 tracking-tight">Security Credentials</h4>
               </div>
             </div>
-            
+
             <div className="p-6 space-y-6">
               <div className="space-y-4">
                 <div className="relative group">
@@ -1293,8 +1276,7 @@ const SettingsPage = () => {
                 <Button
                   onClick={handleChangePassword}
                   disabled={isChangingPassword}
-                  variant="outline"
-                  className="rounded-2xl border-slate-100 hover:bg-slate-50 px-8 py-6 font-black uppercase tracking-widest text-[10px] transition-all"
+                  className="rounded-2xl bg-[#163146] hover:bg-[#1f4461] text-white px-8 py-6 font-black uppercase tracking-widest text-[10px] shadow-lg shadow-blue-900/10 transition-all border-none"
                 >
                   {isChangingPassword ? 'Updating...' : 'Update Password'}
                 </Button>
