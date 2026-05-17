@@ -11,7 +11,7 @@ const ProfileBlurOverlay = ({ onClick }) => {
       className="absolute inset-0 z-20 cursor-pointer overflow-hidden rounded-2xl"
       onClick={onClick}
     >
-      <div className="absolute inset-0 rounded-2xl bg-[linear-gradient(180deg,rgba(255,255,255,0.48)_0%,rgba(255,255,255,0.84)_58%,rgba(248,250,252,0.96)_100%)] backdrop-blur-md" />
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.48)_0%,rgba(255,255,255,0.84)_58%,rgba(248,250,252,0.96)_100%)] backdrop-blur-md" />
 
       <div className="relative z-10 flex h-full flex-col items-center justify-center p-6 text-center group">
         <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-[1.4rem] bg-[#163146] shadow-[0_18px_36px_-22px_rgba(22,49,70,0.9)] transition-transform duration-300 group-hover:scale-105">
