@@ -1923,18 +1923,6 @@ const DashboardLayout = ({ children, hideSidebar = false }) => {
                                                                         )}
                                                                     </div>
 
-                                                                    {isUnread && (
-                                                                        <span
-                                                                            aria-hidden
-                                                                            style={{
-                                                                                position: 'absolute',
-                                                                                left: 0, top: 14, bottom: 14, width: 3,
-                                                                                borderRadius: 999,
-                                                                                background: accent,
-                                                                            }}
-                                                                        />
-                                                                    )}
-
                                                                     {/* Dismiss / delete button — sits in reserved top-right slot inside the card */}
                                                                     <button
                                                                         type='button'
