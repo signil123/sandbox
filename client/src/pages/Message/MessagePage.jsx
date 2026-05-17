@@ -2430,22 +2430,13 @@ function MessagePage() {
                     <h2 className='font-black text-slate-900 text-[15px] sm:text-lg tracking-tight truncate group-hover:text-[#926435] transition-colors'>
                       {selectedUser.name}
                     </h2>
-                    <div className='flex items-center gap-2'>
-                      <p className='text-[10px] sm:text-xs font-bold flex items-center gap-1.5'>
-                        {selectedUser?.status === 'online' ? (
-                          <span className='text-emerald-600 uppercase tracking-widest'>Online</span>
-                        ) : selectedUser?.status === 'away' ? (
-                          <span className='text-[#926435] uppercase tracking-widest'>Away</span>
-                        ) : (
-                          <span className='text-slate-400 font-medium'>{formatLastSeen(selectedUser?.lastSeen)}</span>
-                        )}
-                      </p>
-                      {otherUserTyping && (
+                    {otherUserTyping && (
+                      <div className='flex items-center gap-2'>
                         <span className='inline-flex items-center gap-1.5 px-2 py-0.5 bg-[#926435]/5 text-[#926435] text-[10px] font-black uppercase tracking-widest rounded-full animate-pulse'>
                           typing...
                         </span>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 </div>
                 {/* Blocked Status Banner */}
@@ -2494,31 +2485,6 @@ function MessagePage() {
                                         Block User
                                     </button>
                                 )}
-                                <div className='px-4 py-2.5 flex items-center justify-between border-t border-gray-100'>
-                                  <div>
-                                    <p className='text-xs font-medium text-gray-700'>Last seen</p>
-                                    {isUpdatingLastSeen && (
-                                      <p className='text-[10px] text-gray-400'>Updating...</p>
-                                    )}
-                                  </div>
-                                  <button
-                                    type='button'
-                                    role='switch'
-                                    aria-checked={showLastSeen}
-                                    aria-label='Toggle last seen visibility'
-                                    onClick={toggleLastSeen}
-                                    disabled={isUpdatingLastSeen}
-                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
-                                      showLastSeen ? 'bg-emerald-500' : 'bg-gray-300'
-                                    } ${isUpdatingLastSeen ? 'opacity-60 cursor-not-allowed' : ''}`}
-                                  >
-                                    <span
-                                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
-                                        showLastSeen ? 'translate-x-6' : 'translate-x-1'
-                                      }`}
-                                    />
-                                  </button>
-                                </div>
                                 <button
                                     onClick={handleArchiveConversation}
                                     className='w-full text-left px-4 py-2.5 text-xs font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors'
