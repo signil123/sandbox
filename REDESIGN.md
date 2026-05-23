@@ -9,7 +9,8 @@ For session-spanning context, this file replaces what `PHASE_HANDOFF.md` is for 
 ## Cursor
 
 - **Active phase:** Phase 0 — reference + spec
-- **Status:** Awaiting Contra + Upwork credentials so the captures can run via Playwright. Reference checklist below is the source of truth for what to capture.
+- **Status:** This session's sandbox network policy disallows outbound to `contra.com` and `upwork.com` ("Host not in allowlist"), so Playwright capture from inside the container is not possible. Captures are **user-driven**: the user walks Contra and Upwork on their own browser, screenshots each surface, and pastes batches into chat. Claude documents each into the per-surface sections below.
+- **Awaiting:** first batch — Contra signup flow end-to-end (landing → account-type picker → form steps → email verification → every onboarding step → first post-onboarding screen).
 - **Last updated:** 2026-05-23 — initial draft, planning conversation, no code yet
 - **On resume:** read "Hard rules" + "Cursor" + the latest filled-in section of "Phase 0 — reference captures" below. Continue from whichever surface is next on the checklist.
 
@@ -56,15 +57,15 @@ For each surface, the goal is: capture every visual state Signil will need an eq
 
 | # | Signil surface | Current file | Contra equivalent | Upwork equivalent | States to capture | Status |
 |---|---|---|---|---|---|---|
-| 1 | Login | `client/src/pages/Auth/AuthPage.jsx` (login mode) | Login page | Account login | empty, typing, wrong-password error, success transition | Pending creds |
-| 2 | Signup | `client/src/pages/Auth/AuthPage.jsx` + `SignupFormComponents.jsx` | Signup flow | Signup flow | role/account-type picker, each form step, validation errors | Pending creds |
-| 3 | Reset password | `client/src/pages/Auth/ResetPasswordPage.jsx` | Forgot password | Forgot password | email entry, link sent, set new password | Pending creds |
-| 4 | **Onboarding (net-new)** | none yet | Post-signup onboarding wizard | "Complete your profile" wizard | every step + progress indicator + skip behavior | Pending creds |
-| 5 | Athlete profile (private edit) | `client/src/pages/Profile/AthleteProfilePage.jsx` | Own-profile edit view | Freelancer "edit profile" | header, sections, inline edits, modals | Pending creds |
-| 6 | Athlete profile (public) | `client/src/pages/Profile/AthletePublicView.jsx` + `PublicProfilePage.jsx` | Public profile (someone else's) | Public freelancer profile | hero, sections, CTAs (connect / message / hire) | Pending creds |
-| 7 | Settings | `client/src/pages/Settings/SettingsPage.jsx` | Settings | Settings | account, notifications, privacy, billing | Pending creds |
-| 8 | Explore | `client/src/pages/Explore/ExplorePage.jsx` | Explore / discover | Talent search | grid/list, filter rail, search bar, empty state, individual card | Pending creds |
-| 9 | App nav shell | `client/src/pages/Layout/*` + `pages/Dashboard/*` chrome | Main app chrome | Main app chrome | sidebar, top bar, global search | Pending creds |
+| 1 | Login | `client/src/pages/Auth/AuthPage.jsx` (login mode) | Login page | Account login | empty, typing, wrong-password error, success transition | Pending user capture |
+| 2 | Signup | `client/src/pages/Auth/AuthPage.jsx` + `SignupFormComponents.jsx` | Signup flow | Signup flow | role/account-type picker, each form step, validation errors | Pending user capture |
+| 3 | Reset password | `client/src/pages/Auth/ResetPasswordPage.jsx` | Forgot password | Forgot password | email entry, link sent, set new password | Pending user capture |
+| 4 | **Onboarding (net-new)** | none yet | Post-signup onboarding wizard | "Complete your profile" wizard | every step + progress indicator + skip behavior | Pending user capture |
+| 5 | Athlete profile (private edit) | `client/src/pages/Profile/AthleteProfilePage.jsx` | Own-profile edit view | Freelancer "edit profile" | header, sections, inline edits, modals | Pending user capture |
+| 6 | Athlete profile (public) | `client/src/pages/Profile/AthletePublicView.jsx` + `PublicProfilePage.jsx` | Public profile (someone else's) | Public freelancer profile | hero, sections, CTAs (connect / message / hire) | Pending user capture |
+| 7 | Settings | `client/src/pages/Settings/SettingsPage.jsx` | Settings | Settings | account, notifications, privacy, billing | Pending user capture |
+| 8 | Explore | `client/src/pages/Explore/ExplorePage.jsx` | Explore / discover | Talent search | grid/list, filter rail, search bar, empty state, individual card | Pending user capture |
+| 9 | App nav shell | `client/src/pages/Layout/*` + `pages/Dashboard/*` chrome | Main app chrome | Main app chrome | sidebar, top bar, global search | Pending user capture |
 
 ### Working notes per surface
 
@@ -154,13 +155,13 @@ For each surface, the goal is: capture every visual state Signil will need an eq
 
 ---
 
-## Credentials handling
+## Capture handling
 
-Credentials for Contra + Upwork are provided by the user to enable Playwright capture of reference surfaces.
+Sandbox network policy blocks `contra.com` and `upwork.com`, so Claude cannot drive Playwright against them from inside the container. Capture is **user-driven**: the user signs up on Contra and Upwork using their own browser and pastes screenshots into chat in batches. Claude documents each into the per-surface sections.
 
-- Treat any credentials shared in the session transcript as **disposable**. Use them for capture, never persist them in committed files, env files, or scripts.
-- If a Playwright capture script is needed, source credentials from env vars only (`CONTRA_EMAIL` / `CONTRA_PASSWORD` / `UPWORK_EMAIL` / `UPWORK_PASSWORD`), and do not write the script to disk unless strictly necessary. Prefer one-shot in-shell Playwright invocations.
-- Captures land under `tmp/redesign-refs/` (gitignored) so screenshots don't leak the source pages into the repo. Annotated stills that we want as permanent reference can be moved to `docs/redesign-refs/` later, with any UI elements that could leak private data redacted.
+- Screenshots Claude receives via chat live in the transcript; Claude does not write them to the repo.
+- If at some point the user moves to a less-restrictive sandbox and wants Claude to drive Playwright, the credential discipline still applies: env vars only (`CONTRA_EMAIL` / `CONTRA_PASSWORD` / `UPWORK_EMAIL` / `UPWORK_PASSWORD`), no credentials in any committed file or script.
+- If specific reference stills earn a permanent home in the repo (e.g. for design rationale in a PR description), they go under `docs/redesign-refs/` with any UI elements that could leak private data redacted.
 
 ---
 
