@@ -27,6 +27,13 @@ const buildPatch = (draft, baseline) => {
   for (const k of fields) {
     if ((draft[k] ?? '') !== (baseline[k] ?? '')) patch[k] = draft[k] ?? ''
   }
+  // coordinates only gets PATCHed when the location field itself changed —
+  // location and coords always travel together. If the user typed a new
+  // location string but didn't pick a Photon suggestion, coords come through
+  // as null which clears the stored value.
+  if ((draft.location ?? '') !== (baseline.location ?? '')) {
+    patch.coordinates = draft.coordinates || null
+  }
   if (
     draft.publicVisibility?.email !== baseline.publicVisibility?.email ||
     draft.publicVisibility?.phone !== baseline.publicVisibility?.phone
@@ -60,6 +67,7 @@ const IdentityModal = ({ open, bundle, onClose, onSaved }) => {
       school: profile.school || '',
       classYear: profile.classYear || '',
       location: profile.location || '',
+      coordinates: profile.coordinates || null,
       aboutMe: profile.aboutMe || profile.bio || '',
       email: user.email || '',
       phone: user.phone || '',
@@ -355,7 +363,7 @@ const IdentityModal = ({ open, bundle, onClose, onSaved }) => {
       <LocationField
         label='Location'
         value={draft.location}
-        onChange={(v) => set({ location: v })}
+        onChange={(v, coords) => set({ location: v, coordinates: coords || null })}
         hint='Search any US city, pick Remote, or use manual entry.'
       />
 

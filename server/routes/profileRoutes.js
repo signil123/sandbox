@@ -16,6 +16,7 @@ import {
     updateNILPreferences,
     updateProfile,
 } from '../controllers/profileController.js'
+import { getActivityStats } from '../controllers/profileStatsController.js'
 import { createError } from '../error.js'
 import {
     checkOwnershipOrAdmin,
@@ -60,6 +61,9 @@ router.get('/me/bundle', getAthleteProfileBundle)
 
 // Get profile completion
 router.get('/me/completion', getProfileCompletion)
+
+// Activity stats timeseries (Phase D). metric: views|connections|received|sent
+router.get('/me/stats/:metric', getActivityStats)
 
 // Get recommended advisors for athlete
 router.get('/recommendations/advisors', getRecommendedAdvisors)

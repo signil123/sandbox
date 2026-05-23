@@ -6,13 +6,13 @@ One-screen cursor for the **athlete private profile rebuild**. Updated alongside
 
 ## Cursor
 
-- **Active phase:** Phase D — real Activity & Strength data
-- **Last commit:** `6b3ee7f` — Bump PROGRESS.md cursor to rename commit hash (2026-05-10)
-- **Last touched by Claude:** 2026-05-10 — Phase C complete and committed. Modal #6 (NIL Preferences + Interests) shipped, review harnesses removed, `ProfilePage` renamed to `AthleteProfilePage`. Ready for Phase D.
+- **Active phase:** Phase E — Preview-Public modal entry point (deferred behind Phase F)
+- **Last commit:** `6b3ee7f` — Bump PROGRESS.md cursor to rename commit hash (2026-05-10)  *(uncommitted: Phase D + Phase F code)*
+- **Last touched by Claude:** 2026-05-15 — Phase F complete. Visual rebuild to Claude Design 3-col layout shipped: F1 grid + HeaderCard (single pencil next to name, short banner, About Me column, contact strip with PUBLIC/PRIVATE eyebrows + Plus social), F2 Experience/Education/NIL inline editing (custom dropdown for Deal Size/Timeline replaces native select to fix oversized macOS popover, draft+Confirm bar, single-section FocusAreas/Interests modals), F3 Connection mini-cards (gradient banner + expertise pills + EXP/RATING/CONNECTIONS + View/Message) and Activity & Strength layout (190px ring, fill-to-bottom chart, range chips pinned). F3 polish: new AthleteConnectionsModal (replaces legacy ConnectionsModal on this surface only), Profile schema gained `coordinates` + `rating`, distance filter haversine + Remote matching. F4 cleanup: F4 seed `seedConnectionMiniCardStubs.js` promotes Phase D ghosts into realistic advisors. NILPreferencesModal.jsx deleted (replaced by inline card + single-section modals). Verified headed at 1440×900.
 
-## On resume ("let's begin Phase D")
+## On resume ("let's begin Phase E")
 
-Open [`PHASE_HANDOFF.md`](client/src/pages/Profile/PHASE_HANDOFF.md) → "Resume here" section. Do **not** start coding — Phase D is non-trivial, so the standing 90%-confidence rule applies. First response on resume is clarifying questions, not implementation.
+Open [`PHASE_HANDOFF.md`](client/src/pages/Profile/PHASE_HANDOFF.md) → "Resume here" section. Phase E covers the HeaderCard "Preview public" entry point that mounts `<AthletePublicView>` inside `ProfilePreviewModal` (modal shell already built in Phase F for connection mini-card View buttons). Also still on the list: blurred-until-connected on public views, mobile responsive pass, visual QA. Apply the 90%-confidence rule — clarifying questions before code.
 
 ## What's done
 
@@ -27,15 +27,17 @@ Open [`PHASE_HANDOFF.md`](client/src/pages/Profile/PHASE_HANDOFF.md) → "Resume
 - ✅ **Phase C cleanup (deletes)** — removed `PhaseAReviewPage.jsx` + `/admin/phase-a-review` route, `PhaseCReviewPage.jsx` + `/admin/phase-c-review` route, and the `ProfilePage.legacy.jsx.bak` backup. App.jsx imports stripped.
 - ✅ **Phase C cleanup (rename)** — `ProfilePage` → `AthleteProfilePage` (file + export + import). **Phase C is now fully complete.**
 - ✅ **Bug fix** — login spinner-on-load (redux-persist transform strips `loading`/`error` flags from persisted state)
+- ✅ **Phase D** — real Activity timeseries. New `profileStatsController.js` exposes `GET /api/profile/me/stats/:metric?range=…` (metric ∈ views/connections/received/sent, range ∈ 1D/1W/1M/3M/YTD/1Y) with per-range bucketing (hourly/daily/weekly/monthly). Response: `{points:[{t,v}], allTimeTotal, windowDelta, deltaPct, rangeLabel}`. `ActivityStrengthCard` rewritten: top number = all-time total, subtitle line = `▲/▼/– ±N (X.X%) <window-label>` with green/red/gray, sparkline = real points. Per-(tab,range) Map cache. New `3M` chip added. `seedActivityStats.js` script generates synthetic backfill (~250 views/35 conns/40 recv/25 sent across 365 days) and supports `--clear` for cleanup.
+- ✅ **Phase F** — visual rebuild to Claude Design "Athlete Private Profile" layout (2026-05-15). 3-column grid (1fr 1fr 340px), HeaderCard restructure to short banner + avatar overlap + single pencil + About Me column + PUBLIC/PRIVATE contact strip. Experience/Education/NIL row with inline NIL editing (custom dropdown — not native `<select>` — for Deal Size/Timeline to fix oversized macOS popover; pill rails with `+` opening single-section FocusAreas / Interests modals; "UNSAVED CHANGES" Confirm/Cancel bar). Connection Center redesigned as 1fr 1fr 1fr 44px grid with gradient-banner mini-cards (location, avatar overlap, expertise + overflow, about clamp, EXP/RATING/CONNECTIONS row, View + Message). Activity & Strength: 190px ring + scroll-down-for-todo, chart fills card, range chips pinned to bottom, 3M kept. New `AthleteConnectionsModal` (960px, navy backdrop, search + Focus + Location filters) replaces legacy ConnectionsModal on this surface only. Schema additions: `coordinates: {lat, lng}` (Photon-derived from LocationField) and `rating: Number` and dev-only `_seedTag`. `seedConnectionMiniCardStubs.js` promotes Phase D ghosts → realistic advisors. `NILPreferencesModal.jsx` deleted; `CatalogTypeahead` lifted to shared. `Card` primitive fixed to be `flex-column` so children can `flex:1` (the cause of the Activity chart whitespace bug). Sidebar offset back to `SIDEBAR_W + 32` per CLAUDE.md.
 
 ## Next (in order)
 
-1. **Phase D** — real Activity & Strength data (replace stub timeseries with `GET /api/profile/me/stats/...` endpoints).
-2. **Phase E** — polish + public-view passthrough:
-   - **Preview Your Public Profile** — HeaderCard "Preview public" button → in-page modal mounting `<AthletePublicView>`
+1. **Phase E** — polish + public-view passthrough:
+   - **Preview Your Public Profile** — HeaderCard "Preview public" button → in-page modal mounting `<AthletePublicView>` (`ProfilePreviewModal` already built in Phase F; just needs the trigger button + viewer's own bundle wired in)
    - Blurred-until-connected implementation on public views
    - Mobile responsive pass
    - Visual QA against design screenshots
+   - Backfill: existing athlete/advisor docs have no `coordinates` set — a one-time geocode-and-write script over Profile.location strings would unlock distance filters for the whole user base. Not required to ship Phase E.
 
 ## How to update this file
 

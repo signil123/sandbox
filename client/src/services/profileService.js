@@ -84,12 +84,21 @@ export const profileService = {
 
   /**
    * Get public profile (no auth required)
+   *
+   * 404s are silently re-thrown without `console.error` because the caller —
+   * the Connection mini-card data builder — falls back to stub fields when
+   * a connection has no Profile doc. Logging would flood the console for
+   * what is an expected branch on synthetic / test users.
    */
   getPublicProfile: async (userId) => {
     try {
       const response = await axiosInstance.get(`/profile/public/${userId}`)
       return response.data
     } catch (error) {
+      if (error?.response?.status === 404) {
+        const message = error.response?.data?.message || 'Profile not found'
+        throw message
+      }
       handleError(error)
     }
   },
@@ -162,6 +171,23 @@ export const profileService = {
         preferences
       )
       return response.data
+    } catch (error) {
+      handleError(error)
+    }
+  },
+
+  /**
+   * Get activity timeseries for a metric + range.
+   * @param {'views'|'connections'|'received'|'sent'} metric
+   * @param {'1D'|'1W'|'1M'|'3M'|'YTD'|'1Y'} range
+   * Returns: { points, allTimeTotal, windowDelta, deltaPct, rangeLabel, ... }
+   */
+  getActivityStats: async (metric, range) => {
+    try {
+      const response = await axiosInstance.get(
+        `/profile/me/stats/${metric}?range=${encodeURIComponent(range)}`
+      )
+      return response.data?.data || response.data
     } catch (error) {
       handleError(error)
     }

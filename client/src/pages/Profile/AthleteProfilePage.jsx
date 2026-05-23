@@ -1,16 +1,15 @@
 // AthleteProfilePage — athlete private profile.
 //
-// Layout (1440×900 desktop):
-//   ┌──────────────────────────────────────────────────────────┐
-//   │                     Header card                          │
-//   ├─────────────────────────┬────────────────────────────────┤
-//   │  Experience │ Education │  NIL Preferences               │
-//   │─────────────┴───────────│  Interests (h-scroll)          │
-//   │  Connection Center      │  Activity & Strength           │
-//   └─────────────────────────┴────────────────────────────────┘
+// Layout (1440x900 desktop, per Claude Design "Athlete Private Profile"):
+//   ┌────────────────────────────────────────────────────────────────┐
+//   │                       Header card                              │
+//   ├──────────────┬──────────────┬──────────────────────────────────┤
+//   │  Experience  │  Education   │  NIL Preferences                 │
+//   ├──────────────┴──────────────┼──────────────────────────────────┤
+//   │   Connection Center         │  Activity & Strength             │
+//   └─────────────────────────────┴──────────────────────────────────┘
 //
-// All data comes from `profileService.getAthleteProfileBundle()`. Pencils
-// render but are disabled — Phase C wires the edit modals.
+// All data comes from `profileService.getAthleteProfileBundle()`.
 
 import React, { useEffect, useState, useLayoutEffect } from 'react'
 
@@ -38,13 +37,15 @@ import IdentityModal from '../../components/Profile/athletePrivate/IdentityModal
 import SocialsModal from '../../components/Profile/athletePrivate/SocialsModal'
 import ExperienceModal from '../../components/Profile/athletePrivate/ExperienceModal'
 import EducationModal from '../../components/Profile/athletePrivate/EducationModal'
-import NILPreferencesModal from '../../components/Profile/athletePrivate/NILPreferencesModal'
+import FocusAreasModal from '../../components/Profile/athletePrivate/FocusAreasModal'
+import InterestsModal from '../../components/Profile/athletePrivate/InterestsModal'
 import ExperienceCard from '../../components/Profile/athletePrivate/ExperienceCard'
 import EducationCard from '../../components/Profile/athletePrivate/EducationCard'
 import ConnectionCenterCard from '../../components/Profile/athletePrivate/ConnectionCenterCard'
 import NILPreferencesCard from '../../components/Profile/athletePrivate/NILPreferencesCard'
 import ActivityStrengthCard from '../../components/Profile/athletePrivate/ActivityStrengthCard'
-import ConnectionsModal from '../../components/Connections/ConnectionsModal'
+import AthleteConnectionsModal from '../../components/Profile/athletePrivate/AthleteConnectionsModal'
+import ProfilePreviewModal from '../../components/Profile/athletePrivate/ProfilePreviewModal'
 
 const SIDEBAR_W = 228 // matches DashboardLayout
 
@@ -59,7 +60,13 @@ const AthleteProfilePage = () => {
   const [socialsOpen, setSocialsOpen] = useState(false)
   const [experienceOpen, setExperienceOpen] = useState(false)
   const [educationOpen, setEducationOpen] = useState(false)
-  const [nilOpen, setNilOpen] = useState(false)
+  const [focusAreasOpen, setFocusAreasOpen] = useState(false)
+  const [interestsOpen, setInterestsOpen] = useState(false)
+  // NIL pref draft staged from card (deal size + timeline + focus areas + interests).
+  // Card-level Confirm fires the relevant PUT calls.
+  const [nilDraft, setNilDraft] = useState(null)
+  // Connection mini-card View → in-page preview modal
+  const [previewUserId, setPreviewUserId] = useState(null)
 
   const loadBundle = async () => {
     setLoading(true)
@@ -77,27 +84,54 @@ const AthleteProfilePage = () => {
     loadBundle()
   }, [])
 
+  const handleNilDraftStaged = (next) => setNilDraft(next)
+  const handleNilCommit = async () => {
+    if (!nilDraft) return
+    try {
+      const tasks = []
+      const prefsDirty =
+        nilDraft.nilPrefs &&
+        (nilDraft.nilPrefs.dealSize !== undefined ||
+          nilDraft.nilPrefs.timeline !== undefined ||
+          nilDraft.focusAreas !== undefined)
+      if (prefsDirty) {
+        const payload = {}
+        if (nilDraft.nilPrefs?.dealSize !== undefined) payload.dealSize = nilDraft.nilPrefs.dealSize
+        if (nilDraft.nilPrefs?.timeline !== undefined) payload.timeline = nilDraft.nilPrefs.timeline
+        if (nilDraft.focusAreas !== undefined) payload.focusAreas = nilDraft.focusAreas
+        tasks.push(profileService.updateNILPreferences(payload))
+      }
+      if (nilDraft.interests !== undefined) {
+        tasks.push(profileService.updateAthleteInterests(nilDraft.interests))
+      }
+      await Promise.all(tasks)
+      setNilDraft(null)
+      await loadBundle()
+    } catch (e) {
+      // Leave the draft so the user can retry; surface the error inline via card?
+      // For now, log and keep the draft.
+      // eslint-disable-next-line no-console
+      console.error('NIL save failed', e)
+    }
+  }
+  const handleNilCancel = () => setNilDraft(null)
+
   return (
     <DashboardLayout>
-      {/* Desktop layout — fixed-position grid that fills the space next to the
-          sidebar. Mobile falls back to a stacked column under the sidebar gap. */}
+      {/* Desktop layout — fixed-position 3-column grid per design.
+          Sidebar is 228px (DashboardLayout) + 12px gutter = 240 left offset. */}
       {isDesktop && (
       <div
         style={{
           display: 'grid',
           position: 'fixed',
           left: SIDEBAR_W + 32,
-          right: 16,
-          top: 16,
-          bottom: 16,
-          gridTemplateColumns: '1fr 360px',
-          gridTemplateRows: '340px 220px minmax(0, 1fr)',
-          gridTemplateAreas: `
-            "header   header"
-            "expedu   nil"
-            "conns    rightrail"
-          `,
-          gap: 14,
+          right: 14,
+          top: 14,
+          bottom: 14,
+          gridTemplateColumns: '1fr 1fr 340px',
+          gridTemplateRows: '218px 260px minmax(0, 1fr)',
+          gap: 12,
           minHeight: 0,
         }}
       >
@@ -107,44 +141,48 @@ const AthleteProfilePage = () => {
           <ErrorState message={err} onRetry={loadBundle} />
         ) : (
           <>
-            <div style={{ gridArea: 'header', minHeight: 0, height: '100%' }}>
-              <HeaderCard bundle={bundle} currentUserId={currentUser?._id} onEdit={() => setIdentityOpen(true)} onEditSocials={() => setSocialsOpen(true)} />
+            {/* Row 1 — Header spans all 3 columns */}
+            <div style={{ gridColumn: '1 / 4', gridRow: '1', minHeight: 0 }}>
+              <HeaderCard
+                bundle={bundle}
+                currentUserId={currentUser?._id}
+                onEdit={() => setIdentityOpen(true)}
+                onEditSocials={() => setSocialsOpen(true)}
+                onOpenConnections={() => setConnsOpen(true)}
+              />
             </div>
 
-            {/* Experience + Education side-by-side */}
-            <div
-              style={{
-                gridArea: 'expedu',
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: 14,
-                minHeight: 0,
-              }}
-            >
+            {/* Row 2 — Experience | Education | NIL Preferences */}
+            <div style={{ gridColumn: '1', gridRow: '2', minHeight: 0 }}>
               <ExperienceCard bundle={bundle} onEdit={() => setExperienceOpen(true)} />
+            </div>
+            <div style={{ gridColumn: '2', gridRow: '2', minHeight: 0 }}>
               <EducationCard bundle={bundle} onEdit={() => setEducationOpen(true)} />
             </div>
-
-            {/* NIL Prefs (top of right column) */}
-            <div style={{ gridArea: 'nil', minHeight: 0 }}>
-              <NILPreferencesCard bundle={bundle} onEdit={() => setNilOpen(true)} />
+            <div style={{ gridColumn: '3', gridRow: '2', minHeight: 0 }}>
+              <NILPreferencesCard
+                bundle={bundle}
+                draft={nilDraft}
+                onChangeDraft={handleNilDraftStaged}
+                onCommit={handleNilCommit}
+                onCancelDraft={handleNilCancel}
+                onOpenFocusEditor={() => setFocusAreasOpen(true)}
+                onOpenInterestsEditor={() => setInterestsOpen(true)}
+              />
             </div>
 
-            {/* Connection Center (bottom-left) */}
-            <div style={{ gridArea: 'conns', minHeight: 0 }}>
+            {/* Row 3 — Connection Center spans cols 1-2 | Activity & Strength col 3 */}
+            <div style={{ gridColumn: '1 / 3', gridRow: '3', minHeight: 0 }}>
               <ConnectionCenterCard
                 currentUserId={currentUser?._id}
                 onSeeAll={() => setConnsOpen(true)}
                 onMessage={(uid) => {
                   if (uid) window.location.href = `/inbox?user=${uid}`
                 }}
+                onView={(uid) => setPreviewUserId(uid)}
               />
             </div>
-
-            {/* Right rail bottom: Activity & Strength expands to fill the
-                full height previously shared with the Interests card (now
-                merged into NIL Preferences). */}
-            <div style={{ gridArea: 'rightrail', minHeight: 0 }}>
+            <div style={{ gridColumn: '3', gridRow: '3', minHeight: 0 }}>
               <ActivityStrengthCard bundle={bundle} />
             </div>
           </>
@@ -162,7 +200,14 @@ const AthleteProfilePage = () => {
         {bundle && (
           <>
             <div style={{ height: 240 }}>
-              <HeaderCard bundle={bundle} currentUserId={currentUser?._id} onEdit={() => setIdentityOpen(true)} onEditSocials={() => setSocialsOpen(true)} density='compact' />
+              <HeaderCard
+                bundle={bundle}
+                currentUserId={currentUser?._id}
+                onEdit={() => setIdentityOpen(true)}
+                onEditSocials={() => setSocialsOpen(true)}
+                onOpenConnections={() => setConnsOpen(true)}
+                density='compact'
+              />
             </div>
             <div style={{ height: 220 }}>
               <ExperienceCard bundle={bundle} onEdit={() => setExperienceOpen(true)} />
@@ -171,7 +216,15 @@ const AthleteProfilePage = () => {
               <EducationCard bundle={bundle} onEdit={() => setEducationOpen(true)} />
             </div>
             <div style={{ height: 240 }}>
-              <NILPreferencesCard bundle={bundle} onEdit={() => setNilOpen(true)} />
+              <NILPreferencesCard
+                bundle={bundle}
+                draft={nilDraft}
+                onChangeDraft={handleNilDraftStaged}
+                onCommit={handleNilCommit}
+                onCancelDraft={handleNilCancel}
+                onOpenFocusEditor={() => setFocusAreasOpen(true)}
+                onOpenInterestsEditor={() => setInterestsOpen(true)}
+              />
             </div>
             <div style={{ height: 320 }}>
               <ActivityStrengthCard bundle={bundle} />
@@ -183,6 +236,7 @@ const AthleteProfilePage = () => {
                 onMessage={(uid) => {
                   if (uid) window.location.href = `/inbox?user=${uid}`
                 }}
+                onView={(uid) => setPreviewUserId(uid)}
               />
             </div>
           </>
@@ -190,11 +244,18 @@ const AthleteProfilePage = () => {
       </div>
       )}
 
-      <ConnectionsModal
-        isOpen={connsOpen}
+      <AthleteConnectionsModal
+        open={connsOpen}
         onClose={() => setConnsOpen(false)}
         currentUserId={currentUser?._id}
-        userId={currentUser?._id}
+        viewerProfile={bundle?.profile}
+        onMessage={(uid) => {
+          if (uid) window.location.href = `/inbox?user=${uid}`
+        }}
+        onView={(uid) => {
+          setConnsOpen(false)
+          setPreviewUserId(uid)
+        }}
       />
 
       <IdentityModal
@@ -225,11 +286,31 @@ const AthleteProfilePage = () => {
         onSaved={loadBundle}
       />
 
-      <NILPreferencesModal
-        open={nilOpen}
+      <FocusAreasModal
+        open={focusAreasOpen}
         bundle={bundle}
-        onClose={() => setNilOpen(false)}
-        onSaved={loadBundle}
+        draft={nilDraft}
+        onClose={() => setFocusAreasOpen(false)}
+        onStage={(focusAreas) => {
+          setNilDraft((d) => ({ ...(d || {}), focusAreas }))
+          setFocusAreasOpen(false)
+        }}
+      />
+
+      <InterestsModal
+        open={interestsOpen}
+        bundle={bundle}
+        draft={nilDraft}
+        onClose={() => setInterestsOpen(false)}
+        onStage={(interests) => {
+          setNilDraft((d) => ({ ...(d || {}), interests }))
+          setInterestsOpen(false)
+        }}
+      />
+
+      <ProfilePreviewModal
+        userId={previewUserId}
+        onClose={() => setPreviewUserId(null)}
       />
     </DashboardLayout>
   )

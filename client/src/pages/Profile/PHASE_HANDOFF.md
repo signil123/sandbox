@@ -6,29 +6,29 @@ Canonical source of truth for the multi-phase rebuild of the athlete private pro
 
 ## ⚡ Resume here
 
-**You are picking this up after Phase C shipped. Phase D is next.**
+**You are picking this up after Phase F shipped. Phase E was deferred behind Phase F (visual rebuild) and is next.**
 
-When the user says some variant of *"let's begin Phase D"*:
+When the user says some variant of *"let's begin Phase E"*:
 
-1. **Do NOT start coding.** The user's standing rule: reach 90% confidence via clarifying questions before building any non-trivial deliverable. Phase D is non-trivial (4 new endpoints + bucketing + client refetch wiring), so the first response on resume must be questions, not code.
-2. **Re-confirm scope** with the user — read the [Phase D — real Activity & Strength data (planned)](#phase-d--real-activity--strength-data-planned) section below and ask anything that's underspecified, in particular:
-   - Which Mongo collections back each tab (the planned mapping is `ProfileView` for views, `Relationship.acceptedAt` for connections, `ConnectionRequest.createdAt` filtered by direction for received/sent — confirm before building).
-   - Bucket granularity per range (1D = hourly? 1W = daily? YTD = weekly? — propose, don't guess).
-   - `total` and `deltaPct` semantics (`deltaPct` vs. previous equivalent window? vs. start-of-range? Confirm.)
-   - Whether existing tracking is dense enough for meaningful charts on a fresh-ish account, or if seed data is needed.
+1. **Do NOT start coding.** The user's standing rule: reach 90% confidence via clarifying questions before building any non-trivial deliverable. Phase E touches public views and adds a preview modal, so the first response on resume must be questions, not code.
+2. **Re-confirm scope** with the user — read the [Phase E — polish + public-view passthrough (planned)](#phase-e--polish--public-view-passthrough-planned) section below and ask anything underspecified, in particular:
+   - Where exactly the "Preview Public" entry point lives on `HeaderCard` (icon button next to contacts strip vs. on banner — propose, don't guess).
+   - Mobile breakpoints to support (the existing `useIsDesktop` hook gates desktop layout — clarify how Phase E should treat each card on mobile).
+   - Visibility-and-blur rules: which fields blur on the public view for unconnected viewers (per-field `publicVisibility` already covers email/phone; check whether socials use a separate per-platform `public` toggle or also gate on connection state).
 3. **Hard rules to keep applying** (carried over from CLAUDE.md):
    - No emojis anywhere — code, UI, console, docs, commits.
    - End each phase with a Playwright headed viewport so the user can sign off before moving on.
-   - Don't touch public profile views unless intentional (`PublicProfilePage`, `AthletePublicView`, `UserPreviewCard`, `AdvisorPublicView` read the same Profile doc and propagate automatically).
-4. **Last commit on `main`** at the time of this hand-off: `6b3ee7f` — Bump PROGRESS.md cursor to rename commit hash (2026-05-10). Run `git log --oneline -5` to confirm.
+   - Don't touch public profile views unless intentional. **Phase E is the one phase where public-view edits are allowed** — but only for the blurred-until-connected logic and visual QA; structural changes still need user sign-off.
+4. **Last commit on `main`** at the time of this hand-off: `6b3ee7f` — Bump PROGRESS.md cursor to rename commit hash (2026-05-10). Phase D code is uncommitted; commit before starting Phase E. Run `git log --oneline -5` to confirm.
 5. **Dev servers** must be running before any Playwright pass. See [Useful commands](#useful-commands) at the bottom.
 
 ### Phase status summary
 - ✅ **Phase A** — schema migration, controllers, sanitizers, interests catalog endpoint, idempotent migration script.
 - ✅ **Phase B** — read-only layout shipped and visually verified.
 - ✅ **Phase C** — all 6 modals shipped (Modal #7 was folded into #6 at user's request), cleanup deletes complete, `ProfilePage` → `AthleteProfilePage` rename complete.
-- ⏳ **Phase D** — *next.* Real Activity & Strength data via new `GET /api/profile/me/stats/...` endpoints. Stub `seededSeries` in `ActivityStrengthCard` is what gets replaced.
-- ⏳ **Phase E** — Preview Public modal, blurred-until-connected on public views, mobile responsive pass, visual QA.
+- ✅ **Phase D** — real Activity timeseries via 4 endpoints, all-time-total + window-delta UI, per-(tab,range) cache, new `3M` range chip, seed script.
+- ✅ **Phase F** — visual rebuild to Claude Design 3-col layout (HeaderCard restructure, Experience/Education/NIL inline editing, Connection mini-cards redesigned, Activity & Strength filled card, AthleteConnectionsModal, schema coordinates + rating, seed script promoting ghosts to advisors). `ProfilePreviewModal` shell built and wired to connection-mini-card View buttons.
+- ⏳ **Phase E** — *next.* HeaderCard "Preview Your Public Profile" button (modal shell already exists from Phase F — just wire the button), blurred-until-connected on public views, mobile responsive pass, visual QA.
 
 ---
 
@@ -184,13 +184,80 @@ The big build. Each pencil opens a focused edit modal with Save/Cancel + confirm
 
 ---
 
-## Phase D — real Activity & Strength data (planned)
+## Phase D — real Activity & Strength data (DONE)
 
-Replace the stub line charts with real timeseries.
+Stub line charts replaced with real timeseries. Verified headed at 1440×900: views/connections/received/sent across all six ranges render real data; Strength tab intact.
 
-- New endpoints: `GET /api/profile/me/stats/{profile-views|connections|requests-received|requests-sent}?range=1D|1W|1M|YTD|1Y`. Each returns `{points: [{t:Date, v:Number}], total:Number, deltaPct:Number}`.
-- Server-side: bucket `ProfileView.lastViewedAt`, `Relationship.acceptedAt`, `ConnectionRequest.createdAt` (incoming and outgoing) by range.
-- Client-side: `ActivityStrengthCard` swaps stub `seededSeries` for a real fetch keyed by `(activeTab, range)`. Loading + error states per tab.
+### Files
+- **NEW** `server/controllers/profileStatsController.js` — `getActivityStats(req,res,next)`. Builds the window edges per range, fetches the metric's events from Mongo, bucketizes via binary search, returns `{points:[{t,v}], allTimeTotal, windowDelta, deltaPct, rangeLabel}`. Bucketing config:
+  - `1D` → 24 hourly buckets, last 24h
+  - `1W` → 7 daily buckets, last 7d
+  - `1M` → 30 daily buckets, last 30d
+  - `3M` → 90 daily buckets, last 90d
+  - `YTD` → weekly buckets from Jan 1 → today
+  - `1Y` → 12 monthly buckets, last 12 months
+- **MODIFIED** `server/routes/profileRoutes.js` — added `GET /me/stats/:metric` under `verifyToken`.
+- **NEW** `server/scripts/seedActivityStats.js` — synthetic backfill. Creates ghost users (role:'user', userType:'athlete') and inserts `ProfileView`, `Connection`, `ConnectionRequest` rows scattered across 365 days. `--clear` deletes all seed rows by `@phase-d-seed.signil.local` email match. Reads `process.env.MONGO || process.env.MONGO_URI` to match the server's actual env var name.
+- **MODIFIED** `client/src/services/profileService.js` — added `getActivityStats(metric, range)`.
+- **REWRITTEN** `client/src/components/Profile/athletePrivate/ActivityStrengthCard.jsx` — fetches real stats keyed by `(metric, range)`, caches results in a module-level `Map` (per page mount), shows all-time total as the big number, delta line as `▲/▼/– ±N (X.X%) <rangeLabel>` with green/red/gray. Sparkline shows real points; flat dashed line in empty windows. New `3M` chip added to `RANGES`.
+
+### Decisions locked
+- **deltaPct math (Option A)**: `windowDelta / allTimeBeforeStart * 100`. Rationale: matches the stock-app mental model — % growth from where you started the window. On fresh accounts with most events recent, this naturally produces high percentages on long ranges (1Y can show 1750% if there were only 2 events before the year started). That's correct, not a bug.
+- **Tab labels unchanged**: Profile Views | Connections | Received | Sent | Strength. "Connections" = mutual accepted (not requests).
+- **Received/Sent count all `ConnectionRequest` statuses** (pending/accepted/rejected/cancelled), keyed by `createdAt`. Activity, not outcomes.
+- **Connections data source**: `Connection.connectedAt` where `me ∈ {user1, user2}` and `status:'active'`. (Note: `Relationship.acceptedAt` from the original plan does not exist — the `Connection` model in `server/models/Relationship.js` is what was meant.)
+- **Empty window**: flat zero series of correct length, total/delta = 0, percentage = 0% in gray (no division-by-zero — when `allTimeBeforeStart === 0`, deltaPct returns 0).
+- **Cache**: per-`(tab,range)` `Map` lives for the component lifetime (resets on remount, e.g. after a save that refetches the bundle).
+
+---
+
+## Phase F — visual rebuild to Claude Design layout (DONE)
+
+Replaces the Phase B/C layout with the new 3-column Claude Design layout. Backend semantics untouched — all editing flows, validation, and `profileService` writes preserved. Phase E was deferred behind Phase F at user's request.
+
+### Layout (1440×900 desktop)
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        Header card                              │
+├──────────────┬──────────────┬───────────────────────────────────┤
+│  Experience  │  Education   │  NIL Preferences                  │
+├──────────────┴──────────────┼───────────────────────────────────┤
+│   Connection Center         │  Activity & Strength              │
+└─────────────────────────────┴───────────────────────────────────┘
+```
+Grid: `gridTemplateColumns: '1fr 1fr 340px'`, `gridTemplateRows: '218px 260px minmax(0, 1fr)'`, gap 12. Page offset `SIDEBAR_W + 32 = 260` from left.
+
+### Files
+- **REWRITTEN** `client/src/pages/Profile/AthleteProfilePage.jsx` — 3-col grid template, NIL draft state lifted to page (commits via `/me/nil-preferences` and/or `/me/interests`), `AthleteConnectionsModal` mounts here.
+- **REWRITTEN** `client/src/components/Profile/athletePrivate/HeaderCard.jsx` — short banner + avatar overlap, single pencil next to name (opens combined Identity modal), About Me column with bronze eyebrow, dashed-border contact strip with `Eye`/`Lock` `PUBLIC`/`PRIVATE` badges + `+` button for socials. Connection count is a clickable button that opens `AthleteConnectionsModal`.
+- **REWRITTEN** `client/src/components/Profile/athletePrivate/ExperienceCard.jsx`, `EducationCard.jsx` — 34px square logo, 13px title, 12px org/school + `TypePill`, 11px dates, 2-line description clamp.
+- **REWRITTEN** `client/src/components/Profile/athletePrivate/NILPreferencesCard.jsx` — inline editing. Custom dropdown tile (portal-based, not `<select>`) for Deal Size + Timeline to fix oversized macOS popover. Pill rails for Focus Areas + Interests with `+` opening `FocusAreasModal` / `InterestsModal`. "UNSAVED CHANGES" Cancel/Confirm bar appears when the page-level `nilDraft` is non-null.
+- **REWRITTEN** `client/src/components/Profile/athletePrivate/ConnectionCenterCard.jsx` — `1fr 1fr 1fr 44px` grid with 32px circular bronze arrow opening the modal. Uses shared `ConnectionMiniCard`.
+- **REWRITTEN** `client/src/components/Profile/athletePrivate/ActivityStrengthCard.jsx` — Strength tab rebuilt with 190px ring + scroll-down-for-todo. Metric tabs use design's faint-gold-highlight + inset bottom shadow active state. Range chips kept `3M`, now `flex:1` per chip and pinned to bottom via `marginTop: auto`.
+- **NEW** `client/src/components/Profile/athletePrivate/FocusAreasModal.jsx`, `InterestsModal.jsx` — single-section catalog editors that **stage** selections into the page-level NIL draft (don't commit directly).
+- **NEW** `client/src/components/Profile/athletePrivate/AthleteConnectionsModal.jsx` — 960px, navy backdrop with blur, search + Focus filter + Location filter (Any / 25 / 100 / Remote — haversine on `Profile.coordinates`, Remote = literal "remote" string OR missing location). Scoped to athlete private profile only; legacy `ConnectionsModal` still used elsewhere.
+- **NEW** `client/src/components/Profile/athletePrivate/ProfilePreviewModal.jsx` — portal shell for in-page preview of a user's public profile. Currently triggered by Connection mini-card View. Phase E adds the HeaderCard "Preview public" button which mounts the same shell against the viewer's own bundle.
+- **NEW** `client/src/components/Profile/athletePrivate/shared/CatalogTypeahead.jsx` — lifted from the now-deleted NILPreferencesModal; shared by FocusAreasModal + InterestsModal.
+- **NEW** `client/src/components/Profile/athletePrivate/shared/ConnectionMiniCard.jsx` — the mini-card visual + `buildMiniCardData()` normalization. Stub rating/EXP/expertise/aboutMe fallbacks tagged `TODO: F4 cleanup`.
+- **NEW** `client/src/utils/geo.js` — haversine + `isRemoteLocation`.
+- **MODIFIED** `client/src/components/Profile/athletePrivate/shared/icons.jsx` — added `Users, DollarSign, Clock, Target, Heart, ExternalLink, MessageSquare, Search, X`.
+- **MODIFIED** `client/src/components/Profile/athletePrivate/shared/primitives.jsx` — `Card` body wrapper now `display:flex; flexDirection:column` (was the root cause of the Activity chart not filling its container).
+- **MODIFIED** `client/src/components/Profile/athletePrivate/shared/LocationField.jsx` — `onChange(v, coords)` second arg returns `{lat, lng}` for Photon picks, `null` for Remote / manual / no pick.
+- **MODIFIED** `client/src/components/Profile/athletePrivate/IdentityModal.jsx` — captures `coordinates` from LocationField into draft, includes in PATCH when location changed.
+- **MODIFIED** `server/models/Profile.js` — added `coordinates: {lat, lng}`, `rating: Number (0-5)`, `_seedTag: String (select:false)`.
+- **MODIFIED** `server/controllers/profileController.js` — accepts `coordinates` on `/me/athlete` partial patch, surfaces it in the bundle.
+- **NEW** `server/scripts/seedConnectionMiniCardStubs.js` — promotes Phase D ghost users to realistic advisors/agents (idempotent, `--user` to scope, `--apply` to write, `--clear` to undo). Pre-launch cleanup documented in CLAUDE.md.
+- **DELETED** `client/src/components/Profile/athletePrivate/NILPreferencesModal.jsx` — replaced by inline NIL card + single-section FocusAreas/Interests modals.
+
+### Decisions locked (Phase F)
+- One pencil per card section; the HeaderCard pencil sits inline next to the user's name (not in the banner — user feedback).
+- Deal Size enum: **keep the granular shipped set** (`0-1k`…`100k+`); don't switch back to the design's coarser buckets.
+- 3M range chip on Activity card: **keep** (Phase D addition, not in design but user wants it).
+- Density: comfortable only — no Tweaks toggle in shipped buildout.
+- Stub mini-card data (rating/EXP/expertise/about): **DB seed (option B)**, not render-time stubs. Render-time stubs remain as last-resort fallback for unseeded users. Pre-launch cleanup required.
+- View button on connection mini-card: opens in-page `ProfilePreviewModal` (same shell as the planned Phase E Preview-Public button).
+- `AthleteConnectionsModal` is scoped to the athlete private profile only; the legacy `ConnectionsModal` still backs other surfaces.
+- Distance filter: stored `coordinates` (option B), populated by LocationField. Older docs without coords are excluded from 25/100mi buckets. "Remote" matches both literal "remote" strings and missing locations.
 
 ---
 
@@ -226,8 +293,27 @@ cd server && node scripts/migrateAthleteProfileShape.js
 cd server && node scripts/migrateAthleteProfileShape.js --apply
 # Migrate a single user
 cd server && node scripts/migrateAthleteProfileShape.js --apply --user <userId>
+
+# Phase F — promote Phase D ghosts to realistic advisors (dev-only)
+cd server && node scripts/seedConnectionMiniCardStubs.js --user <athleteId>            # dry-run
+cd server && node scripts/seedConnectionMiniCardStubs.js --user <athleteId> --apply    # write
+cd server && node scripts/seedConnectionMiniCardStubs.js --user <athleteId> --clear --apply   # undo
 ```
 
 ## Routes for the headed Playwright viewport
 
-- `http://localhost:5173/profile/athlete` — the athlete private profile (post-Phase-C). All edit modals are wired; `ActivityStrengthCard` still uses the seeded stub timeseries until Phase D ships.
+- `http://localhost:5173/profile/athlete` — the athlete private profile (post-Phase-D). All edit modals wired; `ActivityStrengthCard` shows real timeseries fetched from `/api/profile/me/stats/*`.
+
+## Seed data (Phase D)
+
+```bash
+# Backfill for the test athlete account
+cd server && node scripts/seedActivityStats.js --user 6941fc896016bb657e1f99cd
+# Clear seed rows
+cd server && node scripts/seedActivityStats.js --user 6941fc896016bb657e1f99cd --clear
+```
+
+Test account map (dev DB):
+- `athlete@test.com` → `6941fc896016bb657e1f99cd` (John Admin, athlete)
+- `advisor@test.com` → `6945e5e6654ba821282dc357`
+- `agent@test.com` → `6945ee3158162f88734e68b3`

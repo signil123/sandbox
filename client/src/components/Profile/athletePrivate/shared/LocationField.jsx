@@ -155,8 +155,22 @@ export const LocationField = ({ label = 'Location', value, onChange, placeholder
     return list
   }, [remoteRow, suggestions])
 
-  const commitChoice = (v) => {
-    onChange?.(v)
+  // Extract [lng, lat] (GeoJSON order) from a Photon feature into our own
+  // {lat, lng}. Returns null for Remote / manual entry / malformed responses.
+  const coordsFromFeature = (raw) => {
+    if (!raw || raw.isRemote) return null
+    const coords = raw?.geometry?.coordinates
+    if (!Array.isArray(coords) || coords.length < 2) return null
+    const [lng, lat] = coords
+    if (typeof lat !== 'number' || typeof lng !== 'number') return null
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+    return { lat, lng }
+  }
+
+  const commitChoice = (v, raw) => {
+    // Second arg lets the parent capture {lat, lng} when the user picks from
+    // Photon. Manual entry / Remote pass null so the field is cleared on save.
+    onChange?.(v, coordsFromFeature(raw))
     setQuery(v)
     setOpen(false)
     setActiveIdx(-1)
@@ -173,7 +187,7 @@ export const LocationField = ({ label = 'Location', value, onChange, placeholder
     } else if (e.key === 'Enter') {
       if (activeIdx >= 0 && rows[activeIdx]) {
         e.preventDefault()
-        commitChoice(rows[activeIdx].formatted)
+        commitChoice(rows[activeIdx].formatted, rows[activeIdx].raw)
       }
     } else if (e.key === 'Escape') {
       e.preventDefault()
@@ -198,7 +212,8 @@ export const LocationField = ({ label = 'Location', value, onChange, placeholder
   const commitManual = () => {
     const city = manualCity.trim()
     if (!city || !manualState) return
-    commitChoice(`${city}, ${manualState}`)
+    // Manual entry has no coords — pass undefined raw so commitChoice forwards null.
+    commitChoice(`${city}, ${manualState}`, null)
     setManualMode(false)
   }
 
@@ -353,7 +368,7 @@ export const LocationField = ({ label = 'Location', value, onChange, placeholder
                 onMouseEnter={() => setActiveIdx(i)}
                 onMouseDown={(e) => {
                   e.preventDefault()
-                  commitChoice(row.formatted)
+                  commitChoice(row.formatted, row.raw)
                 }}
                 style={{
                   display: 'flex',

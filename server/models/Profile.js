@@ -33,6 +33,35 @@ const ProfileSchema = new mongoose.Schema(
     location: {
       type: String,
     },
+    // Geocoded coordinates of `location`. Populated by the client when the
+    // user picks a place from the LocationField typeahead (Photon returns
+    // lat/lng with each suggestion). Used by AthleteConnectionsModal's
+    // distance filter (haversine in `client/src/utils/geo.js`). Older docs
+    // may not have this set; the filter treats missing coords as
+    // out-of-range for any non-"Any" distance bucket.
+    coordinates: {
+      lat: { type: Number, default: null },
+      lng: { type: Number, default: null },
+      _id: false,
+    },
+    // Average rating shown on the connection mini-card (advisor / agent
+    // profiles). Populated either via real reviews (future) or by the F4
+    // dev-only seed script `seedConnectionMiniCardStubs.js`. Null when
+    // unknown — UI renders 'N/A' in that case.
+    rating: {
+      type: Number,
+      default: null,
+      min: 0,
+      max: 5,
+    },
+    // Internal marker set by dev-only seed scripts so a corresponding
+    // `--clear` invocation can find and remove the doc cleanly.
+    // Must be cleared before production sign-off.
+    _seedTag: {
+      type: String,
+      default: null,
+      select: false,
+    },
     locationPreference: {
       type: String,
       enum: ['In-person', 'Remote', 'Hybrid', null],

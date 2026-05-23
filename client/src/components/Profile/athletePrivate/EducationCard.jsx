@@ -1,5 +1,5 @@
 import React from 'react'
-import { Card, EditPencil, FadeScroll, EmptyState } from './shared/primitives'
+import { Card, EditPencil, EmptyState } from './shared/primitives'
 
 // Education card. Reads bundle.profile.education (Phase A canonical shape):
 //   { school, degree, fieldOfStudy, startYear, endYear, description,
@@ -11,68 +11,61 @@ const EducationItem = ({ e, isLast }) => {
   return (
     <div
       style={{
-        display: 'flex',
-        gap: 11,
-        alignItems: 'flex-start',
-        padding: '11px 0',
+        display: 'grid',
+        gridTemplateColumns: '34px 1fr',
+        gap: 10,
+        padding: '8px 0',
         borderBottom: isLast ? 0 : '1px solid rgba(22,49,70,0.06)',
       }}
     >
       <div
         style={{
-          width: 42,
-          height: 42,
-          borderRadius: 10,
+          width: 34,
+          height: 34,
+          borderRadius: 6,
           background: logoBg,
           color: '#fff',
-          display: 'inline-flex',
+          display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          fontFamily: '"Cormorant Garamond", Georgia, serif',
-          fontStyle: 'italic',
-          fontSize: 23,
-          fontWeight: 600,
-          flexShrink: 0,
-          boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.08)',
+          fontSize: 10,
+          fontWeight: 800,
+          marginTop: 2,
         }}
       >
         {logoText}
       </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div
-          style={{
-            fontSize: 13,
-            fontWeight: 800,
-            color: '#163146',
-            letterSpacing: '-0.005em',
-            lineHeight: 1.25,
-          }}
-        >
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#163146' }}>
           {e.school || 'Untitled school'}
         </div>
         {(e.degree || e.fieldOfStudy) && (
-          <div style={{ fontSize: 12, color: '#163146', fontWeight: 600, marginTop: 2 }}>
+          <div style={{ fontSize: 12, color: '#163146', fontWeight: 500, marginTop: 1 }}>
             {[e.degree, e.fieldOfStudy].filter(Boolean).join(' · ')}
           </div>
         )}
         {(e.startYear || e.endYear) && (
-          <div style={{ fontSize: 11, color: 'rgba(22,49,70,0.55)', marginTop: 2 }}>
+          <div style={{ fontSize: 11, color: 'rgba(22,49,70,0.55)', marginTop: 1 }}>
             {e.startYear}
             {e.startYear && e.endYear && ' – '}
             {e.endYear}
           </div>
         )}
         {e.description && (
-          <p
+          <div
             style={{
-              margin: '6px 0 0',
-              fontSize: 11.5,
-              lineHeight: 1.5,
-              color: 'rgba(22,49,70,0.78)',
+              fontSize: 11,
+              color: 'rgba(22,49,70,0.65)',
+              marginTop: 4,
+              lineHeight: 1.45,
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
             }}
           >
             {e.description}
-          </p>
+          </div>
         )}
       </div>
     </div>
@@ -86,17 +79,19 @@ const EducationCard = ({ bundle, onEdit }) => {
       title='Education'
       count={items.length}
       action={<EditPencil onClick={onEdit} label='Edit education' />}
+      padding={14}
     >
       {items.length === 0 ? (
         <EmptyState message='No education added, yet.' />
       ) : (
-        <FadeScroll>
-          <div>
-            {items.map((e, i) => (
-              <EducationItem key={i} e={e} isLast={i === items.length - 1} />
-            ))}
-          </div>
-        </FadeScroll>
+        <div
+          className='no-scrollbar'
+          style={{ overflowY: 'auto', paddingRight: 4, flex: 1, minHeight: 0 }}
+        >
+          {items.map((e, i) => (
+            <EducationItem key={i} e={e} isLast={i === items.length - 1} />
+          ))}
+        </div>
       )}
     </Card>
   )

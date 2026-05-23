@@ -17,9 +17,26 @@ Signil is an NIL (Name / Image / Likeness) marketplace connecting student-athlet
 - **Don't touch public profile views unless intentional.** `PublicProfilePage.jsx`, `AthletePublicView.jsx`, `AdvisorPublicView.jsx`, `UserPreviewCard.jsx` read the same Profile document the private page edits — schema changes propagate to them automatically. Forking shapes will break those views.
 
 ## Active project
-**Athlete Private Profile rebuild** — replaced `client/src/pages/Profile/ProfilePage.jsx` (athlete role only) with `AthleteProfilePage.jsx`, a new design from a Claude Design handoff bundle. Phases A, B, and C are complete; Phase D (real Activity & Strength data) is next.
+**Athlete Private Profile rebuild** — replaced `client/src/pages/Profile/ProfilePage.jsx` (athlete role only) with `AthleteProfilePage.jsx`, a new design from a Claude Design handoff bundle. Phases A–F shipped (F = visual rebuild to the new 3-col Claude Design layout); Phase E (Preview-Public modal entry point) deferred.
 
 Canonical state lives in `client/src/pages/Profile/PHASE_HANDOFF.md`. Read that before resuming work on this project.
+
+## Pre-launch cleanup (Athlete Private Profile)
+
+Before official athlete-profile sign-off, run the seed teardown so synthetic dev data doesn't ship:
+
+```bash
+cd server && node scripts/seedConnectionMiniCardStubs.js --user <athleteId> --clear --apply
+```
+
+This script (Phase F) promotes Phase D's seed-ghost users into realistic advisor/agent profiles for the Connection Center + AthleteConnectionsModal visuals. Every Profile doc it writes carries `_seedTag: 'phase-f-mini-card-stub'`; `--clear` removes them by that tag and restores user names/userTypes. `--apply` is required for either direction (without it, the script is dry-run only).
+
+Verify cleanup ran by checking no Profile doc has `_seedTag` set:
+```js
+db.profiles.countDocuments({ _seedTag: { $ne: null } })   // → 0
+```
+
+The Connection mini-card UI (`client/src/components/Profile/athletePrivate/shared/ConnectionMiniCard.jsx`) also contains client-side stub fallbacks (rating / EXP / expertise / about-me) for any connection whose Profile lacks those fields. They render as a last resort when the DB seed hasn't run. Search the codebase for `TODO: F4 cleanup` — once all real users have real Profile docs, these stub paths can be deleted.
 
 ## Dashboard layout offset
 The dashboard sidebar is `position: fixed`, 228px wide, with 16px left margin. Page content must offset by `SIDEBAR_W + 32 = 260px` from the left to clear it. The pattern in use:
@@ -30,13 +47,16 @@ const SIDEBAR_W = 228
 ```
 
 ## Schema canon
-After Phase A, the canonical Profile shape for athletes:
+After Phase A (+ Phase F additions), the canonical Profile shape for athletes:
 - `experience: [{ role, company, type, startDate, endDate, location, description, logoText, logoBg }]`
 - `education: [{ school, degree, fieldOfStudy, startYear, endYear, description, logoText, logoBg }]`
 - `socials: [{ platform, handle, url, public }]` (platforms: instagram, twitter, tiktok, youtube, linkedin, facebook)
 - `interests: [String]` — catalog values from `server/data/interestsCatalog.js`, min 5 enforced server-side
-- `nilPreferences: { dealSize, timeline, focusAreas: [{title, description}] }`
+- `nilPreferences: { dealSize, timeline, focusAreas: [String] }` — focusAreas catalog from `server/data/focusAreasCatalog.js`, min 3
 - `publicVisibility: { email: bool, phone: bool }`
+- `coordinates: { lat: Number, lng: Number }` (Phase F) — populated by LocationField when user picks a Photon suggestion. Powers the distance filter in AthleteConnectionsModal via haversine. Older docs may have null; filter treats missing coords as out-of-range for `25 mi` / `100 mi` buckets.
+- `rating: Number` (Phase F, 0–5) — for advisor/agent profiles shown on the Connection mini-card. Null when unknown.
+- `_seedTag: String` (Phase F, dev-only) — marker for seed-script-written docs. Must be null in production; see "Pre-launch cleanup" above.
 - Backwards-compat virtuals on Profile: `socialMedia` (legacy `{instagram, twitter, tiktok}`) and `socialLinks` (legacy `{twitter, instagram, linkedin, facebook}`) — derived from `socials`. Public views still read `socialMedia`.
 
 ## Useful endpoints

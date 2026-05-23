@@ -380,6 +380,7 @@ export const updateAthleteProfile = async (req, res, next) => {
       position,
       classYear,
       location,
+      coordinates,
       locationPreference,
       // Bio
       aboutMe,
@@ -426,6 +427,21 @@ export const updateAthleteProfile = async (req, res, next) => {
     if (position !== undefined) updateData.position = cleanStr(position, 60)
     if (classYear !== undefined) updateData.classYear = cleanStr(classYear, 12)
     if (location !== undefined) updateData.location = cleanStr(location, 160)
+    if (coordinates !== undefined) {
+      // Accept {lat, lng} numeric pair, or null to clear. Anything else gets
+      // ignored so a malformed payload can't corrupt the field.
+      if (coordinates === null) {
+        updateData.coordinates = { lat: null, lng: null }
+      } else if (
+        coordinates &&
+        typeof coordinates.lat === 'number' &&
+        typeof coordinates.lng === 'number' &&
+        Number.isFinite(coordinates.lat) &&
+        Number.isFinite(coordinates.lng)
+      ) {
+        updateData.coordinates = { lat: coordinates.lat, lng: coordinates.lng }
+      }
+    }
     if (locationPreference !== undefined) {
       const allowed = new Set(['In-person', 'Remote', 'Hybrid', null, ''])
       updateData.locationPreference = allowed.has(locationPreference) ? (locationPreference || null) : null
@@ -1304,6 +1320,7 @@ export const getAthleteProfileBundle = async (req, res, next) => {
         position: profile.position,
         classYear: profile.classYear,
         location: profile.location,
+        coordinates: profile.coordinates || null,
         locationPreference: profile.locationPreference,
         // Structured arrays (Phase A — new shape)
         experience: Array.isArray(profile.experience) ? profile.experience : [],

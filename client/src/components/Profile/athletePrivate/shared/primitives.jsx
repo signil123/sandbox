@@ -54,7 +54,19 @@ export const Card = ({ title, count, action, children, padding = 18, style }) =>
         {action}
       </header>
     )}
-    <div style={{ flex: 1, minHeight: 0, padding: `0 ${padding}px ${padding}px` }}>{children}</div>
+    <div
+      style={{
+        flex: 1,
+        minHeight: 0,
+        padding: `0 ${padding}px ${padding}px`,
+        // Card body must be a flex column so children using `flex:1` (e.g.
+        // ActivityStrengthCard's chart fill region) actually flex-grow.
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      {children}
+    </div>
   </section>
 )
 

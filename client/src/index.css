@@ -147,3 +147,14 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Hide native scrollbars on opt-in scrollers. Used by athletePrivate cards. */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
