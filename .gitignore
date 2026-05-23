@@ -12,3 +12,5 @@ build
 *.bak
 # Loose screenshots at the repo root only (assets under client/ stay tracked).
 /*.png
+# Redesign reference captures (Contra/Upwork screenshots).
+tmp/
